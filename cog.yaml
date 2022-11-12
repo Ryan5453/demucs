@@ -3,7 +3,7 @@ build:
   cuda: "11.6.2"
   system_packages:
     - "ffmpeg"
-  python_version: "3.10"
+  python_version: "3.9"
   python_packages:
     - "demucs==3.0.5"
 
