@@ -1,10 +1,10 @@
 build:
   gpu: true
-  cuda: "11.6.2"
   system_packages:
     - "ffmpeg"
   python_version: "3.9"
   python_packages:
-    - "demucs==3.0.5"
+    - "torch==1.12.1 --extra-index-url=https://download.pytorch.org/whl/cu116"
+    - "demucs==3.0.6"
 
 predict: "predict.py:Predictor"
