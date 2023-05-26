@@ -1,4 +1,5 @@
 import tempfile
+from io import BytesIO
 from typing import List
 
 import torch
@@ -20,7 +21,7 @@ class DemucsResponse(BaseModel):
 
 class Predictor(BasePredictor):
     def setup(self):
-        self.model = get_model("mdx_extra_q")
+        self.model = get_model("htdemucs")
 
     def predict(
         self,
@@ -28,7 +29,7 @@ class Predictor(BasePredictor):
         two_stems: str = Input(
             default=None,
             description="If you want to separate into two stems, enter the name of the stem here.",
-            choices=["drums", "bass", "other", "vocals"],
+            choices=["drums", "bass", "other", "vocals", "guitar", "piano"],
         ),
         int24: bool = Input(
             default=False,
@@ -40,7 +41,7 @@ class Predictor(BasePredictor):
         ),
         clip_mode: str = Input(
             default="rescale",
-            description="trategy for avoiding clipping: rescaling entire signal if necessary (rescale) or hard clipping (clamp)",
+            description="Strategy for avoiding clipping: rescaling entire signal if necessary (rescale) or hard clipping (clamp)",
             choices=["rescale", "clamp"],
         ),
         mp3: bool = Input(
@@ -64,7 +65,6 @@ class Predictor(BasePredictor):
         ),
         overlap: float = Input(default=0.25, description="Overlap between the splits."),
     ) -> DemucsResponse:
-
         self.model.cpu()
         self.model.eval()
 
@@ -103,7 +103,9 @@ class Predictor(BasePredictor):
             for source, name in zip(sources, self.model.sources):
                 with tempfile.NamedTemporaryFile(suffix=f".{ext}") as f:
                     save_audio(source.cpu(), f.name, **kwargs)
-                    output_stems.append(DemucsStem(name=name, audio=BytesIO(open(f.name, "rb").read())))
+                    output_stems.append(
+                        DemucsStem(name=name, audio=BytesIO(open(f.name, "rb").read()))
+                    )
         else:
             sources = list(sources)
 
@@ -111,7 +113,9 @@ class Predictor(BasePredictor):
                 save_audio(
                     sources[self.model.sources.index(two_stems)].cpu(), f.name, **kwargs
                 )
-                output_stems.append(DemucsStem(name=two_stems, audio=BytesIO(open(f.name, "rb").read())))
+                output_stems.append(
+                    DemucsStem(name=two_stems, audio=BytesIO(open(f.name, "rb").read()))
+                )
 
             sources.pop(self.model.sources.index(two_stems))
 
@@ -122,7 +126,9 @@ class Predictor(BasePredictor):
             with tempfile.NamedTemporaryFile(suffix=f".{ext}") as f:
                 save_audio(other_stem.cpu(), f.name, **kwargs)
                 output_stems.append(
-                    DemucsStem(name="no_" + two_stems, audio=BytesIO(open(f.name, "rb").read())))
+                    DemucsStem(
+                        name="no_" + two_stems, audio=BytesIO(open(f.name, "rb").read())
+                    )
                 )
 
         return DemucsResponse(stems=output_stems)
