@@ -4,7 +4,6 @@ build:
     - "ffmpeg"
   python_version: "3.9"
   python_packages:
-    - "torch==1.12.1 --extra-index-url=https://download.pytorch.org/whl/cu116"
-    - "demucs==3.0.6"
+    - "demucs==4.0.0"
 
 predict: "predict.py:Predictor"
