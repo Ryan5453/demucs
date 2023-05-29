@@ -4,10 +4,11 @@ from typing import List
 
 import torch
 from cog import BaseModel, BasePredictor, File, Input, Path
-from demucs.apply import apply_model
+from demucs.apply import apply_model, BagOfModels
 from demucs.audio import save_audio
 from demucs.pretrained import get_model
 from demucs.separate import load_track
+from demucs.htdemucs import HTDemucs
 
 
 class DemucsStem(BaseModel):
@@ -20,88 +21,92 @@ class DemucsResponse(BaseModel):
 
 
 class Predictor(BasePredictor):
-    def setup(self):
-        self.model = get_model("htdemucs")
 
     def predict(
         self,
-        audio: Path = Input(description="The audio file to separate"),
+        audio: Path = Input(description="Upload the file to be processed here."),
+        model: str = Input(
+            default="htdemucs",
+            description="Choose the demucs audio that proccesses your audio. Options: htdemucs (first version of hybrid transformer demucs), htdemucs_ft (fine-tuned version of htdemucs, separation will take 4 times longer but may be a bit better), htdemucs_6s (adds piano and guitar sources to htdemucs), hdemucs_mmi (hybrid demucs v3, this is what the cog previously used by default), mdx (trained on exclusively MusDB HQ), mdx_q (quantized version of mdx, slightly faster but worse quality), mdx_extra (adds extra training data to mdx), mdx_extra_q (quantized version of mdx_extra, slightly faster but worse quality)",
+            choices=["htdemucs", "htdemucs_ft", "htdemucs_6s", "hdemucs_mmi", "mdx", "mdx_q", "mdx_extra", "mdx_extra_q"]
+        ),
         two_stems: str = Input(
             default=None,
-            description="If you want to separate into two stems, enter the name of the stem here.",
+            description="If you just want to isolate one stem, you can choose it here. This does not improve performance, as it just combines all of the stems that you did not choose.",
             choices=["drums", "bass", "other", "vocals", "guitar", "piano"],
         ),
-        int24: bool = Input(
-            default=False,
-            description="If you want to output 24 bit wav files, set this to true.",
+        output_format: str = Input(
+            default="mp3",
+            description="Choose the audio format you would like the result to be returned in.",
+            choices=["mp3", "aac", "flac", "wav"]
         ),
-        float32: bool = Input(
-            default=False,
-            description="If you want to output 32 bit wav files, set this to true. Keep in mind this is 2x bigger.",
+        no_split: bool = Input(
+            default=True,
+            description=""
+        ),
+        segment: int = Input(
+            default=None,
+            description=""
         ),
         clip_mode: str = Input(
             default="rescale",
-            description="Strategy for avoiding clipping: rescaling entire signal if necessary (rescale) or hard clipping (clamp)",
+            description="Choose the strategy for avoiding clipping. Rescaling adjusts the overall scale of a signal to prevent any clipping, while hard clipping limits the signal to a maximum range, distorting parts of the signal that exceed that range.",
             choices=["rescale", "clamp"],
-        ),
-        mp3: bool = Input(
-            default=False,
-            description="If you want to convert the output wavs to mp3, set this to true.",
-        ),
-        mp3_bitrate: int = Input(
-            default=320, description="The bitrate of the converted mp3."
         ),
         shifts: int = Input(
             default=1,
-            description="Number of random shifts for equivariant stabilization. Increase separation time but improves quality for Demucs. 10 was used in the original paper.",
+            description="Choose the amount random shifts for equivariant stabilization. This performs multiple predictions with random shifts of the input and averages them, which makes it x times slower.",
         ),
-        workers: int = Input(
-            default=0,
-            description="Number of jobs. This can increase memory usage but will be much faster when multiple cores are available.",
+        overlap: float = Input(
+            default=0.25, 
+            description="Choose the amount of overlap between prediction windows."
         ),
-        split: bool = Input(
-            default=False,
-            description="If you want to split audio in chunks, set this to true. This can use large amounts of memory.",
-        ),
-        overlap: float = Input(default=0.25, description="Overlap between the splits."),
     ) -> DemucsResponse:
-        self.model.cpu()
-        self.model.eval()
 
-        wav = load_track(audio, self.model.audio_channels, self.model.samplerate)
+        model = get_model(model)
+
+        if isinstance(model, BagOfModels):
+            if segment is not None:
+                for sub in model.models:
+                    sub.segment = segment
+        else:
+            if segment is not None:
+                model.segment = segment
+
+        if two_stems is not None and two_stems not in model.sources:
+            raise Exception("Chosen stem is not supported by chosen model.")
+
+        model.cpu()
+        model.eval()
+
+        wav = load_track(audio, model.audio_channels, model.samplerate)
 
         ref = wav.mean(0)
         wav = (wav - ref.mean()) / ref.std()
         sources = apply_model(
-            self.model,
+            model,
             wav[None],
             device="cuda" if torch.cuda.is_available() else "cpu",
+            split=True,
             shifts=shifts,
-            split=split,
             overlap=overlap,
             progress=True,
-            num_workers=workers,
         )[0]
         sources = sources * ref.std() + ref.mean()
 
-        if mp3:
-            ext = "mp3"
-        else:
-            ext = "wav"
-
         kwargs = {
-            "samplerate": self.model.samplerate,
-            "bitrate": mp3_bitrate,
+            "samplerate": model.samplerate,
+            "bitrate": 320,
             "clip": clip_mode,
-            "as_float": float32,
-            "bits_per_sample": 24 if int24 else 16,
+            "as_float": False,
+            "bits_per_sample": 24,
         }
 
         output_stems = []
 
         if two_stems is None:
             for source, name in zip(sources, self.model.sources):
-                with tempfile.NamedTemporaryFile(suffix=f".{ext}") as f:
+                with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                     save_audio(source.cpu(), f.name, **kwargs)
                     output_stems.append(
                         DemucsStem(name=name, audio=BytesIO(open(f.name, "rb").read()))
@@ -109,7 +114,7 @@ class Predictor(BasePredictor):
         else:
             sources = list(sources)
 
-            with tempfile.NamedTemporaryFile(suffix=f".{ext}") as f:
+            with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                 save_audio(
                     sources[self.model.sources.index(two_stems)].cpu(), f.name, **kwargs
                 )
@@ -123,7 +128,7 @@ class Predictor(BasePredictor):
             for i in sources:
                 other_stem += i
 
-            with tempfile.NamedTemporaryFile(suffix=f".{ext}") as f:
+            with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                 save_audio(other_stem.cpu(), f.name, **kwargs)
                 output_stems.append(
                     DemucsStem(
