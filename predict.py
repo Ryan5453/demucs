@@ -4,11 +4,11 @@ from typing import List
 
 import torch
 from cog import BaseModel, BasePredictor, File, Input, Path
-from demucs.apply import apply_model, BagOfModels
+from demucs.apply import BagOfModels, apply_model
 from demucs.audio import save_audio
+from demucs.htdemucs import HTDemucs
 from demucs.pretrained import get_model
 from demucs.separate import load_track
-from demucs.htdemucs import HTDemucs
 
 
 class DemucsStem(BaseModel):
@@ -21,14 +21,22 @@ class DemucsResponse(BaseModel):
 
 
 class Predictor(BasePredictor):
-
     def predict(
         self,
         audio: Path = Input(description="Upload the file to be processed here."),
         model: str = Input(
             default="htdemucs",
-            description="Choose the demucs audio that proccesses your audio. Options: htdemucs (first version of hybrid transformer demucs), htdemucs_ft (fine-tuned version of htdemucs, separation will take 4 times longer but may be a bit better), htdemucs_6s (adds piano and guitar sources to htdemucs), hdemucs_mmi (hybrid demucs v3, this is what the cog previously used by default), mdx (trained on exclusively MusDB HQ), mdx_q (quantized version of mdx, slightly faster but worse quality), mdx_extra (adds extra training data to mdx), mdx_extra_q (quantized version of mdx_extra, slightly faster but worse quality)",
-            choices=["htdemucs", "htdemucs_ft", "htdemucs_6s", "hdemucs_mmi", "mdx", "mdx_q", "mdx_extra", "mdx_extra_q"]
+            description="Choose the demucs audio that proccesses your audio. Options: htdemucs (first version of hybrid transformer demucs), htdemucs_ft (fine-tuned version of htdemucs, separation will take 4 times longer but may be a bit better), htdemucs_6s (adds piano and guitar sources to htdemucs), hdemucs_mmi (hybrid demucs v3), mdx (trained on exclusively MusDB HQ), mdx_q (quantized version of mdx, slightly faster but worse quality), mdx_extra (adds extra training data to mdx, this is what the cog previously used by default), mdx_extra_q (quantized version of mdx_extra, slightly faster but worse quality)",
+            choices=[
+                "htdemucs",
+                "htdemucs_ft",
+                "htdemucs_6s",
+                "hdemucs_mmi",
+                "mdx",
+                "mdx_q",
+                "mdx_extra",
+                "mdx_extra_q",
+            ],
         ),
         two_stems: str = Input(
             default=None,
@@ -38,15 +46,15 @@ class Predictor(BasePredictor):
         output_format: str = Input(
             default="mp3",
             description="Choose the audio format you would like the result to be returned in.",
-            choices=["mp3", "aac", "flac", "wav"]
+            choices=["mp3", "aac", "flac", "wav"],
         ),
-        no_split: bool = Input(
+        split: bool = Input(
             default=True,
-            description=""
+            description="Choose whether or not the audio should be split into chunks.",
         ),
         segment: int = Input(
             default=None,
-            description=""
+            description="Choose the size of each chunk. This only has an effect if split is set to true.",
         ),
         clip_mode: str = Input(
             default="rescale",
@@ -58,12 +66,14 @@ class Predictor(BasePredictor):
             description="Choose the amount random shifts for equivariant stabilization. This performs multiple predictions with random shifts of the input and averages them, which makes it x times slower.",
         ),
         overlap: float = Input(
-            default=0.25, 
-            description="Choose the amount of overlap between prediction windows."
+            default=0.25,
+            description="Choose the amount of overlap between prediction windows.",
         ),
     ) -> DemucsResponse:
-
         model = get_model(model)
+
+        if two_stems is not None and two_stems not in model.sources:
+            raise Exception("Chosen stem is not supported by chosen model.")
 
         if isinstance(model, BagOfModels):
             if segment is not None:
@@ -72,9 +82,6 @@ class Predictor(BasePredictor):
         else:
             if segment is not None:
                 model.segment = segment
-
-        if two_stems is not None and two_stems not in model.sources:
-            raise Exception("Chosen stem is not supported by chosen model.")
 
         model.cpu()
         model.eval()
@@ -105,7 +112,7 @@ class Predictor(BasePredictor):
         output_stems = []
 
         if two_stems is None:
-            for source, name in zip(sources, self.model.sources):
+            for source, name in zip(sources, model.sources):
                 with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                     save_audio(source.cpu(), f.name, **kwargs)
                     output_stems.append(
@@ -116,13 +123,13 @@ class Predictor(BasePredictor):
 
             with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                 save_audio(
-                    sources[self.model.sources.index(two_stems)].cpu(), f.name, **kwargs
+                    sources[model.sources.index(two_stems)].cpu(), f.name, **kwargs
                 )
                 output_stems.append(
                     DemucsStem(name=two_stems, audio=BytesIO(open(f.name, "rb").read()))
                 )
 
-            sources.pop(self.model.sources.index(two_stems))
+            sources.pop(model.sources.index(two_stems))
 
             other_stem = torch.zeros_like(sources[0])
             for i in sources:
