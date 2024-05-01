@@ -1,66 +1,121 @@
 import tempfile
 from io import BytesIO
-from typing import List
+from typing import Optional
 
 import torch
-from cog import BaseModel, BasePredictor, File, Input, Path
-from demucs.apply import BagOfModels, apply_model
+from cog import BasePredictor, Input, Path
+from torch.cuda import is_available as is_cuda_available
+
+from demucs.api import Separator
+from demucs.apply import BagOfModels
 from demucs.audio import save_audio
 from demucs.htdemucs import HTDemucs
 from demucs.pretrained import get_model
-from demucs.separate import load_track
+
+# The demucs API does have a method to get all models but it
+# returns models we don't want so it's easier to manually curate
+DEMUCS_MODELS = [
+    # Demucs v4
+    "htdemucs",
+    "htdemucs_ft",
+    "htdemucs_6s",
+    # Demucs v3
+    "hdemucs_mmi",
+    # Demucs v2
+    # I'm not including the non-quantized versions because
+    # according to the author, there is no quality degradation
+    # so this should just help speed up boot times
+    "mdx_q",
+    "mdx_extra_q",
+]
 
 
-class DemucsStem(BaseModel):
-    name: str
-    audio: File
+class PreloadedSeparator(Separator):
+    """
+    For efficiency, this cog keeps the models in memory
+    so that they don't need to be loaded for every single request.
 
+    The Separator API only supports loading models by name, so
+    we have to subclass it and load the model manually.
+    """
 
-class DemucsResponse(BaseModel):
-    stems: List[DemucsStem]
+    def __init__(
+        self,
+        model: BagOfModels,
+        shifts: int = 1,
+        overlap: float = 0.25,
+        split: bool = True,
+        segment: Optional[int] = None,
+        jobs: int = 0,
+    ):
+        self._model = model
+        self._audio_channels = model.audio_channels
+        self._samplerate = model.samplerate
+
+        self.update_parameter(
+            device="cuda" if is_cuda_available() else "cpu",
+            shifts=shifts,
+            overlap=overlap,
+            split=split,
+            segment=segment,
+            jobs=jobs,
+            progress=True,
+            callback=None,
+            callback_arg=None,
+        )
 
 
 class Predictor(BasePredictor):
+    """
+    This cog implements the Cog API to inference Demucs models.
+    """
+
+    def setup(self):
+        """
+        Loading the models into memory will provide faster prediction
+        when multiple requests are made in succession.
+        """
+        self.models = {model: get_model(model) for model in DEMUCS_MODELS}
+
     def predict(
         self,
         audio: Path = Input(description="Upload the file to be processed here."),
         model: str = Input(
             default="htdemucs",
-            description="Choose the demucs audio that proccesses your audio. Options: htdemucs (first version of hybrid transformer demucs), htdemucs_ft (fine-tuned version of htdemucs, separation will take 4 times longer but may be a bit better), htdemucs_6s (adds piano and guitar sources to htdemucs), hdemucs_mmi (hybrid demucs v3), mdx (trained on exclusively MusDB HQ), mdx_q (quantized version of mdx, slightly faster but worse quality), mdx_extra (adds extra training data to mdx, this is what the cog previously used by default), mdx_extra_q (quantized version of mdx_extra, slightly faster but worse quality)",
-            choices=[
-                "htdemucs",
-                "htdemucs_ft",
-                "htdemucs_6s",
-                "hdemucs_mmi",
-                "mdx",
-                "mdx_q",
-                "mdx_extra",
-                "mdx_extra_q",
-            ],
+            description="Choose the demucs audio that proccesses your audio. The readme has more information on what to choose.",
+            choices=DEMUCS_MODELS,
         ),
-        two_stems: str = Input(
-            default=None,
-            description="If you just want to isolate one stem, you can choose it here. This does not improve performance, as it just combines all of the stems that you did not choose.",
-            choices=["drums", "bass", "other", "vocals", "guitar", "piano"],
+        stem: str = Input(
+            default="none",
+            description="If you just want to isolate one stem, you can choose it here.",
+            choices=["none", "drums", "bass", "other", "vocals", "guitar", "piano"],
         ),
+        # Audio Options
         output_format: str = Input(
             default="mp3",
             description="Choose the audio format you would like the result to be returned in.",
-            choices=["mp3", "aac", "flac", "wav"],
+            choices=["mp3", "flac", "wav"],
         ),
-        split: bool = Input(
-            default=True,
-            description="Choose whether or not the audio should be split into chunks.",
+        mp3_bitrate: int = Input(
+            default=320,
+            description="Choose the bitrate for the MP3 output. Higher is better quality but larger file size. If MP3 is not selected as the output type, this has no effect.",
         ),
-        segment: int = Input(
-            default=None,
-            description="Choose the size of each chunk. This only has an effect if split is set to true.",
+        mp3_preset: int = Input(
+            default=2,
+            choices=range(2, 8),
+            description="Choose the preset for the MP3 output. Higher is faster but worse wuality. If MP3 is not selected as the output type, this has no effect.",
+        ),
+        wav_format: str = Input(
+            default="int24",
+            choices=["int16", "int24", "float32"],
+            description="Choose format for the WAV output. If WAV is not selected as the output type, this has no effect.",
         ),
         clip_mode: str = Input(
             default="rescale",
-            description="Choose the strategy for avoiding clipping. Rescaling adjusts the overall scale of a signal to prevent any clipping, while hard clipping limits the signal to a maximum range, distorting parts of the signal that exceed that range.",
-            choices=["rescale", "clamp"],
+            choices=["rescale", "clamp", "none"],
+            description="Choose the strategy for avoiding clipping. Rescale will rescale entire signal if necessary or clamp will allow hard clipping.",
         ),
+        # Separator Options
         shifts: int = Input(
             default=1,
             description="Choose the amount random shifts for equivariant stabilization. This performs multiple predictions with random shifts of the input and averages them, which makes it x times slower.",
@@ -69,67 +124,70 @@ class Predictor(BasePredictor):
             default=0.25,
             description="Choose the amount of overlap between prediction windows.",
         ),
-    ) -> DemucsResponse:
+        split: bool = Input(
+            default=True,
+            description="Choose whether or not the audio should be split into chunks.",
+        ),
+        segment: int = Input(
+            default=None,
+            description="Choose the segment length to use for separation.",
+        ),
+        jobs: int = Input(
+            default=0,
+            description="Choose the number of parallel jobs to use for separation.",
+        ),
+    ) -> dict:
         model = get_model(model)
 
-        if two_stems is not None and two_stems not in model.sources:
-            raise Exception("Chosen stem is not supported by chosen model.")
+        if stem != "none" and stem not in model.sources:
+            raise Exception("Selected stem is not supported by chosen model.")
 
-        if isinstance(model, BagOfModels):
-            if segment is not None:
-                for sub in model.models:
-                    sub.segment = segment
-        else:
-            if segment is not None:
-                model.segment = segment
+        max_allowed_segment = float("inf")
+        if isinstance(model, HTDemucs):
+            max_allowed_segment = float(model.segment)
+        elif isinstance(model, BagOfModels):
+            max_allowed_segment = model.max_allowed_segment
+        if segment is not None and segment > max_allowed_segment:
+            raise Exception(
+                "Cannot use a Transformer model with a longer segment than it was trained for."
+            )
 
-        model.cpu()
-        model.eval()
-
-        wav = load_track(audio, model.audio_channels, model.samplerate)
-
-        ref = wav.mean(0)
-        wav = (wav - ref.mean()) / ref.std()
-        sources = apply_model(
-            model,
-            wav[None],
-            device="cuda" if torch.cuda.is_available() else "cpu",
-            split=True,
+        separator = PreloadedSeparator(
+            model=model,
             shifts=shifts,
             overlap=overlap,
-            progress=True,
-        )[0]
-        sources = sources * ref.std() + ref.mean()
+            segment=segment,
+            split=split,
+            jobs=jobs,
+        )
+
+        _, outputs = separator.separate_audio_file(audio)
 
         kwargs = {
-            "samplerate": model.samplerate,
-            "bitrate": 320,
+            "samplerate": separator.samplerate,
+            "bitrate": mp3_bitrate,
+            "preset": mp3_preset,
             "clip": clip_mode,
-            "as_float": False,
-            "bits_per_sample": 24,
+            "as_float": wav_format == "float32",
+            "bits_per_sample": 24 if wav_format == "int24" else 16,
         }
 
-        output_stems = []
+        output_stems = {}
 
-        if two_stems is None:
-            for source, name in zip(sources, model.sources):
+        if stem == "none":
+            for name, source in outputs.items():
                 with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                     save_audio(source.cpu(), f.name, **kwargs)
-                    output_stems.append(
-                        DemucsStem(name=name, audio=BytesIO(open(f.name, "rb").read()))
-                    )
+                    output_stems[name] = audio = BytesIO(open(f.name, "rb").read())
+
         else:
             sources = list(sources)
 
             with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
-                save_audio(
-                    sources[model.sources.index(two_stems)].cpu(), f.name, **kwargs
-                )
-                output_stems.append(
-                    DemucsStem(name=two_stems, audio=BytesIO(open(f.name, "rb").read()))
-                )
+                save_audio(sources[model.sources.index(stem)].cpu(), f.name, **kwargs)
+                output_stems[stem] = BytesIO(open(f.name, "rb").read())
 
-            sources.pop(model.sources.index(two_stems))
+            sources.pop(model.sources.index(stem))
 
             other_stem = torch.zeros_like(sources[0])
             for i in sources:
@@ -137,10 +195,6 @@ class Predictor(BasePredictor):
 
             with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                 save_audio(other_stem.cpu(), f.name, **kwargs)
-                output_stems.append(
-                    DemucsStem(
-                        name="no_" + two_stems, audio=BytesIO(open(f.name, "rb").read())
-                    )
-                )
+                output_stems["no_" + stem] = BytesIO(open(f.name, "rb").read())
 
-        return DemucsResponse(stems=output_stems)
+        return output_stems
