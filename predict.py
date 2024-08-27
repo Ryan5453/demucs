@@ -103,7 +103,7 @@ class Predictor(BasePredictor):
         mp3_preset: int = Input(
             default=2,
             choices=range(2, 8),
-            description="Choose the preset for the MP3 output. Higher is faster but worse wuality. If MP3 is not selected as the output type, this has no effect.",
+            description="Choose the preset for the MP3 output. Higher is faster but worse quality. If MP3 is not selected as the output type, this has no effect.",
         ),
         wav_format: str = Input(
             default="int24",
@@ -137,19 +137,23 @@ class Predictor(BasePredictor):
             description="Choose the number of parallel jobs to use for separation.",
         ),
     ) -> dict:
-        model = get_model(model)
+        # Use preloaded model
+        model = self.models[model]
 
         if stem != "none" and stem not in model.sources:
-            raise Exception("Selected stem is not supported by chosen model.")
+            raise ValueError(
+                f"Selected stem '{stem}' is not supported by chosen model."
+            )
 
         max_allowed_segment = float("inf")
         if isinstance(model, HTDemucs):
             max_allowed_segment = float(model.segment)
         elif isinstance(model, BagOfModels):
             max_allowed_segment = model.max_allowed_segment
+
         if segment is not None and segment > max_allowed_segment:
-            raise Exception(
-                "Cannot use a Transformer model with a longer segment than it was trained for."
+            raise ValueError(
+                f"Cannot use a Transformer model with a longer segment than it was trained for. Maximum allowed segment is {max_allowed_segment}."
             )
 
         separator = PreloadedSeparator(
@@ -178,20 +182,16 @@ class Predictor(BasePredictor):
             for name, source in outputs.items():
                 with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                     save_audio(source.cpu(), f.name, **kwargs)
-                    output_stems[name] = audio = BytesIO(open(f.name, "rb").read())
-
+                    output_stems[name] = BytesIO(open(f.name, "rb").read())
         else:
-            sources = list(sources)
-
             with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
-                save_audio(sources[model.sources.index(stem)].cpu(), f.name, **kwargs)
+                save_audio(outputs[stem].cpu(), f.name, **kwargs)
                 output_stems[stem] = BytesIO(open(f.name, "rb").read())
 
-            sources.pop(model.sources.index(stem))
-
-            other_stem = torch.zeros_like(sources[0])
-            for i in sources:
-                other_stem += i
+            other_stem = torch.zeros_like(outputs[stem])
+            for source, audio in outputs.items():
+                if source != stem:
+                    other_stem += audio
 
             with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as f:
                 save_audio(other_stem.cpu(), f.name, **kwargs)

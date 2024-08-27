@@ -1,4 +1,4 @@
-# About
+# Demucs Cog
 Demucs is an audio source separator model created by Facebook Research. The model ingests an audio file, and returns stems (the separated parts such as the vocals, drums, and bass.)
 
 The original author of Demucs left Meta and therefore the original repository is not maintained, so this Cog uses a fork by the original author. You can find the fork [here.](https://github.com/adefossez/demucs) 
