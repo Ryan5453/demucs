@@ -14,8 +14,8 @@ from dora.log import bold, fatal
 from .repo import (
     AnyModelRepo,
     CollectionRepo,
-    LocalRepo,
     GitHubRepo,
+    LocalRepo,
     ModelLoadingError,
 )  # noqa
 from .states import _check_diffq
@@ -28,7 +28,14 @@ SOURCES = ["drums", "bass", "other", "vocals"]
 DEFAULT_MODEL = "htdemucs"
 
 # Export DEFAULT_MODEL to be used in separate.py
-__all__ = ["ModelLoadingError", "get_model", "get_model_from_args", "SOURCES", "DEFAULT_MODEL"]
+__all__ = [
+    "ModelLoadingError",
+    "get_model",
+    "get_model_from_args",
+    "SOURCES",
+    "DEFAULT_MODEL",
+]
+
 
 def add_model_flags(parser):
     group = parser.add_mutually_exclusive_group(required=False)

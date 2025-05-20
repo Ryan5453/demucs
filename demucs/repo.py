@@ -3,8 +3,8 @@ Represents a model repository, including pre-trained models and bags of models.
 A repo can either be the GitHub repository or a local repository with your own models.
 """
 
-import typing as tp
 import json
+import typing as tp
 from hashlib import sha256
 from pathlib import Path
 
@@ -52,7 +52,7 @@ class ModelOnlyRepo:
 class GitHubRepo(ModelOnlyRepo):
     def __init__(self, metadata_path: Path):
         self.metadata_path = metadata_path
-        with open(metadata_path, 'r') as f:
+        with open(metadata_path, "r") as f:
             self.metadata = json.load(f)
         self._models = self.metadata["models"]
 
@@ -122,7 +122,7 @@ class CollectionRepo:
     def __init__(self, metadata_path: Path, model_repo: ModelOnlyRepo):
         self.metadata_path = metadata_path
         self.model_repo = model_repo
-        with open(metadata_path, 'r') as f:
+        with open(metadata_path, "r") as f:
             self.metadata = json.load(f)
         self._collections = self.metadata["collections"]
 
@@ -148,13 +148,13 @@ class CollectionRepo:
 
 class RemoteRepo(ModelOnlyRepo):
     """Repository for models stored remotely, accessible through URLs."""
-    
+
     def __init__(self, files_dict: tp.Dict[str, str]):
         self._models = files_dict
-        
+
     def has_model(self, sig: str) -> bool:
         return sig in self._models
-        
+
     def get_model(self, sig: str) -> Model:
         try:
             url = self._models[sig]
@@ -166,34 +166,34 @@ class RemoteRepo(ModelOnlyRepo):
             url, map_location="cpu", check_hash=True
         )  # type: ignore
         return load_model(pkg)
-        
+
     def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
         return self._models
 
 
 class BagOnlyRepo:
     """Repository that handles only bag of models."""
-    
+
     def __init__(self, root: tp.Union[Path, str], model_repo: ModelOnlyRepo):
         self.root = root
         self.model_repo = model_repo
         self._bags = {}  # This would typically be populated by scanning files
-        
+
     def has_model(self, name: str) -> bool:
         return name in self._bags
-        
+
     def get_model(self, name: str) -> BagOfModels:
         try:
             bag_info = self._bags[name]
             sigs = bag_info["models"]
         except KeyError:
             raise ModelLoadingError(f"Could not find a bag of models named {name}.")
-            
+
         models = [self.model_repo.get_model(sig) for sig in sigs]
         weights = bag_info.get("weights")
         segment = bag_info.get("segment")
         return BagOfModels(models, weights, segment)
-        
+
     def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
         return self._bags
 

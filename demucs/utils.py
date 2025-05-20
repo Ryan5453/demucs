@@ -48,7 +48,7 @@ def center_trim(tensor: torch.Tensor, reference: tp.Union[torch.Tensor, int]):
         ref_size = reference
     delta = tensor.size(-1) - ref_size
     if delta < 0:
-        raise ValueError("tensor must be larger than reference. " f"Delta is {delta}.")
+        raise ValueError(f"tensor must be larger than reference. Delta is {delta}.")
     if delta:
         tensor = tensor[..., delta // 2 : -(delta - delta // 2)]
     return tensor
@@ -148,6 +148,7 @@ class DummyPoolExecutor:
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         return
+
 
 def spectro(x, n_fft=512, hop_length=None, pad=0):
     *other, length = x.shape

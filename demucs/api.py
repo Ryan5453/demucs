@@ -30,8 +30,8 @@ from dora.log import fatal
 
 from .apply import _replace_dict, apply_model
 from .audio import AudioFile, convert_audio, save_audio
-from .pretrained import REMOTE_ROOT, METADATA_PATH, get_model
-from .repo import BagOnlyRepo, LocalRepo, ModelOnlyRepo, GitHubRepo
+from .pretrained import METADATA_PATH, REMOTE_ROOT, get_model
+from .repo import BagOnlyRepo, GitHubRepo, LocalRepo, ModelOnlyRepo
 
 
 class LoadAudioError(Exception):

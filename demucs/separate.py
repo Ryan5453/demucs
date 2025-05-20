@@ -4,24 +4,25 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Dict
-import json
+from typing import Dict, List, Optional
 
 import torch as th
 import typer
 from dora.log import fatal
-from typing_extensions import Annotated
 from rich.console import Console
+from typing_extensions import Annotated
 
 from . import __version__
-from .api import Separator, list_models, save_audio
+from .api import Separator, save_audio
 from .apply import BagOfModels
 from .htdemucs import HTDemucs
-from .pretrained import ModelLoadingError, DEFAULT_MODEL, get_model, METADATA_PATH
+from .pretrained import DEFAULT_MODEL, METADATA_PATH, ModelLoadingError, get_model
 
 console = Console()
+
 
 class ClipMode(str, Enum):
     rescale = "rescale"
@@ -49,7 +50,7 @@ def list_models_command():
     # Get collections directly from metadata.json
     collections = get_collections()
     console.print("[bold]Available models:[/bold]")
-    
+
     # Display information about each collection
     for name in sorted(collections.keys()):
         info = collections[name]
@@ -63,10 +64,11 @@ def list_models_command():
             description = "Model collection"
         console.print(f"  - [cyan]{name}[/cyan]: {description}")
 
+
 def download_models_command(
     names: Annotated[
         List[str],
-        typer.Argument(help="Pretrained model names or signatures to download.")
+        typer.Argument(help="Pretrained model names or signatures to download."),
     ] = None,
     repo: Annotated[
         Optional[Path],
@@ -82,8 +84,15 @@ def download_models_command(
     """
     Download and cache the specified models for offline use.
     """
-    from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TaskProgressColumn
-    
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TaskProgressColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
     if all_models:
         # Get all collection names
         collections = get_collections()
@@ -94,7 +103,7 @@ def download_models_command(
             model_names = [DEFAULT_MODEL]
         else:
             model_names = names
-    
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[bold blue]{task.description}"),
@@ -103,29 +112,37 @@ def download_models_command(
         TimeElapsedColumn(),
         console=console,
         transient=True,
-        refresh_per_second=10
+        refresh_per_second=10,
     ) as progress_bar:
-        task = progress_bar.add_task("[yellow]Downloading models...", total=len(model_names))
-        
+        task = progress_bar.add_task(
+            "[yellow]Downloading models...", total=len(model_names)
+        )
+
         for name in model_names:
             progress_bar.update(task, description=f"[cyan]Downloading {name}...[/cyan]")
             try:
                 model = get_model(name=name, repo=repo)
                 num_sources = len(model.sources)
-                model_type = f"Bag of {len(model.models)} models" if isinstance(model, BagOfModels) else "Single Model"
+                model_type = (
+                    f"Bag of {len(model.models)} models"
+                    if isinstance(model, BagOfModels)
+                    else "Single Model"
+                )
                 progress_bar.update(task, advance=1)
-                console.print(f"[green]✓[/green] [bold]{name}[/bold]: {model_type} with {num_sources} sources")
+                console.print(
+                    f"[green]✓[/green] [bold]{name}[/bold]: {model_type} with {num_sources} sources"
+                )
             except ModelLoadingError as error:
                 progress_bar.update(task, advance=1)
                 console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
-    
+
     console.print("[bold green]Download complete![/bold green]")
 
 
 # Add a function to get collections directly from metadata.json
 def get_collections() -> Dict[str, Dict]:
     """Get collections from metadata.json"""
-    with open(METADATA_PATH, 'r') as f:
+    with open(METADATA_PATH, "r") as f:
         metadata = json.load(f)
     return metadata.get("collections", {})
 
@@ -202,9 +219,7 @@ def main_command(
             )
         ),
     ] = 1,
-    overlap: Annotated[
-        float, typer.Option(help="Overlap between the splits.")
-    ] = 0.25,
+    overlap: Annotated[float, typer.Option(help="Overlap between the splits.")] = 0.25,
     no_split: Annotated[
         bool,
         typer.Option(
@@ -253,12 +268,8 @@ def main_command(
     flac: Annotated[
         bool, typer.Option(help="Convert the output wavs to flac.")
     ] = False,
-    mp3: Annotated[
-        bool, typer.Option(help="Convert the output wavs to mp3.")
-    ] = False,
-    mp3_bitrate: Annotated[
-        int, typer.Option(help="Bitrate of converted mp3.")
-    ] = 320,
+    mp3: Annotated[bool, typer.Option(help="Convert the output wavs to mp3.")] = False,
+    mp3_bitrate: Annotated[int, typer.Option(help="Bitrate of converted mp3.")] = 320,
     mp3_preset: Annotated[
         int,
         typer.Option(
@@ -278,7 +289,7 @@ def main_command(
             help=(
                 "Number of jobs. This can increase memory usage but will "
                 "be much faster when multiple cores are available."
-            )
+            ),
         ),
     ] = 0,
 ):
@@ -291,12 +302,14 @@ def main_command(
         for name in sorted(collections.keys()):
             typer.echo(f"  {name}")
         return
-        
+
     # Display a helpful message about downloading models
     if name != DEFAULT_MODEL:
         console.print(f"[bold]Using model: [cyan]{name}[/cyan][/bold]")
-        console.print(f"[dim]To pre-download this model, run: demucs models download {name}[/dim]")
-    
+        console.print(
+            f"[dim]To pre-download this model, run: demucs models download {name}[/dim]"
+        )
+
     if tracks is None or not tracks:
         typer.echo("No tracks provided.")
         typer.echo("Usage: demucs separate [options] tracks... \nHelp: demucs --help")
@@ -425,15 +438,17 @@ def main():
         no_args_is_help=True,  # Show help when no arguments are provided
     )
     # Create models command group
-    models_app = typer.Typer(help="Download, list and manage models", no_args_is_help=True)
+    models_app = typer.Typer(
+        help="Download, list and manage models", no_args_is_help=True
+    )
     models_app.command(name="list")(list_models_command)
     models_app.command(name="download")(download_models_command)
-    
+
     # Main commands
     app.command(name="separate")(main_command)
     app.add_typer(models_app, name="models")
     app.command(name="version")(version_command)
-    
+
     # Create a callback for the main command to show helpful info
     @app.callback()
     def callback():
@@ -447,7 +462,7 @@ def main():
           demucs version                         - Show version information
         """
         pass
-    
+
     # Run the app
     app()
 

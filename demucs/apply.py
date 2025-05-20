@@ -9,7 +9,6 @@ inteprolation between chunks, as well as the "shift trick".
 """
 
 import copy
-import os
 import random
 import typing as tp
 from concurrent.futures import ThreadPoolExecutor
@@ -18,8 +17,14 @@ from threading import Lock
 import torch as th
 import torch.nn as nn
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TaskProgressColumn
-from torch import nn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from torch.nn import functional as F
 
 from .demucs import Demucs
@@ -287,7 +292,6 @@ def apply_model(
         segment_length: int = int(model.samplerate * segment)
         stride = int((1 - overlap) * segment_length)
         offsets = range(0, length, stride)
-        scale = float(format(stride / model.samplerate, ".2f"))
         # We start from a triangle shaped weight, with maximal weight in the middle
         # of the segment. Then we normalize and take to the power `transition_power`.
         # Large values of transition power will lead to sharper transitions.
@@ -329,7 +333,7 @@ def apply_model(
                 TimeElapsedColumn(),
                 console=console,
                 transient=True,
-                refresh_per_second=10
+                refresh_per_second=10,
             ) as progress_bar:
                 task = progress_bar.add_task("Processing audio", total=len(futures))
                 for future, offset in futures:
@@ -339,9 +343,9 @@ def apply_model(
                         out[..., offset : offset + segment_length] += (
                             weight[:chunk_length] * chunk_out
                         ).to(mix.device)
-                        sum_weight[offset : offset + segment_length] += weight[:chunk_length].to(
-                            mix.device
-                        )
+                        sum_weight[offset : offset + segment_length] += weight[
+                            :chunk_length
+                        ].to(mix.device)
                         progress_bar.update(task, advance=1)
                     except Exception:
                         pool.shutdown(wait=True, cancel_futures=True)
@@ -354,9 +358,9 @@ def apply_model(
                     out[..., offset : offset + segment_length] += (
                         weight[:chunk_length] * chunk_out
                     ).to(mix.device)
-                    sum_weight[offset : offset + segment_length] += weight[:chunk_length].to(
-                        mix.device
-                    )
+                    sum_weight[offset : offset + segment_length] += weight[
+                        :chunk_length
+                    ].to(mix.device)
                 except Exception:
                     pool.shutdown(wait=True, cancel_futures=True)
                     raise
