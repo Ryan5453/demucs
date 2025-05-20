@@ -4,7 +4,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""API methods for demucs
+"""
+API methods for demucs
 
 Classes
 -------
@@ -14,10 +15,6 @@ Functions
 ---------
 `demucs.api.save_audio`: Save an audio
 `demucs.api.list_models`: Get models list
-
-Examples
---------
-See the end of this module (if __name__ == "__main__")
 """
 
 import subprocess
@@ -31,7 +28,7 @@ from dora.log import fatal
 from .apply import _replace_dict, apply_model
 from .audio import AudioFile, convert_audio, save_audio
 from .pretrained import METADATA_PATH, REMOTE_ROOT, get_model
-from .repo import BagOnlyRepo, GitHubRepo, LocalRepo, ModelOnlyRepo
+from .repo import GitHubRepo, LocalRepo, ModelOnlyRepo
 
 
 class LoadAudioError(Exception):
@@ -342,13 +339,13 @@ def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, Union[str, P
     model_repo: ModelOnlyRepo
     if repo is None:
         model_repo = GitHubRepo(METADATA_PATH)
-        bag_repo = BagOnlyRepo(REMOTE_ROOT, model_repo)
     else:
         if not repo.is_dir():
             fatal(f"{repo} must exist and be a directory.")
         model_repo = LocalRepo(repo)
-        bag_repo = BagOnlyRepo(repo, model_repo)
-    return {"single": model_repo.list_model(), "bag": bag_repo.list_model()}
+    
+    # Only return single models since bag models are in metadata.json collections
+    return {"single": model_repo.list_model(), "bag": {}}
 
 
 if __name__ == "__main__":
