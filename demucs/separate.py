@@ -4,171 +4,227 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import argparse
 import sys
+from enum import Enum
 from pathlib import Path
+from typing import List, Optional
 
 import torch as th
+import typer
 from dora.log import fatal
+from typing_extensions import Annotated
 
+from . import __version__
 from .api import Separator, list_models, save_audio
 from .apply import BagOfModels
 from .htdemucs import HTDemucs
-from .pretrained import ModelLoadingError, add_model_flags
+from .pretrained import ModelLoadingError, DEFAULT_MODEL
+
+class ClipMode(str, Enum):
+    rescale = "rescale"
+    clamp = "clamp"
+    none = "none"
 
 
-def get_parser():
-    parser = argparse.ArgumentParser(
-        "demucs.separate", description="Separate the sources for the given tracks"
-    )
-    parser.add_argument(
-        "tracks", nargs="*", type=Path, default=[], help="Path to tracks"
-    )
-    add_model_flags(parser)
-    parser.add_argument(
-        "--list-models",
-        action="store_true",
-        help="List available models " "from current repo and exit",
-    )
-    parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument(
-        "-o",
-        "--out",
-        type=Path,
-        default=Path("separated"),
-        help="Folder where to put extracted tracks. A subfolder "
-        "with the model name will be created.",
-    )
-    parser.add_argument(
-        "--filename",
-        default="{track}/{stem}.{ext}",
-        help="Set the name of output file. \n"
-        'Use "{track}", "{trackext}", "{stem}", "{ext}" to use '
-        "variables of track name without extension, track extension, "
-        "stem name and default output file extension. \n"
-        'Default is "{track}/{stem}.{ext}".',
-    )
-    parser.add_argument(
-        "-d",
-        "--device",
-        default=(
-            "cuda"
-            if th.cuda.is_available()
-            else "mps"
-            if th.backends.mps.is_available()
-            else "cpu"
+class OtherMethod(str, Enum):
+    none = "none"
+    add = "add"
+    minus = "minus"
+
+
+def version_callback(value: bool):
+    if value:
+        typer.echo(f"Demucs version: {__version__}")
+        raise typer.Exit()
+
+
+# Use plain typer.run() to create the simplest possible CLI
+# This creates a direct CLI without any command structure
+def main_command(
+    version: Annotated[
+        bool, typer.Option("--version", callback=version_callback, help="Show the version and exit.")
+    ] = False,
+    tracks: Annotated[
+        Optional[List[Path]], typer.Argument(help="Path to tracks")
+    ] = None,
+    sig: Annotated[
+        Optional[str], typer.Option("-s", "--sig", help="Locally trained XP signature.")
+    ] = None,
+    name: Annotated[
+        str,
+        typer.Option(
+            "-n",
+            "--name",
+            help="Pretrained model name or signature. Default is htdemucs.",
         ),
-        help="Device to use, default is cuda if available else cpu",
-    )
-    parser.add_argument(
-        "--shifts",
-        default=1,
-        type=int,
-        help="Number of random shifts for equivariant stabilization."
-        "Increase separation time but improves quality for Demucs. 10 was used "
-        "in the original paper.",
-    )
-    parser.add_argument(
-        "--overlap", default=0.25, type=float, help="Overlap between the splits."
-    )
-    split_group = parser.add_mutually_exclusive_group()
-    split_group.add_argument(
-        "--no-split",
-        action="store_false",
-        dest="split",
-        default=True,
-        help="Doesn't split audio in chunks. " "This can use large amounts of memory.",
-    )
-    split_group.add_argument(
-        "--segment",
-        type=int,
-        help="Set split size of each chunk. "
-        "This can help save memory of graphic card. ",
-    )
-    parser.add_argument(
-        "--two-stems",
-        dest="stem",
-        metavar="STEM",
-        help="Only separate audio into {STEM} and no_{STEM}. ",
-    )
-    parser.add_argument(
-        "--other-method",
-        dest="other_method",
-        choices=["none", "add", "minus"],
-        default="add",
-        help='Decide how to get "no_{STEM}". "none" will not save '
-        '"no_{STEM}". "add" will add all the other stems. "minus" will use the '
-        "original track minus the selected stem.",
-    )
-    depth_group = parser.add_mutually_exclusive_group()
-    depth_group.add_argument(
-        "--int24", action="store_true", help="Save wav output as 24 bits wav."
-    )
-    depth_group.add_argument(
-        "--float32", action="store_true", help="Save wav output as float32 (2x bigger)."
-    )
-    parser.add_argument(
-        "--clip-mode",
-        default="rescale",
-        choices=["rescale", "clamp", "none"],
-        help="Strategy for avoiding clipping: rescaling entire signal "
-        "if necessary  (rescale) or hard clipping (clamp).",
-    )
-    format_group = parser.add_mutually_exclusive_group()
-    format_group.add_argument(
-        "--flac", action="store_true", help="Convert the output wavs to flac."
-    )
-    format_group.add_argument(
-        "--mp3", action="store_true", help="Convert the output wavs to mp3."
-    )
-    parser.add_argument(
-        "--mp3-bitrate", default=320, type=int, help="Bitrate of converted mp3."
-    )
-    parser.add_argument(
-        "--mp3-preset",
-        choices=range(2, 8),
-        type=int,
-        default=2,
-        help="Encoder preset of MP3, 2 for highest quality, 7 for "
-        "fastest speed. Default is 2",
-    )
-    parser.add_argument(
-        "-j",
-        "--jobs",
-        default=0,
-        type=int,
-        help="Number of jobs. This can increase memory usage but will "
-        "be much faster when multiple cores are available.",
-    )
+    ] = DEFAULT_MODEL,
+    repo: Annotated[
+        Optional[Path],
+        typer.Option(help="Folder containing all pre-trained models for use with -n."),
+    ] = None,
+    list_models_flag: Annotated[
+        bool,
+        typer.Option(
+            "--list-models", help="List available models from current repo and exit"
+        ),
+    ] = False,
+    verbose: Annotated[
+        bool, typer.Option("-v", "--verbose", help="Enable verbose output")
+    ] = False,
+    out: Annotated[
+        Path,
+        typer.Option(
+            "-o",
+            "--out",
+            help="Folder where to put extracted tracks. A subfolder with the model name will be created.",
+        ),
+    ] = Path("separated"),
+    filename: Annotated[
+        str,
+        typer.Option(
+            help=(
+                "Set the name of output file. Use {track}, {trackext}, {stem}, {ext} "
+                "to use variables of track name without extension, track extension, "
+                "stem name and default output file extension."
+            )
+        ),
+    ] = "{track}/{stem}.{ext}",
+    device: Annotated[
+        str,
+        typer.Option(
+            "-d",
+            "--device",
+            help="Device to use, default is cuda if available else cpu",
+        ),
+    ] = (
+        "cuda"
+        if th.cuda.is_available()
+        else "mps"
+        if th.backends.mps.is_available()
+        else "cpu"
+    ),
+    shifts: Annotated[
+        int,
+        typer.Option(
+            help=(
+                "Number of random shifts for equivariant stabilization. "
+                "Increase separation time but improves quality for Demucs. "
+                "10 was used in the original paper."
+            )
+        ),
+    ] = 1,
+    overlap: Annotated[
+        float, typer.Option(help="Overlap between the splits.")
+    ] = 0.25,
+    no_split: Annotated[
+        bool,
+        typer.Option(
+            help="Doesn't split audio in chunks. This can use large amounts of memory."
+        ),
+    ] = False,
+    segment: Annotated[
+        Optional[int],
+        typer.Option(
+            help="Set split size of each chunk. This can help save memory of graphic card."
+        ),
+    ] = None,
+    stem: Annotated[
+        Optional[str],
+        typer.Option(
+            "--two-stems",
+            metavar="STEM",
+            help="Only separate audio into {STEM} and no_{STEM}.",
+        ),
+    ] = None,
+    other_method: Annotated[
+        OtherMethod,
+        typer.Option(
+            help=(
+                'Decide how to get "no_{STEM}". "none" will not save '
+                '"no_{STEM}". "add" will add all the other stems. "minus" will use the '
+                "original track minus the selected stem."
+            )
+        ),
+    ] = OtherMethod.add,
+    int24: Annotated[
+        bool, typer.Option(help="Save wav output as 24 bits wav.")
+    ] = False,
+    float32: Annotated[
+        bool, typer.Option(help="Save wav output as float32 (2x bigger).")
+    ] = False,
+    clip_mode: Annotated[
+        ClipMode,
+        typer.Option(
+            help=(
+                "Strategy for avoiding clipping: rescaling entire signal "
+                "if necessary (rescale) or hard clipping (clamp)."
+            )
+        ),
+    ] = ClipMode.rescale,
+    flac: Annotated[
+        bool, typer.Option(help="Convert the output wavs to flac.")
+    ] = False,
+    mp3: Annotated[
+        bool, typer.Option(help="Convert the output wavs to mp3.")
+    ] = False,
+    mp3_bitrate: Annotated[
+        int, typer.Option(help="Bitrate of converted mp3.")
+    ] = 320,
+    mp3_preset: Annotated[
+        int,
+        typer.Option(
+            help=(
+                "Encoder preset of MP3, 2 for highest quality, 7 for "
+                "fastest speed. Default is 2"
+            ),
+            min=2,
+            max=7,
+        ),
+    ] = 2,
+    jobs: Annotated[
+        int,
+        typer.Option(
+            "-j",
+            "--jobs",
+            help=(
+                "Number of jobs. This can increase memory usage but will "
+                "be much faster when multiple cores are available."
+            )
+        ),
+    ] = 0,
+):
+    """
+    Separate the sources for the given tracks.
+    """
+    if list_models_flag:
+        models = list_models(repo)
+        typer.echo("Bag of models:", nl=False)
+        typer.echo("\n    " + "\n    ".join(models["bag"]))
+        typer.echo("Single models:", nl=False)
+        typer.echo("\n    " + "\n    ".join(models["single"]))
+        raise typer.Exit()
 
-    return parser
+    if tracks is None:
+        tracks = []
+    if len(tracks) == 0:
+        # Instead of error, show help
+        typer.echo("Please provide one or more audio tracks to separate.")
+        typer.echo("Run 'demucs --help' for usage information.")
+        raise typer.Exit(0)
 
-
-def main(opts=None):
-    parser = get_parser()
-    args = parser.parse_args(opts)
-    if args.list_models:
-        models = list_models(args.repo)
-        print("Bag of models:", end="\n    ")
-        print("\n    ".join(models["bag"]))
-        print("Single models:", end="\n    ")
-        print("\n    ".join(models["single"]))
-        sys.exit(0)
-    if len(args.tracks) == 0:
-        print("error: the following arguments are required: tracks", file=sys.stderr)
-        sys.exit(1)
+    split = not no_split
 
     try:
         separator = Separator(
-            model=args.name,
-            repo=args.repo,
-            device=args.device,
-            shifts=args.shifts,
-            split=args.split,
-            overlap=args.overlap,
+            model=name if sig is None else sig,
+            repo=repo,
+            device=device,
+            shifts=shifts,
+            split=split,
+            overlap=overlap,
             progress=True,
-            jobs=args.jobs,
-            segment=args.segment,
+            jobs=jobs,
+            segment=segment,
         )
     except ModelLoadingError as error:
         fatal(error.args[0])
@@ -178,95 +234,105 @@ def main(opts=None):
         max_allowed_segment = float(separator.model.segment)
     elif isinstance(separator.model, BagOfModels):
         max_allowed_segment = separator.model.max_allowed_segment
-    if args.segment is not None and args.segment > max_allowed_segment:
+    if segment is not None and segment > max_allowed_segment:
         fatal(
             "Cannot use a Transformer model with a longer segment "
             f"than it was trained for. Maximum segment is: {max_allowed_segment}"
         )
 
     if isinstance(separator.model, BagOfModels):
-        print(
+        typer.echo(
             f"Selected model is a bag of {len(separator.model.models)} models. "
             "You will see that many progress bars per track."
         )
 
-    if args.stem is not None and args.stem not in separator.model.sources:
+    if stem is not None and stem not in separator.model.sources:
         fatal(
             'error: stem "{stem}" is not in selected model. '
             "STEM must be one of {sources}.".format(
-                stem=args.stem, sources=", ".join(separator.model.sources)
+                stem=stem, sources=", ".join(separator.model.sources)
             )
         )
-    out = args.out / args.name
-    out.mkdir(parents=True, exist_ok=True)
-    print(f"Separated tracks will be stored in {out.resolve()}")
-    for track in args.tracks:
+    out_dir = out / (name if sig is None else sig)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    typer.echo(f"Separated tracks will be stored in {out_dir.resolve()}")
+    for track in tracks:
         if not track.exists():
-            print(
+            typer.echo(
                 f"File {track} does not exist. If the path contains spaces, "
                 'please try again after surrounding the entire path with quotes "".',
-                file=sys.stderr,
+                err=True,
             )
             continue
-        print(f"Separating track {track}")
+        typer.echo(f"Separating track {track}")
 
         origin, res = separator.separate_audio_file(track)
 
-        if args.mp3:
+        if mp3:
             ext = "mp3"
-        elif args.flac:
+        elif flac:
             ext = "flac"
         else:
             ext = "wav"
         kwargs = {
             "samplerate": separator.samplerate,
-            "bitrate": args.mp3_bitrate,
-            "preset": args.mp3_preset,
-            "clip": args.clip_mode,
-            "as_float": args.float32,
-            "bits_per_sample": 24 if args.int24 else 16,
+            "bitrate": mp3_bitrate,
+            "preset": mp3_preset,
+            "clip": clip_mode,
+            "as_float": float32,
+            "bits_per_sample": 24 if int24 else 16,
         }
-        if args.stem is None:
+        if stem is None:
             for name, source in res.items():
-                stem = out / args.filename.format(
+                stem_path = out_dir / filename.format(
                     track=track.name.rsplit(".", 1)[0],
                     trackext=track.name.rsplit(".", 1)[-1],
                     stem=name,
                     ext=ext,
                 )
-                stem.parent.mkdir(parents=True, exist_ok=True)
-                save_audio(source, str(stem), **kwargs)
+                stem_path.parent.mkdir(parents=True, exist_ok=True)
+                save_audio(source, str(stem_path), **kwargs)
         else:
-            stem = out / args.filename.format(
+            stem_path = out_dir / filename.format(
                 track=track.name.rsplit(".", 1)[0],
                 trackext=track.name.rsplit(".", 1)[-1],
-                stem="minus_" + args.stem,
+                stem="minus_" + stem,
                 ext=ext,
             )
-            if args.other_method == "minus":
-                stem.parent.mkdir(parents=True, exist_ok=True)
-                save_audio(origin - res[args.stem], str(stem), **kwargs)
-            stem = out / args.filename.format(
+            if other_method == OtherMethod.minus:
+                stem_path.parent.mkdir(parents=True, exist_ok=True)
+                save_audio(origin - res[stem], str(stem_path), **kwargs)
+            stem_path = out_dir / filename.format(
                 track=track.name.rsplit(".", 1)[0],
                 trackext=track.name.rsplit(".", 1)[-1],
-                stem=args.stem,
+                stem=stem,
                 ext=ext,
             )
-            stem.parent.mkdir(parents=True, exist_ok=True)
-            save_audio(res.pop(args.stem), str(stem), **kwargs)
+            stem_path.parent.mkdir(parents=True, exist_ok=True)
+            save_audio(res.pop(stem), str(stem_path), **kwargs)
             # Warning : after poping the stem, selected stem is no longer in the dict 'res'
-            if args.other_method == "add":
+            if other_method == OtherMethod.add:
                 other_stem = th.zeros_like(next(iter(res.values())))
                 for i in res.values():
                     other_stem += i
-                stem = out / args.filename.format(
+                stem_path = out_dir / filename.format(
                     track=track.name.rsplit(".", 1)[0],
                     trackext=track.name.rsplit(".", 1)[-1],
-                    stem="no_" + args.stem,
+                    stem="no_" + stem,
                     ext=ext,
                 )
-                stem.parent.mkdir(parents=True, exist_ok=True)
-                save_audio(other_stem, str(stem), **kwargs)
+                stem_path.parent.mkdir(parents=True, exist_ok=True)
+                save_audio(other_stem, str(stem_path), **kwargs)
+
+
+def main():
+    """
+    Entry point for the CLI.
+    """
+    # Use environment variable to set the correct program name
+    import os
+    os.environ["TYPER_CLI_NAME"] = "demucs"
+    typer.run(main_command)
 
 
 if __name__ == "__main__":

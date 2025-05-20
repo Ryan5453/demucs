@@ -28,11 +28,12 @@ dependencies = [
     "diffq>=0.2.1",
     "hydra-colorlog>=1.1",
     "hydra-core>=1.1",
+    "typer>=0.9.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff",
+  "ruff",
 ]
 
 [project.scripts]

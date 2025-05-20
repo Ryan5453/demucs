@@ -29,6 +29,9 @@ REMOTE_ROOT = Path("https://github.com/Ryan5453/demucs/releases/download/v5.0.0-
 SOURCES = ["drums", "bass", "other", "vocals"]
 DEFAULT_MODEL = "htdemucs"
 
+# Export DEFAULT_MODEL to be used in separate.py
+__all__ = ["ModelLoadingError", "get_model", "get_model_from_args", "SOURCES", "DEFAULT_MODEL"]
+
 def _parse_remote_files(path_or_url):
     """Parse the files.txt from remote repository and returns a dict mapping
     model names to URLs for download."""
