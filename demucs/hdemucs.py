@@ -17,7 +17,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .demucs import DConv, rescale_module
-from .spec import ispectro, spectro
+from .utils import ispectro, spectro
 from .states import capture_init
 
 

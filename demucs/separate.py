@@ -4,21 +4,24 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import sys
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
+import json
 
 import torch as th
 import typer
 from dora.log import fatal
 from typing_extensions import Annotated
+from rich.console import Console
 
 from . import __version__
 from .api import Separator, list_models, save_audio
 from .apply import BagOfModels
 from .htdemucs import HTDemucs
-from .pretrained import ModelLoadingError, DEFAULT_MODEL
+from .pretrained import ModelLoadingError, DEFAULT_MODEL, get_model, METADATA_PATH
+
+console = Console()
 
 class ClipMode(str, Enum):
     rescale = "rescale"
@@ -32,18 +35,104 @@ class OtherMethod(str, Enum):
     minus = "minus"
 
 
-def version_callback(value: bool):
-    if value:
-        typer.echo(f"Demucs version: {__version__}")
-        raise typer.Exit()
+def version_command():
+    """
+    Show the installed version of Demucs.
+    """
+    typer.echo(f"Demucs version: {__version__}")
+
+
+def list_models_command():
+    """
+    List all available models.
+    """
+    # Get collections directly from metadata.json
+    collections = get_collections()
+    console.print("[bold]Available models:[/bold]")
+    
+    # Display information about each collection
+    for name in sorted(collections.keys()):
+        info = collections[name]
+        if "models" in info:
+            model_count = len(info["models"])
+            segment = info.get("segment", "default")
+            description = f"Bag of {model_count} models"
+            if "segment" in info:
+                description += f", segment={segment}"
+        else:
+            description = "Model collection"
+        console.print(f"  - [cyan]{name}[/cyan]: {description}")
+
+def download_models_command(
+    names: Annotated[
+        List[str],
+        typer.Argument(help="Pretrained model names or signatures to download.")
+    ] = None,
+    repo: Annotated[
+        Optional[Path],
+        typer.Option(help="Folder containing all pre-trained models for use with -n."),
+    ] = None,
+    all_models: Annotated[
+        bool,
+        typer.Option(
+            "--all", help="Download all available models (may take some time)"
+        ),
+    ] = False,
+):
+    """
+    Download and cache the specified models for offline use.
+    """
+    from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TaskProgressColumn
+    
+    if all_models:
+        # Get all collection names
+        collections = get_collections()
+        model_names = list(collections.keys())
+    else:
+        if names is None or not names:
+            console.print("[yellow]No models specified. Using default model.[/yellow]")
+            model_names = [DEFAULT_MODEL]
+        else:
+            model_names = names
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(complete_style="green"),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+        refresh_per_second=10
+    ) as progress_bar:
+        task = progress_bar.add_task("[yellow]Downloading models...", total=len(model_names))
+        
+        for name in model_names:
+            progress_bar.update(task, description=f"[cyan]Downloading {name}...[/cyan]")
+            try:
+                model = get_model(name=name, repo=repo)
+                num_sources = len(model.sources)
+                model_type = f"Bag of {len(model.models)} models" if isinstance(model, BagOfModels) else "Single Model"
+                progress_bar.update(task, advance=1)
+                console.print(f"[green]✓[/green] [bold]{name}[/bold]: {model_type} with {num_sources} sources")
+            except ModelLoadingError as error:
+                progress_bar.update(task, advance=1)
+                console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
+    
+    console.print("[bold green]Download complete![/bold green]")
+
+
+# Add a function to get collections directly from metadata.json
+def get_collections() -> Dict[str, Dict]:
+    """Get collections from metadata.json"""
+    with open(METADATA_PATH, 'r') as f:
+        metadata = json.load(f)
+    return metadata.get("collections", {})
 
 
 # Use plain typer.run() to create the simplest possible CLI
 # This creates a direct CLI without any command structure
 def main_command(
-    version: Annotated[
-        bool, typer.Option("--version", callback=version_callback, help="Show the version and exit.")
-    ] = False,
     tracks: Annotated[
         Optional[List[Path]], typer.Argument(help="Path to tracks")
     ] = None,
@@ -197,20 +286,21 @@ def main_command(
     Separate the sources for the given tracks.
     """
     if list_models_flag:
-        models = list_models(repo)
-        typer.echo("Bag of models:", nl=False)
-        typer.echo("\n    " + "\n    ".join(models["bag"]))
-        typer.echo("Single models:", nl=False)
-        typer.echo("\n    " + "\n    ".join(models["single"]))
-        raise typer.Exit()
-
-    if tracks is None:
-        tracks = []
-    if len(tracks) == 0:
-        # Instead of error, show help
-        typer.echo("Please provide one or more audio tracks to separate.")
-        typer.echo("Run 'demucs --help' for usage information.")
-        raise typer.Exit(0)
+        collections = get_collections()
+        typer.echo("Available models:")
+        for name in sorted(collections.keys()):
+            typer.echo(f"  {name}")
+        return
+        
+    # Display a helpful message about downloading models
+    if name != DEFAULT_MODEL:
+        console.print(f"[bold]Using model: [cyan]{name}[/cyan][/bold]")
+        console.print(f"[dim]To pre-download this model, run: demucs models download {name}[/dim]")
+    
+    if tracks is None or not tracks:
+        typer.echo("No tracks provided.")
+        typer.echo("Usage: demucs separate [options] tracks... \nHelp: demucs --help")
+        return
 
     split = not no_split
 
@@ -327,12 +417,39 @@ def main_command(
 
 def main():
     """
-    Entry point for the CLI.
+    Load the checkpoints file and run the command.
     """
-    # Use environment variable to set the correct program name
-    import os
-    os.environ["TYPER_CLI_NAME"] = "demucs"
-    typer.run(main_command)
+    app = typer.Typer(
+        help="Demucs: Music Source Separation",
+        add_completion=False,
+        no_args_is_help=True,  # Show help when no arguments are provided
+    )
+    # Create models command group
+    models_app = typer.Typer(help="Download, list and manage models", no_args_is_help=True)
+    models_app.command(name="list")(list_models_command)
+    models_app.command(name="download")(download_models_command)
+    
+    # Main commands
+    app.command(name="separate")(main_command)
+    app.add_typer(models_app, name="models")
+    app.command(name="version")(version_command)
+    
+    # Create a callback for the main command to show helpful info
+    @app.callback()
+    def callback():
+        """
+        Demucs: Music Source Separation tool
+
+        USAGE:
+          demucs separate [OPTIONS] TRACKS...    - Separate audio tracks
+          demucs models list                     - List available models
+          demucs models download [OPTIONS] [NAMES]... - Download model(s)
+          demucs version                         - Show version information
+        """
+        pass
+    
+    # Run the app
+    app()
 
 
 if __name__ == "__main__":

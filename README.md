@@ -3,9 +3,7 @@
 > [!NOTE] 
 > This is a mantained fork of the [author's fork](https://github.com/adefossez/demucs) of the [original](https://github.com/facebookresearch/demucs) Demucs repository. It has been modified to be a inference-only package. Read the [changelog](docs/changelog.md) for more information.
 
-Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Demucs is based on a U-Net convolutional architecture inspired by [Wave-U-Net][waveunet]. 
-
-Samples are available [online][samples] for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper][htdemucs] for more information.
+Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Samples are available [online][samples] for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper][htdemucs] for more information.
 
 ## Installation
 
@@ -44,7 +42,6 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 2. **Run Without Installing** - For one-time or occasional use:
    ```bash
-   # Use uvx to run without permanent installation
    uvx --with demucs-inference demucs audio_file.mp3
    ```
 
@@ -99,6 +96,32 @@ demucs audio_file_1.mp3 audio_file_2.mp3
 # Separate all audio files in the current directory
 demucs *.mp3
 ```
+
+### Pre-downloading Models
+
+You can download and cache models before using them for offline use:
+
+```bash
+# Download the default model (htdemucs)
+demucs download
+
+# Download a specific model
+demucs download mdx
+
+# Download multiple models
+demucs download mdx htdemucs_ft htdemucs_6s
+
+# List all available models
+demucs download --list-models
+
+# Download all available models
+demucs download --all
+```
+
+This is useful when:
+- You want to prepare for offline use
+- You want to avoid downloading during audio processing
+- You're running batch jobs and want to ensure models are ready
 
 ### GPU Memory Requirements and Optimization
 
@@ -156,20 +179,21 @@ Select pre-trained models with the `-n` flag:
 
 ## Demucs API
 
-Demucs provides two APIs that can be used to separate audio files.
+Demucs provides an API that can be used to separate audio files programmatically.
 
-### Command Line Interface API
-
-A simple API that provides a interface similar to the command line interface. 
 ```python
-# Assume that your command is `demucs --mp3 --two-stems vocals -n mdx_extra "audio_file.mp3"`
-import demucs.separate
-demucs.separate.main(["--mp3", "--two-stems", "vocals", "-n", "mdx_extra", "audio_file.mp3"])
+from demucs.api import Separator, save_audio
+
+# Initialize the separator with desired model and parameters
+separator = Separator(model="htdemucs", device="cuda")
+
+# Separate an audio file
+original, separated_stems = separator.separate_audio_file("audio_file.mp3")
+
+# Save the separated stems
+for stem_name, stem_audio in separated_stems.items():
+    save_audio(stem_audio, f"{stem_name}.wav", samplerate=separator.samplerate)
 ```
-
-### Separator API
-
-A more complicated API that provides a `Separator` class that can be used to separate audio files.
 
 View the [API docs](docs/api.md) for more information on the `Separator` class.
 

@@ -7,12 +7,10 @@
 
 import logging
 import typing as tp
-import urllib.request
 from pathlib import Path
 
 from dora.log import bold, fatal
 
-from .hdemucs import HDemucs
 from .repo import (
     AnyModelRepo,
     CollectionRepo,
@@ -31,31 +29,6 @@ DEFAULT_MODEL = "htdemucs"
 
 # Export DEFAULT_MODEL to be used in separate.py
 __all__ = ["ModelLoadingError", "get_model", "get_model_from_args", "SOURCES", "DEFAULT_MODEL"]
-
-def _parse_remote_files(path_or_url):
-    """Parse the files.txt from remote repository and returns a dict mapping
-    model names to URLs for download."""
-    if isinstance(path_or_url, str) and (path_or_url.startswith('http://') or path_or_url.startswith('https://')):
-        with urllib.request.urlopen(path_or_url) as response:
-            lines = response.read().decode('utf-8').split('\n')
-    else:
-        with open(path_or_url, 'r') as f:
-            lines = f.readlines()
-    
-    files = {}
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith('#'):
-            continue
-        file_name, url = line.split()
-        files[file_name] = url
-    return files
-
-
-def demucs_unittest():
-    model = HDemucs(channels=4, sources=SOURCES)
-    return model
-
 
 def add_model_flags(parser):
     group = parser.add_mutually_exclusive_group(required=False)
@@ -77,8 +50,6 @@ def get_model(name: str, repo: tp.Optional[Path] = None):
     """`name` must be a collection of models name or a pretrained signature
     from the GitHub model repo or the specified local repo if `repo` is not None.
     """
-    if name == "demucs_unittest":
-        return demucs_unittest()
     model_repo: tp.Union[GitHubRepo, LocalRepo]
     if repo is None:
         model_repo = GitHubRepo(METADATA_PATH)

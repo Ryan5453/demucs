@@ -110,20 +110,6 @@
     }
   },
   "collections": {
-    "htdemucs_6s": {
-      "models": [
-        "5c90dfd2"
-      ]
-    },
-    "mdx_extra_q": {
-      "models": [
-        "83fc094f",
-        "464b36d7",
-        "14fc6a69",
-        "7fd6ef75"
-      ],
-      "segment": 44
-    },
     "mdx": {
       "models": [
         "0d19c1c6",
@@ -159,18 +145,62 @@
       ],
       "segment": 44
     },
-    "hdemucs_mmi": {
-      "models": [
-        "75fc33f5"
-      ],
-      "segment": 44
-    },
     "mdx_extra": {
       "models": [
         "e51eebcc",
         "a1d90b5c",
         "5d2d6c55",
         "cfa93e08"
+      ],
+      "segment": 44
+    },
+    "mdx_q": {
+      "models": [
+        "6b9c2ca1",
+        "b72baf4e",
+        "42e558d4",
+        "305bc58f"
+      ],
+      "weights": [
+        [
+          1.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        [
+          1.0,
+          0.0,
+          1.0,
+          1.0
+        ]
+      ],
+      "segment": 44
+    },
+    "mdx_extra_q": {
+      "models": [
+        "83fc094f",
+        "464b36d7",
+        "14fc6a69",
+        "7fd6ef75"
+      ],
+      "segment": 44
+    },
+    "hdemucs_mmi": {
+      "models": [
+        "75fc33f5"
       ],
       "segment": 44
     },
@@ -213,40 +243,10 @@
         ]
       ]
     },
-    "mdx_q": {
+    "htdemucs_6s": {
       "models": [
-        "6b9c2ca1",
-        "b72baf4e",
-        "42e558d4",
-        "305bc58f"
-      ],
-      "weights": [
-        [
-          1.0,
-          1.0,
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1.0,
-          0.0,
-          0.0
-        ],
-        [
-          1.0,
-          0.0,
-          1.0,
-          1.0
-        ],
-        [
-          1.0,
-          0.0,
-          1.0,
-          1.0
-        ]
-      ],
-      "segment": 44
+        "5c90dfd2"
+      ]
     }
   }
 }

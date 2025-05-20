@@ -22,7 +22,7 @@ dependencies = [
     "openunmix",
     "torch>=1.8.1",
     "torchaudio>=0.8",
-    "tqdm",
+    "rich>=13.0.0",
     "soundfile>=0.10.3",
     "dora-search>=0.1.12",
     "diffq>=0.2.1",

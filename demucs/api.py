@@ -30,8 +30,8 @@ from dora.log import fatal
 
 from .apply import _replace_dict, apply_model
 from .audio import AudioFile, convert_audio, save_audio
-from .pretrained import REMOTE_ROOT, _parse_remote_files, get_model
-from .repo import BagOnlyRepo, LocalRepo, ModelOnlyRepo, RemoteRepo
+from .pretrained import REMOTE_ROOT, METADATA_PATH, get_model
+from .repo import BagOnlyRepo, LocalRepo, ModelOnlyRepo, GitHubRepo
 
 
 class LoadAudioError(Exception):
@@ -341,8 +341,7 @@ def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, Union[str, P
     """
     model_repo: ModelOnlyRepo
     if repo is None:
-        models = _parse_remote_files(REMOTE_ROOT / "files.txt")
-        model_repo = RemoteRepo(models)
+        model_repo = GitHubRepo(METADATA_PATH)
         bag_repo = BagOnlyRepo(REMOTE_ROOT, model_repo)
     else:
         if not repo.is_dir():
@@ -353,9 +352,6 @@ def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, Union[str, P
 
 
 if __name__ == "__main__":
-    # Test API functions
-    # two-stem not supported
-
     from .separate import get_parser
 
     args = get_parser().parse_args()

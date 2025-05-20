@@ -9,13 +9,16 @@ inteprolation between chunks, as well as the "shift trick".
 """
 
 import copy
+import os
 import random
 import typing as tp
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
 import torch as th
-import tqdm
+import torch.nn as nn
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TaskProgressColumn
 from torch import nn
 from torch.nn import functional as F
 
@@ -25,6 +28,8 @@ from .htdemucs import HTDemucs
 from .utils import DummyPoolExecutor, center_trim
 
 Model = tp.Union[Demucs, HDemucs, HTDemucs]
+
+console = Console()
 
 
 class BagOfModels(nn.Module):
@@ -316,20 +321,45 @@ def apply_model(
             futures.append((future, offset))
             offset += segment_length
         if progress:
-            futures = tqdm.tqdm(futures, unit_scale=scale, ncols=120, unit="seconds")
-        for future, offset in futures:
-            try:
-                chunk_out = future.result()  # type: th.Tensor
-            except Exception:
-                pool.shutdown(wait=True, cancel_futures=True)
-                raise
-            chunk_length = chunk_out.shape[-1]
-            out[..., offset : offset + segment_length] += (
-                weight[:chunk_length] * chunk_out
-            ).to(mix.device)
-            sum_weight[offset : offset + segment_length] += weight[:chunk_length].to(
-                mix.device
-            )
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]{task.description}"),
+                BarColumn(complete_style="green"),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                console=console,
+                transient=True,
+                refresh_per_second=10
+            ) as progress_bar:
+                task = progress_bar.add_task("Processing audio", total=len(futures))
+                for future, offset in futures:
+                    try:
+                        chunk_out = future.result()  # type: th.Tensor
+                        chunk_length = chunk_out.shape[-1]
+                        out[..., offset : offset + segment_length] += (
+                            weight[:chunk_length] * chunk_out
+                        ).to(mix.device)
+                        sum_weight[offset : offset + segment_length] += weight[:chunk_length].to(
+                            mix.device
+                        )
+                        progress_bar.update(task, advance=1)
+                    except Exception:
+                        pool.shutdown(wait=True, cancel_futures=True)
+                        raise
+        else:
+            for future, offset in futures:
+                try:
+                    chunk_out = future.result()  # type: th.Tensor
+                    chunk_length = chunk_out.shape[-1]
+                    out[..., offset : offset + segment_length] += (
+                        weight[:chunk_length] * chunk_out
+                    ).to(mix.device)
+                    sum_weight[offset : offset + segment_length] += weight[:chunk_length].to(
+                        mix.device
+                    )
+                except Exception:
+                    pool.shutdown(wait=True, cancel_futures=True)
+                    raise
         assert sum_weight.min() > 0
         out /= sum_weight
         assert isinstance(out, th.Tensor)
