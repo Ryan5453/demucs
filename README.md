@@ -1,7 +1,7 @@
 # Demucs
 
 > [!NOTE] 
-> This is a mantained fork of the [author's fork](https://github.com/adefossez/demucs) of the [original](https://github.com/facebookresearch/demucs) Demucs repository. It has been modified to be a inference-only package.
+> This is a mantained fork of the [author's fork](https://github.com/adefossez/demucs) of the [original](https://github.com/facebookresearch/demucs) Demucs repository. It has been modified to be a inference-only package. Read the [changelog](docs/changelog.md) for more information.
 
 Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Demucs is based on a U-Net convolutional architecture inspired by [Wave-U-Net][waveunet]. 
 
@@ -21,7 +21,7 @@ Before installing Demucs, you need:
 
 ### For Command Line Users
 
-If you want to use Demucs primarily as a command-line tool to separate audio tracks:
+If you want to use Demucs as a command-line tool to separate audio tracks:
 
 #### Install UV (Recommended)
 
@@ -60,7 +60,7 @@ If you want to use Demucs as a library in your Python applications:
 ```bash
 # Using UV (recommended)
 uv pip install demucs-inference
-# or shorter syntax
+# or 
 uv add demucs-inference
 
 # Using standard pip
@@ -75,20 +75,12 @@ uv tool upgrade demucs-inference
 
 # If installed with standard uv
 uv pip install -U demucs-inference
-# or shorter syntax
+# or
 uv add -U demucs-inference
 
 # If installed with pip
 pip install -U demucs-inference
 ```
-
-### GPU Support
-
-For GPU acceleration (strongly recommended for faster processing):
-
-1. Install PyTorch with CUDA support from the [PyTorch installation page](https://pytorch.org/get-started/locally/)
-2. Ensure you have compatible NVIDIA drivers installed
-3. At least 3GB of GPU VRAM is required (7GB recommended for default settings)
 
 ## Usage
 
@@ -108,59 +100,59 @@ demucs audio_file_1.mp3 audio_file_2.mp3
 demucs *.mp3
 ```
 
-### Notes
+### GPU Memory Requirements and Optimization
 
-- If you have a GPU, but you run out of memory, please use the `--segment` option to reduce length of each split. It should be set to a integer describing the length of each segment in seconds.
-- A segment length of at least 10 is recommended (the bigger the number is, the more memory is required, but quality may increase). Note that the Hybrid Transformer models only support a maximum segment length of 7.8 seconds.
-- Creating an environment variable `PYTORCH_NO_CUDA_MEMORY_CACHING=1` is also helpful. If this still does not help, please add `-d cpu` to the command line. See the section hereafter for more details on the memory requirements for GPU acceleration.
+If you want to use GPU acceleration:
+
+- Minimum requirement: 3GB of GPU RAM (default settings need about 7GB)
+- For devices with limited memory:
+  - Use `--segment SEGMENT` to reduce split length (set to integer seconds)
+  - For 3GB GPU memory, try SEGMENT=8 (quality may be affected by smaller values)
+  - Hybrid Transformer models only support a maximum segment length of 7.8 seconds
+  - Set environment variable `PYTORCH_NO_CUDA_MEMORY_CACHING=1` to further reduce usage
+  - For very limited memory (2GB or less), use `-d cpu` to run on CPU instead
+- Processing time on CPU is roughly 1.5× the duration of the track
+
+### Output Format
 
 Separated tracks are stored in the `separated/MODEL_NAME/TRACK_NAME` folder. There you will find four stereo wav files sampled at 44.1 kHz: `drums.wav`, `bass.wav`,
 `other.wav`, `vocals.wav` (or `.mp3` if you used the `--mp3` option).
 
 All audio formats supported by `torchaudio` can be processed (i.e. wav, mp3, flac, ogg/vorbis on Linux/macOS, etc.). On Windows, `torchaudio` has limited support, so we rely on `ffmpeg`, which should support pretty much anything.
 Audio is resampled on the fly if necessary.
-The output will be a wav file encoded as int16.
-You can save as float32 wav files with `--float32`, or 24 bits integer wav with `--int24`.
-You can pass `--mp3` to save as mp3 instead, and set the bitrate (in kbps) with `--mp3-bitrate` (default is 320).
 
-It can happen that the output would need clipping, in particular due to some separation artifacts.
-Demucs will automatically rescale each output stem so as to avoid clipping. This can however break
-the relative volume between stems. If instead you prefer hard clipping, pass `--clip-mode clamp`.
-You can also try to reduce the volume of the input mixture before feeding it to Demucs.
+#### Output File Types
 
+- Default: WAV files encoded as int16
+- `--float32`: Save as float32 WAV files
+- `--int24`: Save as 24-bit integer WAV files
+- `--mp3`: Save as MP3 files
+- `--mp3-bitrate`: Set MP3 bitrate in kbps (default is 320)
 
-Other pre-trained models can be selected with the `-n` flag.
-The list of pre-trained models is:
-- `htdemucs`: first version of Hybrid Transformer Demucs. Trained on MusDB + 800 songs. Default model.
-- `htdemucs_ft`: fine-tuned version of `htdemucs`, separation will take 4 times more time
-    but might be a bit better. Same training set as `htdemucs`.
-- `htdemucs_6s`: 6 sources version of `htdemucs`, with `piano` and `guitar` being added as sources.
-    Note that the `piano` source is not working great at the moment.
+#### Handling Clipping
+
+Demucs will automatically rescale each output stem to avoid clipping, which may affect relative volume between stems. Options:
+- `--clip-mode clamp`: Use hard clipping if you prefer preserving relative volumes
+- Alternatively, try reducing the volume of the input mixture before processing
+
+### Model Selection
+
+Select pre-trained models with the `-n` flag:
+
+- `htdemucs`: First version of Hybrid Transformer Demucs (default). Trained on MusDB + 800 songs.
+- `htdemucs_ft`: Fine-tuned version of `htdemucs`. Better quality but 4× slower.
+- `htdemucs_6s`: 6-source version adding `piano` and `guitar` (piano performance is limited).
 - `hdemucs_mmi`: Hybrid Demucs v3, retrained on MusDB + 800 songs.
-- `mdx`: trained only on MusDB HQ, winning model on track A at the [MDX][mdx] challenge.
-- `mdx_extra`: trained with extra training data (**including MusDB test set**), ranked 2nd on the track B
-    of the [MDX][mdx] challenge.
-- `mdx_q`, `mdx_extra_q`: quantized version of the previous models. Smaller download and storage
-    but quality can be slightly worse.
+- `mdx`: Trained only on MusDB HQ. Winner on track A at the [MDX][mdx] challenge.
+- `mdx_extra`: Trained with extra data (including MusDB test set). Ranked 2nd on track B.
+- `mdx_q`, `mdx_extra_q`: Quantized versions. Smaller size but slightly lower quality.
 
-The `--two-stems=vocals` option allows separating vocals from the rest of the accompaniment (i.e., karaoke mode).
-`vocals` can be changed to any source in the selected model.
-This will mix the files after separating the mix fully, so this won't be faster or use less memory.
+### Processing Options
 
-The `--shifts=SHIFTS` performs multiple predictions with random shifts (a.k.a the *shift trick*) of the input and average them. This makes prediction `SHIFTS` times
-slower. Don't use it unless you have a GPU.
-
-The `--overlap` option controls the amount of overlap between prediction windows. Default is 0.25 (i.e. 25%) which is probably fine.
-It can probably be reduced to 0.1 to improve a bit speed.
-
-The `-j` flag allow to specify a number of parallel jobs (e.g. `demucs -j 2 myfile.mp3`).
-This will multiply by the same amount the RAM used so be careful!
-
-### Memory requirements for GPU acceleration
-
-If you want to use GPU acceleration, you will need at least 3GB of RAM on your GPU for `demucs`. However, about 7GB of RAM will be required if you use the default arguments. Add `--segment SEGMENT` to change size of each split. If you only have 3GB memory, set SEGMENT to 8 (though quality may be worse if this argument is too small). Creating an environment variable `PYTORCH_NO_CUDA_MEMORY_CACHING=1` can help users with even smaller RAM such as 2GB (I separated a track that is 4 minutes but only 1.5GB is used), but this would make the separation slower.
-
-If you do not have enough memory on your GPU, simply add `-d cpu` to the command line to use the CPU. With Demucs, processing time should be roughly equal to 1.5 times the duration of the track.
+- `--two-stems=vocals`: Separate vocals from accompaniment (karaoke mode). Replace "vocals" with any source.
+- `--shifts=SHIFTS`: Perform multiple predictions with random shifts and average them. Makes processing `SHIFTS` times slower (GPU recommended).
+- `--overlap`: Control overlap between prediction windows (default: 0.25). Can be reduced to 0.1 for faster processing.
+- `-j N`: Specify number of parallel jobs (e.g., `-j 2`). Multiplies RAM usage by the same amount.
 
 ## Demucs API
 
