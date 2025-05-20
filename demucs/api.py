@@ -27,8 +27,8 @@ from dora.log import fatal
 
 from .apply import _replace_dict, apply_model
 from .audio import AudioFile, convert_audio, save_audio
-from .pretrained import METADATA_PATH, REMOTE_ROOT, get_model
-from .repo import GitHubRepo, LocalRepo, ModelOnlyRepo
+from .pretrained import METADATA_PATH, get_model
+from .repo import ModelRepository
 
 
 class LoadAudioError(Exception):
@@ -322,7 +322,7 @@ class Separator:
         return self._model
 
 
-def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, Union[str, Path]]]:
+def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, dict]]:
     """
     List the available models. Please remember that not all the returned models can be
     successfully loaded.
@@ -333,19 +333,10 @@ def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, Union[str, P
 
     Returns
     -------
-    A dict with two keys ("single" for single models and "bag" for bag of models). The values are
-    lists whose components are strs.
+    A dict mapping model names to their metadata
     """
-    model_repo: ModelOnlyRepo
-    if repo is None:
-        model_repo = GitHubRepo(METADATA_PATH)
-    else:
-        if not repo.is_dir():
-            fatal(f"{repo} must exist and be a directory.")
-        model_repo = LocalRepo(repo)
-    
-    # Only return single models since bag models are in metadata.json collections
-    return {"single": model_repo.list_model(), "bag": {}}
+    model_repo = ModelRepository(METADATA_PATH, repo)
+    return model_repo.list_models()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 """
-Represents a model repository, including pre-trained models and bags of models.
-A repo can either be the GitHub repository or a local repository with your own models.
+Repository system for managing pretrained models.
 """
 
 import json
@@ -36,134 +35,122 @@ def check_checksum(path: Path, checksum: str):
         )
 
 
-class ModelOnlyRepo:
-    """Base class for all model only repos."""
-
-    def has_model(self, sig: str) -> bool:
-        raise NotImplementedError()
-
-    def get_model(self, sig: str) -> Model:
-        raise NotImplementedError()
-
-    def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
-        raise NotImplementedError()
-
-
-class GitHubRepo(ModelOnlyRepo):
-    def __init__(self, metadata_path: Path):
+class ModelRepository:
+    """Unified repository system for accessing models and collections."""
+    
+    def __init__(self, metadata_path: Path, local_repo_path: tp.Optional[Path] = None):
+        """
+        Initialize the repository.
+        
+        Args:
+            metadata_path: Path to metadata.json containing model information
+            local_repo_path: Path to local model repository (if None, use remote)
+        """
         self.metadata_path = metadata_path
+        self.local_repo_path = local_repo_path
+        
+        # Load metadata
         with open(metadata_path, "r") as f:
             self.metadata = json.load(f)
+        
         self._models = self.metadata["models"]
-
-    def has_model(self, sig: str) -> bool:
-        return sig in self._models
-
-    def get_model(self, sig: str) -> Model:
-        try:
-            model_info = self._models[sig]
-            url = model_info["url"]
-        except KeyError:
-            raise ModelLoadingError(
-                f"Could not find a pre-trained model with signature {sig}."
-            )
-        pkg = torch.hub.load_state_dict_from_url(
-            url, map_location="cpu", check_hash=True
-        )  # type: ignore
-        return load_model(pkg)
-
-    def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
-        return {sig: info["url"] for sig, info in self._models.items()}
-
-
-class LocalRepo(ModelOnlyRepo):
-    def __init__(self, root: Path):
-        self.root = root
-        self.scan()
-
-    def scan(self):
-        self._models = {}
-        self._checksums = {}
-        for file in self.root.iterdir():
+        self._collections = self.metadata["collections"]
+        
+        # Scan local repository if provided
+        self._local_models = {}
+        self._local_checksums = {}
+        if local_repo_path is not None:
+            self._scan_local_repo()
+    
+    def _scan_local_repo(self):
+        """Scan local repository for model files."""
+        for file in self.local_repo_path.iterdir():
             if file.suffix == ".th":
                 if "-" in file.stem:
-                    xp_sig, checksum = file.stem.split("-")
-                    self._checksums[xp_sig] = checksum
+                    sig, checksum = file.stem.split("-")
+                    self._local_checksums[sig] = checksum
                 else:
-                    xp_sig = file.stem
-                if xp_sig in self._models:
+                    sig = file.stem
+                if sig in self._local_models:
                     raise ModelLoadingError(
-                        f"Duplicate pre-trained model exist for signature {xp_sig}. "
+                        f"Duplicate pre-trained model exist for signature {sig}. "
                         "Please delete all but one."
                     )
-                self._models[xp_sig] = file
-
-    def has_model(self, sig: str) -> bool:
-        return sig in self._models
-
-    def get_model(self, sig: str) -> Model:
-        try:
-            file = self._models[sig]
-        except KeyError:
-            raise ModelLoadingError(
-                f"Could not find pre-trained model with signature {sig}."
-            )
-        if sig in self._checksums:
-            check_checksum(file, self._checksums[sig])
-        return load_model(file)
-
-    def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
-        return self._models
-
-
-class CollectionRepo:
-    """Handles collections of models (previously represented by YAML files)"""
-
-    def __init__(self, metadata_path: Path, model_repo: ModelOnlyRepo):
-        self.metadata_path = metadata_path
-        self.model_repo = model_repo
-        with open(metadata_path, "r") as f:
-            self.metadata = json.load(f)
-        self._collections = self.metadata["collections"]
-
+                self._local_models[sig] = file
+    
     def has_model(self, name: str) -> bool:
+        """Check if a model or collection exists."""
+        # Check local models first
+        if self.local_repo_path is not None and name in self._local_models:
+            return True
+        
+        # Then check remote models
+        if name in self._models:
+            return True
+        
+        # Finally check collections
         return name in self._collections
-
-    def get_model(self, name: str) -> BagOfModels:
-        try:
-            collection = self._collections[name]
-        except KeyError:
-            raise ModelLoadingError(
-                f"{name} is neither a single pre-trained model or a collection of models."
+    
+    def get_model(self, name: str) -> AnyModel:
+        """
+        Get a model or collection by name.
+        
+        Args:
+            name: Model name, signature, or collection name
+            
+        Returns:
+            The requested model or model collection
+        """
+        # Try loading from local repository first
+        if self.local_repo_path is not None and name in self._local_models:
+            file = self._local_models[name]
+            if name in self._local_checksums:
+                check_checksum(file, self._local_checksums[name])
+            return load_model(file)
+        
+        # Try loading as a remote model
+        if name in self._models:
+            model_info = self._models[name]
+            url = model_info["url"]
+            pkg = torch.hub.load_state_dict_from_url(
+                url, map_location="cpu", check_hash=True
             )
-        signatures = collection["models"]
-        models = [self.model_repo.get_model(sig) for sig in signatures]
-        weights = collection.get("weights")
-        segment = collection.get("segment")
-        return BagOfModels(models, weights, segment)
-
-    def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
-        return self._collections
-
-
-class AnyModelRepo:
-    def __init__(self, model_repo: ModelOnlyRepo, collection_repo: CollectionRepo):
-        self.model_repo = model_repo
-        self.collection_repo = collection_repo
-
-    def has_model(self, name_or_sig: str) -> bool:
-        return self.model_repo.has_model(name_or_sig) or self.collection_repo.has_model(
-            name_or_sig
+            return load_model(pkg)
+        
+        # Try loading as a collection
+        if name in self._collections:
+            collection = self._collections[name]
+            signatures = collection["models"]
+            models = [self.get_model(sig) for sig in signatures]
+            weights = collection.get("weights")
+            segment = collection.get("segment")
+            return BagOfModels(models, weights, segment)
+        
+        # If we got here, the model doesn't exist
+        raise ModelLoadingError(
+            f"Could not find a model or collection with name {name}."
         )
-
-    def get_model(self, name_or_sig: str) -> AnyModel:
-        if self.model_repo.has_model(name_or_sig):
-            return self.model_repo.get_model(name_or_sig)
-        else:
-            return self.collection_repo.get_model(name_or_sig)
-
-    def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
-        models = self.model_repo.list_model()
-        for key, value in self.collection_repo.list_model().items():
-            models[key] = value
-        return models
+    
+    def list_models(self) -> tp.Dict[str, tp.Dict]:
+        """
+        List all available models and collections.
+        
+        Returns:
+            Dictionary mapping model/collection names to their metadata
+        """
+        result = {}
+        
+        # Add remote models
+        for sig, info in self._models.items():
+            result[sig] = {"type": "remote_model", "info": info}
+        
+        # Add local models
+        if self.local_repo_path is not None:
+            for sig, path in self._local_models.items():
+                result[sig] = {"type": "local_model", "path": str(path)}
+        
+        # Add collections
+        for name, info in self._collections.items():
+            result[name] = {"type": "collection", "info": info}
+        
+        return result
