@@ -61,7 +61,7 @@ repo: Folder containing all pre-trained models for use.
 
 segment: Length (in seconds) of each segment (only available if `split` is `True`). If not specified, will use the command line option.
 
-shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and apply the oppositve shift to the output. This is repeated `shifts` time and all predictions are averaged. This effectively makes the model time equivariant and improves SDR by up to 0.2 points. If not specified, will use the command line option.
+shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and apply the opposite shift to the output. This is repeated `shifts` time and all predictions are averaged. This effectively makes the model time equivariant and improves SDR by up to 0.2 points. If not specified, will use the command line option.
 
 split: If True, the input will be broken down into small chunks (length set by `segment`) and predictions will be performed individually on each and concatenated. Useful for model with large memory footprint like Tasnet. If not specified, will use the command line option.
 
@@ -109,7 +109,7 @@ Update the parameters of separation.
 
 segment: Length (in seconds) of each segment (only available if `split` is `True`). If not specified, will use the command line option.
 
-shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and apply the oppositve shift to the output. This is repeated `shifts` time and all predictions are averaged. This effectively makes the model time equivariant and improves SDR by up to 0.2 points. If not specified, will use the command line option.
+shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and apply the opposite shift to the output. This is repeated `shifts` time and all predictions are averaged. This effectively makes the model time equivariant and improves SDR by up to 0.2 points. If not specified, will use the command line option.
 
 split: If True, the input will be broken down into small chunks (length set by `segment`) and predictions will be performed individually on each and concatenated. Useful for model with large memory footprint like Tasnet. If not specified, will use the command line option.
 

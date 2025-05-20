@@ -9,13 +9,14 @@ import logging
 import typing as tp
 from pathlib import Path
 
-from dora.log import bold, fatal
+from rich.console import Console
 
 from .repo import ModelRepository
 from .states import _check_diffq
 
 logger = logging.getLogger(__name__)
 METADATA_PATH = Path(__file__).parent / "metadata.json"
+console = Console()
 
 SOURCES = ["drums", "bass", "other", "vocals"]
 DEFAULT_MODEL = "htdemucs"
@@ -45,20 +46,4 @@ def get_model_from_args(args):
     """
     if args.name is None:
         args.name = DEFAULT_MODEL
-        print(
-            bold("Important: the default model was recently changed to `htdemucs`"),
-            "the latest Hybrid Transformer Demucs model. In some cases, this model can "
-            "actually perform worse than previous models. To get back the old default model "
-            "use `-n mdx_extra_q`.",
-        )
     return get_model(name=args.name, repo=args.repo)
-
-
-def _check_diffq():
-    try:
-        import diffq  # noqa
-    except ImportError:
-        fatal(
-            "You need to install diffq to use this model. "
-            "Please run `pip install diffq`."
-        )

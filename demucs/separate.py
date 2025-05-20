@@ -11,7 +11,6 @@ from typing import Dict, List, Optional
 
 import torch as th
 import typer
-from dora.log import fatal
 from rich.console import Console
 from typing_extensions import Annotated
 
@@ -19,7 +18,7 @@ from . import __version__
 from .api import Separator, save_audio
 from .apply import BagOfModels
 from .htdemucs import HTDemucs
-from .pretrained import DEFAULT_MODEL, METADATA_PATH, ModelLoadingError, get_model
+from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
 from .repo import ModelLoadingError
 
 console = Console()
@@ -331,7 +330,7 @@ def main_command(
             segment=segment,
         )
     except ModelLoadingError as error:
-        fatal(error.args[0])
+        console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
 
     max_allowed_segment = float("inf")
     if isinstance(separator.model, HTDemucs):
@@ -339,36 +338,32 @@ def main_command(
     elif isinstance(separator.model, BagOfModels):
         max_allowed_segment = separator.model.max_allowed_segment
     if segment is not None and segment > max_allowed_segment:
-        fatal(
-            "Cannot use a Transformer model with a longer segment "
-            f"than it was trained for. Maximum segment is: {max_allowed_segment}"
+        console.print(
+            f"[red]✗[/red] [bold]{name}[/bold]: Cannot use a Transformer model with a longer segment than it was trained for. Maximum segment is: {max_allowed_segment}"
         )
 
     if isinstance(separator.model, BagOfModels):
-        typer.echo(
+        console.print(
             f"Selected model is a bag of {len(separator.model.models)} models. "
             "You will see that many progress bars per track."
         )
 
     if stem is not None and stem not in separator.model.sources:
-        fatal(
-            'error: stem "{stem}" is not in selected model. '
-            "STEM must be one of {sources}.".format(
-                stem=stem, sources=", ".join(separator.model.sources)
-            )
+        console.print(
+            f'[red]✗[/red] [bold]{name}[/bold]: error: stem "{stem}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
         )
     out_dir = out / (name if sig is None else sig)
     out_dir.mkdir(parents=True, exist_ok=True)
-    typer.echo(f"Separated tracks will be stored in {out_dir.resolve()}")
+    console.print(f"Separated tracks will be stored in {out_dir.resolve()}")
     for track in tracks:
         if not track.exists():
-            typer.echo(
+            console.print(
                 f"File {track} does not exist. If the path contains spaces, "
                 'please try again after surrounding the entire path with quotes "".',
                 err=True,
             )
             continue
-        typer.echo(f"Separating track {track}")
+        console.print(f"Separating track {track}")
 
         origin, res = separator.separate_audio_file(track)
 

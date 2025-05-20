@@ -71,7 +71,7 @@ class Separator:
         segment: Length (in seconds) of each segment (only available if `split` is `True`). If \
             not specified, will use the command line option.
         shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and \
-            apply the oppositve shift to the output. This is repeated `shifts` time and all \
+            apply the opposite shift to the output. This is repeated `shifts` time and all \
             predictions are averaged. This effectively makes the model time equivariant and \
             improves SDR by up to 0.2 points. If not specified, will use the command line option.
         split: If True, the input will be broken down into small chunks (length set by `segment`) \
@@ -144,7 +144,7 @@ class Separator:
         segment: Length (in seconds) of each segment (only available if `split` is `True`). If \
             not specified, will use the command line option.
         shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and \
-            apply the oppositve shift to the output. This is repeated `shifts` time and all \
+            apply the opposite shift to the output. This is repeated `shifts` time and all \
             predictions are averaged. This effectively makes the model time equivariant and \
             improves SDR by up to 0.2 points. If not specified, will use the command line option.
         split: If True, the input will be broken down into small chunks (length set by `segment`) \

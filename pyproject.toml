@@ -15,20 +15,17 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "dora-search",
+    "torch>=2.1.0",
+    "torchaudio>=2.1.0",
+    "soundfile>=0.10.3",
+    "rich>=13.0.0",
+    "typer>=0.9.0",
     "einops",
     "julius>=0.2.3",
     "lameenc>=1.2",
     "openunmix",
-    "torch>=1.8.1",
-    "torchaudio>=0.8",
-    "rich>=13.0.0",
     "soundfile>=0.10.3",
-    "dora-search>=0.1.12",
     "diffq>=0.2.1",
-    "hydra-colorlog>=1.1",
-    "hydra-core>=1.1",
-    "typer>=0.9.0",
 ]
 
 [project.optional-dependencies]
