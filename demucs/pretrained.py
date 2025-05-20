@@ -11,7 +11,7 @@ from pathlib import Path
 
 from dora.log import bold, fatal
 
-from .repo import ModelLoadingError, ModelRepository
+from .repo import ModelRepository
 from .states import _check_diffq
 
 logger = logging.getLogger(__name__)
@@ -20,38 +20,14 @@ METADATA_PATH = Path(__file__).parent / "metadata.json"
 SOURCES = ["drums", "bass", "other", "vocals"]
 DEFAULT_MODEL = "htdemucs"
 
-# Export DEFAULT_MODEL to be used in separate.py
-__all__ = [
-    "ModelLoadingError",
-    "get_model",
-    "get_model_from_args",
-    "SOURCES",
-    "DEFAULT_MODEL",
-]
-
-
-def add_model_flags(parser):
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument("-s", "--sig", help="Locally trained XP signature.")
-    group.add_argument(
-        "-n",
-        "--name",
-        default="htdemucs",
-        help="Pretrained model name or signature. Default is htdemucs.",
-    )
-    parser.add_argument(
-        "--repo",
-        type=Path,
-        help="Folder containing all pre-trained models for use with -n.",
-    )
-
 
 def get_model(name: str, repo: tp.Optional[Path] = None):
-    """`name` must be a model name, signature or collection name from the model repository.
+    """
+    `name` must be a model name, signature or collection name from the model repository.
     If `repo` is provided, will look for models in that local directory first.
     """
     model_repo = ModelRepository(METADATA_PATH, repo)
-    
+
     try:
         model = model_repo.get_model(name)
     except ImportError as exc:

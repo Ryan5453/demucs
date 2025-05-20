@@ -23,7 +23,6 @@ from typing import Callable, Dict, Optional, Tuple, Union
 
 import torch as th
 import torchaudio as ta
-from dora.log import fatal
 
 from .apply import _replace_dict, apply_model
 from .audio import AudioFile, convert_audio, save_audio

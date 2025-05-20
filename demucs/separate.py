@@ -20,6 +20,7 @@ from .api import Separator, save_audio
 from .apply import BagOfModels
 from .htdemucs import HTDemucs
 from .pretrained import DEFAULT_MODEL, METADATA_PATH, ModelLoadingError, get_model
+from .repo import ModelLoadingError
 
 console = Console()
 
