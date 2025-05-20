@@ -1,6 +1,6 @@
 [project]
 name = "demucs"
-version = "5.0.0a1"
+version = "5.0.0"
 description = "Music source separation in the waveform domain."
 readme = "README.md"
 authors = [
