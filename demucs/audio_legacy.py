@@ -5,7 +5,7 @@ import os
 import sys
 import warnings
 
-if not "torchaudio" in sys.modules:
+if "torchaudio" not in sys.modules:
     os.environ["TORCHAUDIO_USE_BACKEND_DISPATCHER"] = "0"
 elif os.getenv("TORCHAUDIO_USE_BACKEND_DISPATCHER", default="1") == "1":
     if sys.modules["torchaudio"].__version__ >= "2.1":

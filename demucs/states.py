@@ -6,27 +6,29 @@
 """
 Utilities to save and load models.
 """
-from contextlib import contextmanager
 
 import functools
 import hashlib
 import inspect
 import io
-from pathlib import Path
 import warnings
+from contextlib import contextmanager
+from pathlib import Path
 
-from omegaconf import OmegaConf
-from dora.log import fatal
 import torch
+from dora.log import fatal
+from omegaconf import OmegaConf
 
 
 def _check_diffq():
     try:
         import diffq  # noqa
     except ImportError:
-        fatal('Trying to use DiffQ, but diffq is not installed.\n'
-              'On Windows run: python.exe -m pip install diffq \n'
-              'On Linux/Mac, run: python3 -m pip install diffq')
+        fatal(
+            "Trying to use DiffQ, but diffq is not installed.\n"
+            "On Windows run: python.exe -m pip install diffq \n"
+            "On Linux/Mac, run: python3 -m pip install diffq"
+        )
 
 
 def get_quantizer(model, args, optimizer=None):
@@ -35,15 +37,17 @@ def get_quantizer(model, args, optimizer=None):
     if args.diffq:
         _check_diffq()
         from diffq import DiffQuantizer
+
         quantizer = DiffQuantizer(
-            model, min_size=args.min_size, group_size=args.group_size)
+            model, min_size=args.min_size, group_size=args.group_size
+        )
         if optimizer is not None:
             quantizer.setup_optimizer(optimizer)
     elif args.qat:
         _check_diffq()
         from diffq import UniformQuantizer
-        quantizer = UniformQuantizer(
-                model, bits=args.qat, min_size=args.min_size)
+
+        quantizer = UniformQuantizer(model, bits=args.qat, min_size=args.min_size)
     return quantizer
 
 
@@ -56,7 +60,7 @@ def load_model(path_or_package, strict=False):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             path = path_or_package
-            package = torch.load(path, 'cpu')
+            package = torch.load(path, "cpu")
     else:
         raise ValueError(f"Invalid type for {path_or_package}.")
 
@@ -86,21 +90,25 @@ def get_state(model, quantizer, half=False):
     but half the state size."""
     if quantizer is None:
         dtype = torch.half if half else None
-        state = {k: p.data.to(device='cpu', dtype=dtype) for k, p in model.state_dict().items()}
+        state = {
+            k: p.data.to(device="cpu", dtype=dtype)
+            for k, p in model.state_dict().items()
+        }
     else:
         state = quantizer.get_quantized_state()
-        state['__quantized'] = True
+        state["__quantized"] = True
     return state
 
 
 def set_state(model, state, quantizer=None):
     """Set the state on a given model."""
-    if state.get('__quantized'):
+    if state.get("__quantized"):
         if quantizer is not None:
-            quantizer.restore_quantized_state(model, state['quantized'])
+            quantizer.restore_quantized_state(model, state["quantized"])
         else:
             _check_diffq()
             from diffq import restore_quantized_state
+
             restore_quantized_state(model, state)
     else:
         model.load_state_dict(state)
@@ -124,11 +132,11 @@ def serialize_model(model, training_args, quantizer=None, half=True):
 
     state = get_state(model, quantizer, half)
     return {
-        'klass': klass,
-        'args': args,
-        'kwargs': kwargs,
-        'state': state,
-        'training_args': OmegaConf.to_container(training_args, resolve=True),
+        "klass": klass,
+        "args": args,
+        "kwargs": kwargs,
+        "state": state,
+        "training_args": OmegaConf.to_container(training_args, resolve=True),
     }
 
 

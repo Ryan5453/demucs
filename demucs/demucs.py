@@ -13,8 +13,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from .states import capture_init
-from .utils import center_trim, unfold
 from .transformer import LayerScale
+from .utils import center_trim, unfold
 
 
 class BLSTM(nn.Module):
@@ -23,11 +23,14 @@ class BLSTM(nn.Module):
     If `max_steps` is not None, input will be splitting in overlapping
     chunks and the LSTM applied separately on each chunk.
     """
+
     def __init__(self, dim, layers=1, max_steps=None, skip=False):
         super().__init__()
         assert max_steps is None or max_steps % 4 == 0
         self.max_steps = max_steps
-        self.lstm = nn.LSTM(bidirectional=True, num_layers=layers, hidden_size=dim, input_size=dim)
+        self.lstm = nn.LSTM(
+            bidirectional=True, num_layers=layers, hidden_size=dim, input_size=dim
+        )
         self.linear = nn.Linear(2 * dim, dim)
         self.skip = skip
 
@@ -68,10 +71,9 @@ class BLSTM(nn.Module):
 
 
 def rescale_conv(conv, reference):
-    """Rescale initial weight scale. It is unclear why it helps but it certainly does.
-    """
+    """Rescale initial weight scale. It is unclear why it helps but it certainly does."""
     std = conv.weight.std().detach()
-    scale = (std / reference)**0.5
+    scale = (std / reference) ** 0.5
     conv.weight.data /= scale
     if conv.bias is not None:
         conv.bias.data /= scale
@@ -79,7 +81,9 @@ def rescale_conv(conv, reference):
 
 def rescale_module(module, reference):
     for sub in module.modules():
-        if isinstance(sub, (nn.Conv1d, nn.ConvTranspose1d, nn.Conv2d, nn.ConvTranspose2d)):
+        if isinstance(
+            sub, (nn.Conv1d, nn.ConvTranspose1d, nn.Conv2d, nn.ConvTranspose2d)
+        ):
             rescale_conv(sub, reference)
 
 
@@ -90,9 +94,22 @@ class DConv(nn.Module):
     Also before entering each residual branch, dimension is projected on a smaller subspace,
     e.g. of dim `channels // compress`.
     """
-    def __init__(self, channels: int, compress: float = 4, depth: int = 2, init: float = 1e-4,
-                 norm=True, attn=False, heads=4, ndecay=4, lstm=False, gelu=True,
-                 kernel=3, dilate=True):
+
+    def __init__(
+        self,
+        channels: int,
+        compress: float = 4,
+        depth: int = 2,
+        init: float = 1e-4,
+        norm=True,
+        attn=False,
+        heads=4,
+        ndecay=4,
+        lstm=False,
+        gelu=True,
+        kernel=3,
+        dilate=True,
+    ):
         """
         Args:
             channels: input/output channels for residual branch.
@@ -132,13 +149,15 @@ class DConv(nn.Module):
 
         self.layers = nn.ModuleList([])
         for d in range(self.depth):
-            dilation = 2 ** d if dilate else 1
+            dilation = 2**d if dilate else 1
             padding = dilation * (kernel // 2)
             mods = [
                 nn.Conv1d(channels, hidden, kernel, dilation=dilation, padding=padding),
-                norm_fn(hidden), act(),
+                norm_fn(hidden),
+                act(),
                 nn.Conv1d(hidden, 2 * channels, 1),
-                norm_fn(2 * channels), nn.GLU(1),
+                norm_fn(2 * channels),
+                nn.GLU(1),
                 LayerScale(channels, init),
             ]
             if attn:
@@ -160,6 +179,7 @@ class LocalState(nn.Module):
 
     Also a failed experiments with trying to provide some frequency based attention.
     """
+
     def __init__(self, channels: int, heads: int = 4, nfreqs: int = 0, ndecay: int = 4):
         super().__init__()
         assert channels % heads == 0, (channels, heads)
@@ -190,17 +210,17 @@ class LocalState(nn.Module):
         keys = self.key(x).view(B, heads, -1, T)
         # t are keys, s are queries
         dots = torch.einsum("bhct,bhcs->bhts", keys, queries)
-        dots /= keys.shape[2]**0.5
+        dots /= keys.shape[2] ** 0.5
         if self.nfreqs:
             periods = torch.arange(1, self.nfreqs + 1, device=x.device, dtype=x.dtype)
             freq_kernel = torch.cos(2 * math.pi * delta / periods.view(-1, 1, 1))
-            freq_q = self.query_freqs(x).view(B, heads, -1, T) / self.nfreqs ** 0.5
+            freq_q = self.query_freqs(x).view(B, heads, -1, T) / self.nfreqs**0.5
             dots += torch.einsum("fts,bhfs->bhts", freq_kernel, freq_q)
         if self.ndecay:
             decays = torch.arange(1, self.ndecay + 1, device=x.device, dtype=x.dtype)
             decay_q = self.query_decay(x).view(B, heads, -1, T)
             decay_q = torch.sigmoid(decay_q) / 2
-            decay_kernel = - decays.view(-1, 1, 1) * delta.abs() / self.ndecay**0.5
+            decay_kernel = -decays.view(-1, 1, 1) * delta.abs() / self.ndecay**0.5
             dots += torch.einsum("fts,bhfs->bhts", decay_kernel, decay_q)
 
         # Kill self reference.
@@ -218,41 +238,43 @@ class LocalState(nn.Module):
 
 class Demucs(nn.Module):
     @capture_init
-    def __init__(self,
-                 sources,
-                 # Channels
-                 audio_channels=2,
-                 channels=64,
-                 growth=2.,
-                 # Main structure
-                 depth=6,
-                 rewrite=True,
-                 lstm_layers=0,
-                 # Convolutions
-                 kernel_size=8,
-                 stride=4,
-                 context=1,
-                 # Activations
-                 gelu=True,
-                 glu=True,
-                 # Normalization
-                 norm_starts=4,
-                 norm_groups=4,
-                 # DConv residual branch
-                 dconv_mode=1,
-                 dconv_depth=2,
-                 dconv_comp=4,
-                 dconv_attn=4,
-                 dconv_lstm=4,
-                 dconv_init=1e-4,
-                 # Pre/post processing
-                 normalize=True,
-                 resample=True,
-                 # Weight init
-                 rescale=0.1,
-                 # Metadata
-                 samplerate=44100,
-                 segment=4 * 10):
+    def __init__(
+        self,
+        sources,
+        # Channels
+        audio_channels=2,
+        channels=64,
+        growth=2.0,
+        # Main structure
+        depth=6,
+        rewrite=True,
+        lstm_layers=0,
+        # Convolutions
+        kernel_size=8,
+        stride=4,
+        context=1,
+        # Activations
+        gelu=True,
+        glu=True,
+        # Normalization
+        norm_starts=4,
+        norm_groups=4,
+        # DConv residual branch
+        dconv_mode=1,
+        dconv_depth=2,
+        dconv_comp=4,
+        dconv_attn=4,
+        dconv_lstm=4,
+        dconv_init=1e-4,
+        # Pre/post processing
+        normalize=True,
+        resample=True,
+        # Weight init
+        rescale=0.1,
+        # Metadata
+        samplerate=44100,
+        segment=4 * 10,
+    ):
         """
         Args:
             sources (list[str]): list of source names
@@ -336,12 +358,22 @@ class Demucs(nn.Module):
             attn = index >= dconv_attn
             lstm = index >= dconv_lstm
             if dconv_mode & 1:
-                encode += [DConv(channels, depth=dconv_depth, init=dconv_init,
-                                 compress=dconv_comp, attn=attn, lstm=lstm)]
+                encode += [
+                    DConv(
+                        channels,
+                        depth=dconv_depth,
+                        init=dconv_init,
+                        compress=dconv_comp,
+                        attn=attn,
+                        lstm=lstm,
+                    )
+                ]
             if rewrite:
                 encode += [
                     nn.Conv1d(channels, ch_scale * channels, 1),
-                    norm_fn(ch_scale * channels), activation]
+                    norm_fn(ch_scale * channels),
+                    activation,
+                ]
             self.encoder.append(nn.Sequential(*encode))
 
             decode = []
@@ -351,13 +383,28 @@ class Demucs(nn.Module):
                 out_channels = len(self.sources) * audio_channels
             if rewrite:
                 decode += [
-                    nn.Conv1d(channels, ch_scale * channels, 2 * context + 1, padding=context),
-                    norm_fn(ch_scale * channels), activation]
+                    nn.Conv1d(
+                        channels, ch_scale * channels, 2 * context + 1, padding=context
+                    ),
+                    norm_fn(ch_scale * channels),
+                    activation,
+                ]
             if dconv_mode & 2:
-                decode += [DConv(channels, depth=dconv_depth, init=dconv_init,
-                                 compress=dconv_comp, attn=attn, lstm=lstm)]
-            decode += [nn.ConvTranspose1d(channels, out_channels,
-                       kernel_size, stride, padding=padding)]
+                decode += [
+                    DConv(
+                        channels,
+                        depth=dconv_depth,
+                        init=dconv_init,
+                        compress=dconv_comp,
+                        attn=attn,
+                        lstm=lstm,
+                    )
+                ]
+            decode += [
+                nn.ConvTranspose1d(
+                    channels, out_channels, kernel_size, stride, padding=padding
+                )
+            ]
             if index > 0:
                 decode += [norm_fn(out_channels), act2()]
             self.decoder.insert(0, nn.Sequential(*decode))
@@ -438,10 +485,10 @@ class Demucs(nn.Module):
     def load_state_dict(self, state, strict=True):
         # fix a mismatch with previous generation Demucs models.
         for idx in range(self.depth):
-            for a in ['encoder', 'decoder']:
-                for b in ['bias', 'weight']:
-                    new = f'{a}.{idx}.3.{b}'
-                    old = f'{a}.{idx}.2.{b}'
+            for a in ["encoder", "decoder"]:
+                for b in ["bias", "weight"]:
+                    new = f"{a}.{idx}.3.{b}"
+                    old = f"{a}.{idx}.2.{b}"
                     if old in state and new not in state:
                         state[new] = state.pop(old)
         super().load_state_dict(state, strict=strict)
