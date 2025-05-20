@@ -1,19 +1,14 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-"""Represents a model repository, including pre-trained models and bags of models.
-A repo can either be the main remote repository stored in AWS, or a local repository
-with your own models.
+"""
+Represents a model repository, including pre-trained models and bags of models.
+A repo can either be the GitHub repository or a local repository with your own models.
 """
 
 import typing as tp
+import json
 from hashlib import sha256
 from pathlib import Path
 
 import torch
-import yaml
 
 from .apply import BagOfModels, Model
 from .states import load_model
@@ -54,16 +49,20 @@ class ModelOnlyRepo:
         raise NotImplementedError()
 
 
-class RemoteRepo(ModelOnlyRepo):
-    def __init__(self, models: tp.Dict[str, str]):
-        self._models = models
+class GitHubRepo(ModelOnlyRepo):
+    def __init__(self, metadata_path: Path):
+        self.metadata_path = metadata_path
+        with open(metadata_path, 'r') as f:
+            self.metadata = json.load(f)
+        self._models = self.metadata["models"]
 
     def has_model(self, sig: str) -> bool:
         return sig in self._models
 
     def get_model(self, sig: str) -> Model:
         try:
-            url = self._models[sig]
+            model_info = self._models[sig]
+            url = model_info["url"]
         except KeyError:
             raise ModelLoadingError(
                 f"Could not find a pre-trained model with signature {sig}."
@@ -74,7 +73,7 @@ class RemoteRepo(ModelOnlyRepo):
         return load_model(pkg)
 
     def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
-        return self._models  # type: ignore
+        return {sig: info["url"] for sig, info in self._models.items()}
 
 
 class LocalRepo(ModelOnlyRepo):
@@ -117,50 +116,43 @@ class LocalRepo(ModelOnlyRepo):
         return self._models
 
 
-class BagOnlyRepo:
-    """Handles only YAML files containing bag of models, leaving the actual
-    model loading to some Repo.
-    """
+class CollectionRepo:
+    """Handles collections of models (previously represented by YAML files)"""
 
-    def __init__(self, root: Path, model_repo: ModelOnlyRepo):
-        self.root = root
+    def __init__(self, metadata_path: Path, model_repo: ModelOnlyRepo):
+        self.metadata_path = metadata_path
         self.model_repo = model_repo
-        self.scan()
-
-    def scan(self):
-        self._bags = {}
-        for file in self.root.iterdir():
-            if file.suffix == ".yaml":
-                self._bags[file.stem] = file
+        with open(metadata_path, 'r') as f:
+            self.metadata = json.load(f)
+        self._collections = self.metadata["collections"]
 
     def has_model(self, name: str) -> bool:
-        return name in self._bags
+        return name in self._collections
 
     def get_model(self, name: str) -> BagOfModels:
         try:
-            yaml_file = self._bags[name]
+            collection = self._collections[name]
         except KeyError:
             raise ModelLoadingError(
-                f"{name} is neither a single pre-trained model or " "a bag of models."
+                f"{name} is neither a single pre-trained model or a collection of models."
             )
-        bag = yaml.safe_load(open(yaml_file))
-        signatures = bag["models"]
+        signatures = collection["models"]
         models = [self.model_repo.get_model(sig) for sig in signatures]
-        weights = bag.get("weights")
-        segment = bag.get("segment")
+        weights = collection.get("weights")
+        segment = collection.get("segment")
         return BagOfModels(models, weights, segment)
 
     def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
-        return self._bags
+        return self._collections
 
 
 class AnyModelRepo:
-    def __init__(self, model_repo: ModelOnlyRepo, bag_repo: BagOnlyRepo):
+    def __init__(self, model_repo: ModelOnlyRepo, collection_repo: CollectionRepo):
         self.model_repo = model_repo
-        self.bag_repo = bag_repo
+        self.collection_repo = collection_repo
 
     def has_model(self, name_or_sig: str) -> bool:
-        return self.model_repo.has_model(name_or_sig) or self.bag_repo.has_model(
+        return self.model_repo.has_model(name_or_sig) or self.collection_repo.has_model(
             name_or_sig
         )
 
@@ -168,10 +160,10 @@ class AnyModelRepo:
         if self.model_repo.has_model(name_or_sig):
             return self.model_repo.get_model(name_or_sig)
         else:
-            return self.bag_repo.get_model(name_or_sig)
+            return self.collection_repo.get_model(name_or_sig)
 
     def list_model(self) -> tp.Dict[str, tp.Union[str, Path]]:
         models = self.model_repo.list_model()
-        for key, value in self.bag_repo.list_model().items():
+        for key, value in self.collection_repo.list_model().items():
             models[key] = value
         return models

@@ -3,7 +3,7 @@
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-"""Loading pretrained models."""
+"""Loading pretrained models from GitHub releases."""
 
 import logging
 import typing as tp
@@ -14,16 +14,14 @@ from dora.log import bold, fatal
 from .hdemucs import HDemucs
 from .repo import (
     AnyModelRepo,
-    BagOnlyRepo,
+    CollectionRepo,
     LocalRepo,
-    ModelOnlyRepo,
-    RemoteRepo,
+    GitHubRepo,
 )  # noqa
 from .states import _check_diffq
 
 logger = logging.getLogger(__name__)
-ROOT_URL = "https://dl.fbaipublicfiles.com/demucs/"
-REMOTE_ROOT = Path(__file__).parent / "remote"
+METADATA_PATH = Path(__file__).parent / "metadata.json"
 
 SOURCES = ["drums", "bass", "other", "vocals"]
 DEFAULT_MODEL = "htdemucs"
@@ -50,41 +48,22 @@ def add_model_flags(parser):
     )
 
 
-def _parse_remote_files(remote_file_list) -> tp.Dict[str, str]:
-    root: str = ""
-    models: tp.Dict[str, str] = {}
-    for line in remote_file_list.read_text().split("\n"):
-        line = line.strip()
-        if line.startswith("#"):
-            continue
-        elif len(line) == 0:
-            continue
-        elif line.startswith("root:"):
-            root = line.split(":", 1)[1].strip()
-        else:
-            sig = line.split("-", 1)[0]
-            assert sig not in models
-            models[sig] = ROOT_URL + root + line
-    return models
-
-
 def get_model(name: str, repo: tp.Optional[Path] = None):
-    """`name` must be a bag of models name or a pretrained signature
-    from the remote AWS model repo or the specified local repo if `repo` is not None.
+    """`name` must be a collection of models name or a pretrained signature
+    from the GitHub model repo or the specified local repo if `repo` is not None.
     """
     if name == "demucs_unittest":
         return demucs_unittest()
-    model_repo: ModelOnlyRepo
+    model_repo: tp.Union[GitHubRepo, LocalRepo]
     if repo is None:
-        models = _parse_remote_files(REMOTE_ROOT / "files.txt")
-        model_repo = RemoteRepo(models)
-        bag_repo = BagOnlyRepo(REMOTE_ROOT, model_repo)
+        model_repo = GitHubRepo(METADATA_PATH)
+        collection_repo = CollectionRepo(METADATA_PATH, model_repo)
     else:
         if not repo.is_dir():
             fatal(f"{repo} must exist and be a directory.")
         model_repo = LocalRepo(repo)
-        bag_repo = BagOnlyRepo(repo, model_repo)
-    any_repo = AnyModelRepo(model_repo, bag_repo)
+        collection_repo = CollectionRepo(METADATA_PATH, model_repo)
+    any_repo = AnyModelRepo(model_repo, collection_repo)
     try:
         model = any_repo.get_model(name)
     except ImportError as exc:

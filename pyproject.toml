@@ -20,7 +20,6 @@ dependencies = [
     "julius>=0.2.3",
     "lameenc>=1.2",
     "openunmix",
-    "pyyaml",
     "torch>=1.8.1",
     "torchaudio>=0.8,<2.2",
     "tqdm",
@@ -38,9 +37,6 @@ dev = [
 
 [project.scripts]
 demucs = "demucs.separate:main"
-
-[tool.uv.workspace]
-members = ["demucs"]
 
 [build-system]
 requires = ["hatchling"]
