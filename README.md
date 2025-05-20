@@ -5,111 +5,114 @@
 
 Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Demucs is based on a U-Net convolutional architecture inspired by [Wave-U-Net][waveunet]. 
 
-Samples are available [online](https://ai.honu.io/papers/htdemucs/index.html) for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [our paper][htdemucs] for more information.
+Samples are available [online][samples] for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper][htdemucs] for more information.
 
+## Installation
 
-## Requirements
+### Prerequisites
 
-You will need at least Python 3.8. The project uses a standard `pyproject.toml` for dependencies.
+Before installing Demucs, you need:
 
-You will also need to install [soundstretch/soundtouch](https://www.surina.net/soundtouch/soundstretch.html): on macOS you can do `brew install sound-touch`,
-and on Ubuntu `sudo apt-get install soundstretch`. This is used for the
-pitch/tempo augmentation.
+- Python 3.8 or later
+- FFmpeg (required for audio processing):
+  - macOS: `brew install ffmpeg`
+  - Ubuntu/Debian: `sudo apt-get install ffmpeg` 
+  - Windows: Download from [FFmpeg.org](https://ffmpeg.org/download.html)
 
-### For musicians
+### For Command Line Users
 
-If you just want to use Demucs to separate tracks, you can install it with
+If you want to use Demucs primarily as a command-line tool to separate audio tracks:
 
-```bash
-python3 -m pip install -U demucs
-```
+#### Install UV (Recommended)
 
-For bleeding edge versions, you can install directly from this repo using
-```bash
-python3 -m pip install -U git+https://github.com/facebookresearch/demucs#egg=demucs
-```
-
-### OS-Specific Installation Instructions
-
-#### Windows
-
-- **Note: Demucs is not supported on 32-bit systems** (as Pytorch is not available there).
-- Install Anaconda with Python 3.8 or more recent from [here](https://www.anaconda.com/download).
-- Start the Anaconda prompt.
-- Install required dependencies:
-  ```cmd
-  conda install -c conda-forge ffmpeg
-  python.exe -m pip install -U demucs SoundFile
-  ```
-- For GPU acceleration (NVIDIA cards with >2GB memory):
-  - If Pytorch was already installed, first run `python.exe -m pip uninstall torch torchaudio`
-  - Visit [Pytorch Home Page](https://pytorch.org/get-started/locally/) and follow instructions to install with CUDA support
-  - Make sure torchaudio version is no greater than 2.1
-
-**Troubleshooting:**
-- If you get a `mkl_intel_thread.dll` error, try `conda install -c defaults intel-openmp -f`
-- If that doesn't work, try `set CONDA_DLL_SEARCH_MODIFICATION_ENABLE=1` before running demucs
-- If you get permission errors, try starting Anaconda Prompt as administrator
-- To separate an entire folder of files: `for %i in (*.mp3) do (demucs -d cpu "%i")`
-- For users with no coding experience, consider [Demucs GUI](https://github.com/CarlGao4/Demucs-Gui)
-
-#### macOS
-
-- If you have a recent version of macOS:
-  ```bash
-  python3 -m pip install --user -U demucs
-  ```
-- If you prefer Anaconda:
-  1. Download [Anaconda 3.8+ for macOS](https://www.anaconda.com/download)
-  2. Open [Anaconda Prompt](https://docs.anaconda.com/anaconda/user-guide/getting-started/#open-nav-mac)
-  3. Run the following commands:
-     ```bash
-     conda activate
-     pip3 install -U demucs
-     ```
-- **Important:** Torchaudio 0.12+ requires ffmpeg installation:
-  - Via Anaconda: `conda install ffmpeg -c conda-forge`
-  - Via Homebrew: `brew install ffmpeg`
-
-#### Linux
-
-- If your distribution has Python 3.8+:
-  ```bash
-  pip3 install --user -U demucs
-  ```
-- If Python is too old or you want to be able to train:
-  1. [Install Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) with Python 3.8+
-  2. Run the following commands:
-     ```bash
-     conda activate
-     pip3 install -U demucs
-     ```
-- **Important:** Torchaudio 0.12+ requires ffmpeg installation:
-  - Via Anaconda: `conda install ffmpeg -c conda-forge`
-  - Via system package manager: e.g., `sudo apt-get install ffmpeg`
-
-The instructions above provide all the information you need for installation. If you encounter issues, please check the troubleshooting sections specific to your OS.
-
-## Separating tracks
-
-In order to try Demucs, you can just run from any folder (as long as you properly installed it)
+UV is a fast, modern Python package manager with isolated environments:
 
 ```bash
-demucs PATH_TO_AUDIO_FILE_1 [PATH_TO_AUDIO_FILE_2 ...]   # for Demucs
-# If you used `pip install --user` you might need to replace demucs with python3 -m demucs
-python3 -m demucs --mp3 --mp3-bitrate BITRATE PATH_TO_AUDIO_FILE_1  # output files saved as MP3
-        # use --mp3-preset to change encoder preset, 2 for best quality, 7 for fastest
-# If your filename contain spaces don't forget to quote it !!!
-demucs "my music/my favorite track.mp3"
-# You can select different models with `-n` mdx_q is the quantized model, smaller but maybe a bit less accurate.
-demucs -n mdx_q myfile.mp3
-# If you only want to separate vocals out of an audio, use `--two-stems=vocals` (You can also set to drums or bass)
-demucs --two-stems=vocals myfile.mp3
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows PowerShell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-If you have a GPU, but you run out of memory, please use `--segment SEGMENT` to reduce length of each split. `SEGMENT` should be changed to a integer describing the length of each segment in seconds.
-A segment length of at least 10 is recommended (the bigger the number is, the more memory is required, but quality may increase). Note that the Hybrid Transformer models only support a maximum segment length of 7.8 seconds.
-Creating an environment variable `PYTORCH_NO_CUDA_MEMORY_CACHING=1` is also helpful. If this still does not help, please add `-d cpu` to the command line. See the section hereafter for more details on the memory requirements for GPU acceleration.
+#### Installation Options
+
+1. **UV Tool Install** (Recommended) - Creates an isolated environment:
+   ```bash
+   uv tool install demucs-inference
+   ```
+
+2. **Run Without Installing** - For one-time or occasional use:
+   ```bash
+   # Use uvx to run without permanent installation
+   uvx --with demucs-inference demucs audio_file.mp3
+   ```
+
+3. **Standard pip Install**:
+   ```bash
+   pip install demucs-inference
+   ```
+
+### For Python Developers
+
+If you want to use Demucs as a library in your Python applications:
+
+```bash
+# Using UV (recommended)
+uv pip install demucs-inference
+# or shorter syntax
+uv add demucs-inference
+
+# Using standard pip
+pip install demucs-inference
+```
+
+### Upgrading
+
+```bash
+# If installed with uv tool
+uv tool upgrade demucs-inference
+
+# If installed with standard uv
+uv pip install -U demucs-inference
+# or shorter syntax
+uv add -U demucs-inference
+
+# If installed with pip
+pip install -U demucs-inference
+```
+
+### GPU Support
+
+For GPU acceleration (strongly recommended for faster processing):
+
+1. Install PyTorch with CUDA support from the [PyTorch installation page](https://pytorch.org/get-started/locally/)
+2. Ensure you have compatible NVIDIA drivers installed
+3. At least 3GB of GPU VRAM is required (7GB recommended for default settings)
+
+## Usage
+
+After installing Demucs, you can use it like the following:
+
+```bash
+# View all options
+demucs --help
+
+# Separate one audio file
+demucs audio_file.mp3
+
+# Separate multiple audio files
+demucs audio_file_1.mp3 audio_file_2.mp3
+
+# Separate all audio files in the current directory
+demucs *.mp3
+```
+
+### Notes
+
+- If you have a GPU, but you run out of memory, please use the `--segment` option to reduce length of each split. It should be set to a integer describing the length of each segment in seconds.
+- A segment length of at least 10 is recommended (the bigger the number is, the more memory is required, but quality may increase). Note that the Hybrid Transformer models only support a maximum segment length of 7.8 seconds.
+- Creating an environment variable `PYTORCH_NO_CUDA_MEMORY_CACHING=1` is also helpful. If this still does not help, please add `-d cpu` to the command line. See the section hereafter for more details on the memory requirements for GPU acceleration.
 
 Separated tracks are stored in the `separated/MODEL_NAME/TRACK_NAME` folder. There you will find four stereo wav files sampled at 44.1 kHz: `drums.wav`, `bass.wav`,
 `other.wav`, `vocals.wav` (or `.mp3` if you used the `--mp3` option).
@@ -159,32 +162,24 @@ If you want to use GPU acceleration, you will need at least 3GB of RAM on your G
 
 If you do not have enough memory on your GPU, simply add `-d cpu` to the command line to use the CPU. With Demucs, processing time should be roughly equal to 1.5 times the duration of the track.
 
-## Calling from another Python program
+## Demucs API
 
-The main function provides an `opt` parameter as a simple API. You can just pass the parsed command line as this parameter: 
+Demucs provides two APIs that can be used to separate audio files.
+
+### Command Line Interface API
+
+A simple API that provides a interface similar to the command line interface. 
 ```python
-# Assume that your command is `demucs --mp3 --two-stems vocals -n mdx_extra "track with space.mp3"`
-# The following codes are same as the command above:
+# Assume that your command is `demucs --mp3 --two-stems vocals -n mdx_extra "audio_file.mp3"`
 import demucs.separate
-demucs.separate.main(["--mp3", "--two-stems", "vocals", "-n", "mdx_extra", "track with space.mp3"])
-
-# Or like this
-import demucs.separate
-import shlex
-demucs.separate.main(shlex.split('--mp3 --two-stems vocals -n mdx_extra "track with space.mp3"'))
+demucs.separate.main(["--mp3", "--two-stems", "vocals", "-n", "mdx_extra", "audio_file.mp3"])
 ```
 
-To use more complicated APIs, see [API docs](docs/api.md)
+### Separator API
 
-## Training Demucs
+A more complicated API that provides a `Separator` class that can be used to separate audio files.
 
-If you want to train (Hybrid) Demucs, please follow the [training doc](docs/training.md).
-
-## MDX Challenge reproduction
-
-In order to reproduce the results from the Track A and Track B submissions, checkout the [MDX Hybrid Demucs submission repo][mdx_submission].
-
-
+View the [API docs](docs/api.md) for more information on the `Separator` class.
 
 ## How to cite
 
@@ -208,19 +203,11 @@ In order to reproduce the results from the Track A and Track B submissions, chec
 
 Demucs is released under the MIT license as found in the [LICENSE](LICENSE) file.
 
-[hybrid_paper]: https://arxiv.org/abs/2111.03600
 [waveunet]: https://github.com/f90/Wave-U-Net
-[musdb]: https://sigsep.github.io/datasets/musdb.html
-[openunmix]: https://github.com/sigsep/open-unmix-pytorch
-[mmdenselstm]: https://arxiv.org/abs/1805.02410
-[demucs_v2]: https://github.com/facebookresearch/demucs/tree/v2
-[demucs_v3]: https://github.com/facebookresearch/demucs/tree/v3
-[spleeter]: https://github.com/deezer/spleeter
-[soundcloud]: https://soundcloud.com/honualx/sets/source-separation-in-the-waveform-domain
-[d3net]: https://arxiv.org/abs/2010.01733
 [mdx]: https://www.aicrowd.com/challenges/music-demixing-challenge-ismir-2021
 [kuielab]: https://github.com/kuielab/mdx-net-submission
 [decouple]: https://arxiv.org/abs/2109.05418
 [mdx_submission]: https://github.com/adefossez/mdx21_demucs
 [bandsplit]: https://arxiv.org/abs/2209.15174
 [htdemucs]: https://arxiv.org/abs/2211.08553
+[samples]: https://ai.honu.io/papers/htdemucs/index.html

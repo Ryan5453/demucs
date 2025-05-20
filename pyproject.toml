@@ -38,3 +38,11 @@ dev = [
 
 [project.scripts]
 demucs = "demucs.separate:main"
+
+[tool.uv.workspace]
+members = ["demucs"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
