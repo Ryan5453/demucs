@@ -11,7 +11,7 @@ Demucs is a state-of-the-art music source separation model, currently capable of
 
 Before installing Demucs, you need:
 
-- Python 3.8 or later
+- Python 3.9 or later
 - FFmpeg (required for audio processing):
   - macOS: `brew install ffmpeg`
   - Ubuntu/Debian: `sudo apt-get install ffmpeg` 
