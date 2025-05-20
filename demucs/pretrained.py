@@ -7,6 +7,7 @@
 
 import logging
 import typing as tp
+import urllib.request
 from pathlib import Path
 
 from dora.log import bold, fatal
@@ -17,14 +18,35 @@ from .repo import (
     CollectionRepo,
     LocalRepo,
     GitHubRepo,
+    ModelLoadingError,
 )  # noqa
 from .states import _check_diffq
 
 logger = logging.getLogger(__name__)
 METADATA_PATH = Path(__file__).parent / "metadata.json"
+REMOTE_ROOT = Path("https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models")
 
 SOURCES = ["drums", "bass", "other", "vocals"]
 DEFAULT_MODEL = "htdemucs"
+
+def _parse_remote_files(path_or_url):
+    """Parse the files.txt from remote repository and returns a dict mapping
+    model names to URLs for download."""
+    if isinstance(path_or_url, str) and (path_or_url.startswith('http://') or path_or_url.startswith('https://')):
+        with urllib.request.urlopen(path_or_url) as response:
+            lines = response.read().decode('utf-8').split('\n')
+    else:
+        with open(path_or_url, 'r') as f:
+            lines = f.readlines()
+    
+    files = {}
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        file_name, url = line.split()
+        files[file_name] = url
+    return files
 
 
 def demucs_unittest():
