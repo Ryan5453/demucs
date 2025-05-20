@@ -1,22 +1,20 @@
 # Demucs
 
-This is a mantained fork of the [author's fork](https://github.com/adefossez/demucs) of the [original](https://github.com/facebookresearch/demucs) Demucs repository. It has been modified to be a inference-only package.
+> [!NOTE] 
+> This is a mantained fork of the [author's fork](https://github.com/adefossez/demucs) of the [original](https://github.com/facebookresearch/demucs) Demucs repository. It has been modified to be a inference-only package.
 
----
+Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Demucs is based on a U-Net convolutional architecture inspired by [Wave-U-Net][waveunet]. 
 
-Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Demucs is based on a U-Net convolutional architecture inspired by [Wave-U-Net][waveunet]. Version 4 features [Hybrid Transformer Demucs][htdemucs], a hybrid spectrogram/waveform separation model using Transformers. It is based on [Hybrid Demucs][hybrid_paper] (also provided in this repo), with the innermost layers replaced by a cross-domain Transformer Encoder. This Transformer uses self-attention within each domain, and cross-attention across domains. The model achieves a SDR of 9.00 dB on the MUSDB HQ test set. Moreover, when using sparse attention kernels to extend its receptive field and per source fine-tuning, we achieve state-of-the-art 9.20 dB of SDR.
+Samples are available [online](https://ai.honu.io/papers/htdemucs/index.html) for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [our paper][htdemucs] for more information.
 
-Samples are available [on our sample page](https://ai.honu.io/papers/htdemucs/index.html). Checkout [our paper][htdemucs] for more information.
-It has been trained on the [MUSDB HQ][musdb] dataset + an extra training dataset of 800 songs. This model separates drums, bass and vocals and other stems for any song.
 
 ## Requirements
 
 You will need at least Python 3.8. The project uses a standard `pyproject.toml` for dependencies.
 
-### For Windows users
-
-Everytime you see `python3`, replace it with `python.exe`. You should always run commands from the
-command prompt or PowerShell.
+You will also need to install [soundstretch/soundtouch](https://www.surina.net/soundtouch/soundstretch.html): on macOS you can do `brew install sound-touch`,
+and on Ubuntu `sudo apt-get install soundstretch`. This is used for the
+pitch/tempo augmentation.
 
 ### For musicians
 
@@ -91,48 +89,6 @@ python3 -m pip install -U git+https://github.com/facebookresearch/demucs#egg=dem
   - Via system package manager: e.g., `sudo apt-get install ffmpeg`
 
 The instructions above provide all the information you need for installation. If you encounter issues, please check the troubleshooting sections specific to your OS.
-
-### For machine learning scientists
-
-We recommend using [UV](https://github.com/astral-sh/uv) for package management. From the root of this repository:
-
-```bash
-# Install UV if you don't have it
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install the package in development mode with all dependencies
-uv pip install -e ".[dev]"
-
-# Set up pre-commit hooks
-pre-commit install
-```
-
-This will install all the necessary dependencies for development and set up pre-commit hooks for automatic linting and formatting.
-
-You will also need to install [soundstretch/soundtouch](https://www.surina.net/soundtouch/soundstretch.html): on macOS you can do `brew install sound-touch`,
-and on Ubuntu `sudo apt-get install soundstretch`. This is used for the
-pitch/tempo augmentation.
-
-
-### Running in Docker
-
-Thanks to @xserrat, there is now a Docker image definition ready for using Demucs. This can ensure all libraries are correctly installed without interfering with the host OS. See his repo [Docker Facebook Demucs](https://github.com/xserrat/docker-facebook-demucs) for more information.
-
-
-### Running from Colab
-
-I made a Colab to easily separate track with Demucs. Note that
-transfer speeds with Colab are a bit slow for large media files,
-but it will allow you to use Demucs without installing anything.
-
-[Demucs on Google Colab](https://colab.research.google.com/drive/1dC9nVxk3V_VPjUADsnFu8EiT-xnU1tGH?usp=sharing)
-
-### Web Demo
-
-Integrated to [Hugging Face Spaces](https://huggingface.co/spaces) with [Gradio](https://github.com/gradio-app/gradio). See demo: [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/akhaliq/demucs)
-
-
-
 
 ## Separating tracks
 
