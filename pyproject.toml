@@ -23,16 +23,16 @@ dependencies = [
     "torch>=1.8.1",
     "torchaudio>=0.8",
     "tqdm",
-]
-
-[project.optional-dependencies]
-dev = [
+    "soundfile>=0.10.3",
     "dora-search>=0.1.12",
     "diffq>=0.2.1",
     "hydra-colorlog>=1.1",
     "hydra-core>=1.1",
+]
+
+[project.optional-dependencies]
+dev = [
     "ruff",
-    "soundfile>=0.10.3",
 ]
 
 [project.scripts]
