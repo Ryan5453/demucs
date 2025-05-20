@@ -1,8 +1,37 @@
+# Other
+.DS_Store
+.claude
+
+# Python artifacts
 *.egg-info
-__pycache__
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+.installed.cfg
+*.egg
+
+# Editor artifacts
 Session.vim
-/build
-/dist
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project specific folders
 /lab
 /metadata
 /notebooks
@@ -10,8 +39,16 @@ Session.vim
 /release
 /release_models
 /separated
-/tests
 /trash
 /misc
 /mdx
+
+# Cache and test folders
 .mypy_cache
+.ruff_cache/
+.pytest_cache/
+/tests/musdb/
+/tests/tmp/
+
+# Keep tests directory but ignore test data
+!/tests/

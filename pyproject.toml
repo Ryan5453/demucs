@@ -1,0 +1,40 @@
+[project]
+name = "demucs"
+version = "5.0.0a1"
+description = "Music source separation in the waveform domain."
+readme = "README.md"
+authors = [
+    {name = "Alexandre Défossez", email = "defossez@fb.com"},
+    {name = "Ryan Fahey", email = "git@ryan.science"}
+]
+license = {text = "MIT License"}
+requires-python = ">=3.8"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "dora-search",
+    "einops",
+    "julius>=0.2.3",
+    "lameenc>=1.2",
+    "openunmix",
+    "pyyaml",
+    "torch>=1.8.1",
+    "torchaudio>=0.8,<2.2",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+dev = [
+    "dora-search>=0.1.12",
+    "diffq>=0.2.1",
+    "hydra-colorlog>=1.1",
+    "hydra-core>=1.1",
+    "ruff",
+    "soundfile>=0.10.3",
+]
+
+[project.scripts]
+demucs = "demucs.separate:main"
