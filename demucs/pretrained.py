@@ -10,6 +10,7 @@ import typing as tp
 from pathlib import Path
 
 from rich.console import Console
+from rich.progress import Progress, TaskID
 
 from .repo import ModelRepository
 from .states import _check_diffq
@@ -22,15 +23,25 @@ SOURCES = ["drums", "bass", "other", "vocals"]
 DEFAULT_MODEL = "htdemucs"
 
 
-def get_model(name: str, repo: tp.Optional[Path] = None):
+def get_model(
+    name: str,
+    repo: tp.Optional[Path] = None,
+    progress_bar: tp.Optional[Progress] = None,
+    task_id: tp.Optional[TaskID] = None,
+):
     """
-    `name` must be a model name, signature or collection name from the model repository.
-    If `repo` is provided, will look for models in that local directory first.
+    Load a model by name from the model repository.
+
+    Args:
+        name: Model name, signature or collection name from the model repository
+        repo: Optional path to local repository to check first
+        progress_bar: Optional Progress instance for download progress
+        task_id: Optional TaskID for the progress bar
     """
     model_repo = ModelRepository(METADATA_PATH, repo)
 
     try:
-        model = model_repo.get_model(name)
+        model = model_repo.get_model(name, progress_bar=progress_bar, task_id=task_id)
     except ImportError as exc:
         if "diffq" in exc.args[0]:
             _check_diffq()
