@@ -429,57 +429,63 @@ def get_collections() -> Dict[str, Dict]:
 # Use plain typer.run() to create the simplest possible CLI
 # This creates a direct CLI without any command structure
 def main_command(
+    # Input/Output
     tracks: Annotated[
-        Optional[List[Path]], typer.Argument(help="Path to tracks")
+        Optional[List[Path]], 
+        typer.Argument(help="Path to tracks", show_default=False)
     ] = None,
-    sig: Annotated[
-        Optional[str], typer.Option("-s", "--sig", help="Locally trained XP signature.")
-    ] = None,
-    name: Annotated[
-        str,
-        typer.Option(
-            "-n",
-            "--name",
-            help="Pretrained model name or signature. Default is htdemucs.",
-        ),
-    ] = DEFAULT_MODEL,
-    repo: Annotated[
-        Optional[Path],
-        typer.Option(help="Folder containing all pre-trained models for use with -n."),
-    ] = None,
-    list_models_flag: Annotated[
-        bool,
-        typer.Option(
-            "--list-models", help="List available models from current repo and exit"
-        ),
-    ] = False,
-    verbose: Annotated[
-        bool, typer.Option("-v", "--verbose", help="Enable verbose output")
-    ] = False,
     out: Annotated[
         Path,
         typer.Option(
             "-o",
             "--out",
             help="Folder where to put extracted tracks. A subfolder with the model name will be created.",
+            rich_help_panel="Input/Output"
         ),
     ] = Path("separated"),
     filename: Annotated[
         str,
         typer.Option(
-            help=(
-                "Set the name of output file. Use {track}, {trackext}, {stem}, {ext} "
-                "to use variables of track name without extension, track extension, "
-                "stem name and default output file extension."
-            )
+            help="Set the name of output file. Use {track}, {trackext}, {stem}, {ext} "
+            "to use variables of track name without extension, track extension, "
+            "stem name and default output file extension.",
+            rich_help_panel="Output Format"
         ),
     ] = "{track}/{stem}.{ext}",
+
+    # Model Selection
+    name: Annotated[
+        str,
+        typer.Option(
+            "-n",
+            "--name",
+            help="Model name or signature. Can be a pretrained model, a local model from --repo, or a model collection.",
+            rich_help_panel="Model Selection"
+        ),
+    ] = DEFAULT_MODEL,
+    repo: Annotated[
+        Optional[Path],
+        typer.Option(
+            help="Path to local model repository. Models in this folder will be available by their signature.",
+            rich_help_panel="Model Selection"
+        ),
+    ] = None,
+    list_models_flag: Annotated[
+        bool,
+        typer.Option(
+            "--list-models", help="List available models from current repo and exit",
+            rich_help_panel="Model Selection"
+        ),
+    ] = False,
+
+    # Processing Options
     device: Annotated[
         str,
         typer.Option(
             "-d",
             "--device",
             help="Device to use, default is cuda if available else cpu",
+            rich_help_panel="Processing"
         ),
     ] = (
         "cuda"
@@ -491,86 +497,118 @@ def main_command(
     shifts: Annotated[
         int,
         typer.Option(
-            help=(
-                "Number of random shifts for equivariant stabilization. "
-                "Increase separation time but improves quality for Demucs. "
-                "10 was used in the original paper."
-            )
+            help="Number of random shifts for equivariant stabilization. "
+            "Increase separation time but improves quality for Demucs. "
+            "10 was used in the original paper.",
+            rich_help_panel="Processing"
         ),
     ] = 1,
-    overlap: Annotated[float, typer.Option(help="Overlap between the splits.")] = 0.25,
+    jobs: Annotated[
+        int,
+        typer.Option(
+            "-j",
+            "--jobs",
+            help="Number of jobs. This can increase memory usage but will be much faster when multiple cores are available.",
+            rich_help_panel="Processing"
+        ),
+    ] = 0,
+
+    # Memory Management
     no_split: Annotated[
         bool,
         typer.Option(
-            help="Doesn't split audio in chunks. This can use large amounts of memory."
+            help="Doesn't split audio in chunks. This can use large amounts of memory.",
+            rich_help_panel="Memory Management"
         ),
     ] = False,
     segment: Annotated[
         Optional[int],
         typer.Option(
-            help="Set split size of each chunk. This can help save memory of graphic card."
+            help="Set split size of each chunk. This can help save memory of graphic card.",
+            rich_help_panel="Memory Management"
         ),
     ] = None,
+    overlap: Annotated[
+        float,
+        typer.Option(
+            help="Overlap between the splits.",
+            rich_help_panel="Memory Management"
+        ),
+    ] = 0.25,
+
+    # Stem Selection
     stem: Annotated[
         Optional[str],
         typer.Option(
             "--two-stems",
             metavar="STEM",
             help="Only separate audio into {STEM} and no_{STEM}.",
+            rich_help_panel="Stem Selection"
         ),
     ] = None,
     other_method: Annotated[
         OtherMethod,
         typer.Option(
-            help=(
-                'Decide how to get "no_{STEM}". "none" will not save '
-                '"no_{STEM}". "add" will add all the other stems. "minus" will use the '
-                "original track minus the selected stem."
-            )
+            help='Decide how to get "no_{STEM}". "none" will not save "no_{STEM}". '
+            '"add" will add all the other stems. "minus" will use the original track minus the selected stem.',
+            rich_help_panel="Stem Selection"
         ),
     ] = OtherMethod.add,
-    int24: Annotated[
-        bool, typer.Option(help="Save wav output as 24 bits wav.")
-    ] = False,
-    float32: Annotated[
-        bool, typer.Option(help="Save wav output as float32 (2x bigger).")
-    ] = False,
+
+    # Output Format
     clip_mode: Annotated[
         ClipMode,
         typer.Option(
-            help=(
-                "Strategy for avoiding clipping: rescaling entire signal "
-                "if necessary (rescale) or hard clipping (clamp)."
-            )
+            help="Strategy for avoiding clipping: rescaling entire signal "
+            "if necessary (rescale) or hard clipping (clamp).",
+            rich_help_panel="Output Format"
         ),
     ] = ClipMode.rescale,
-    flac: Annotated[
-        bool, typer.Option(help="Convert the output wavs to flac.")
+    mp3: Annotated[
+        bool,
+        typer.Option(
+            help="Convert the output wavs to mp3.",
+            rich_help_panel="Output Format"
+        ),
     ] = False,
-    mp3: Annotated[bool, typer.Option(help="Convert the output wavs to mp3.")] = False,
-    mp3_bitrate: Annotated[int, typer.Option(help="Bitrate of converted mp3.")] = 320,
+    mp3_bitrate: Annotated[
+        int,
+        typer.Option(
+            help="Bitrate of converted mp3.",
+            rich_help_panel="Output Format"
+        ),
+    ] = 320,
     mp3_preset: Annotated[
         int,
         typer.Option(
-            help=(
-                "Encoder preset of MP3, 2 for highest quality, 7 for "
-                "fastest speed. Default is 2"
-            ),
+            help="Encoder preset of MP3, 2 for highest quality, 7 for "
+            "fastest speed. Default is 2",
             min=2,
             max=7,
+            rich_help_panel="Output Format"
         ),
     ] = 2,
-    jobs: Annotated[
-        int,
+    int24: Annotated[
+        bool,
         typer.Option(
-            "-j",
-            "--jobs",
-            help=(
-                "Number of jobs. This can increase memory usage but will "
-                "be much faster when multiple cores are available."
-            ),
+            help="Save wav output as 24 bits wav.",
+            rich_help_panel="Output Format"
         ),
-    ] = 0,
+    ] = False,
+    float32: Annotated[
+        bool,
+        typer.Option(
+            help="Save wav output as float32 (2x bigger).",
+            rich_help_panel="Output Format"
+        ),
+    ] = False,
+    flac: Annotated[
+        bool,
+        typer.Option(
+            help="Convert the output wavs to flac.",
+            rich_help_panel="Output Format"
+        ),
+    ] = False,
 ):
     """
     Separate the sources for the given tracks.
@@ -598,7 +636,7 @@ def main_command(
 
     try:
         separator = Separator(
-            model=name if sig is None else sig,
+            model=name,
             repo=repo,
             device=device,
             shifts=shifts,
@@ -606,6 +644,7 @@ def main_command(
             overlap=overlap,
             jobs=jobs,
             segment=segment,
+            verbose=True,  # Always show progress in CLI
         )
     except ModelLoadingError as error:
         console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
@@ -620,6 +659,7 @@ def main_command(
         console.print(
             f"[red]✗[/red] [bold]{name}[/bold]: Cannot use a Transformer model with a longer segment than it was trained for. Maximum segment is: {max_allowed_segment}"
         )
+        return
 
     if isinstance(separator.model, BagOfModels):
         console.print(
@@ -627,13 +667,16 @@ def main_command(
             "You will see that many progress bars per track."
         )
 
-    if stem is not None and stem not in separator.model.sources:
+    if stem is not None and stem not in separator.sources:
         console.print(
-            f'[red]✗[/red] [bold]{name}[/bold]: error: stem "{stem}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
+            f'[red]✗[/red] [bold]{name}[/bold]: error: stem "{stem}" is not in selected model. STEM must be one of {", ".join(separator.sources)}.'
         )
-    out_dir = out / (name if sig is None else sig)
+        return
+        
+    out_dir = out / name
     out_dir.mkdir(parents=True, exist_ok=True)
     console.print(f"Separated tracks will be stored in {out_dir.resolve()}")
+    
     for track in tracks:
         if not track.exists():
             console.print(
@@ -644,63 +687,50 @@ def main_command(
             continue
         console.print(f"Separating track {track}")
 
-        origin, res = separator.separate_audio_file(track)
+        try:
+            # Use the new API with SeparatedSources
+            if stem is None:
+                # Separate all stems
+                separated = separator.separate_audio_file(track)
+                sources_to_save = separated.sources
+            else:
+                # Isolate the requested stem
+                isolated = separator.isolate_stem(track, stem)
+                sources_to_save = {}
+                sources_to_save[stem] = isolated[stem]
+                if other_method != OtherMethod.none:
+                    sources_to_save[f"no_{stem}"] = isolated[f"no_{stem}"]
 
-        if mp3:
-            ext = "mp3"
-        elif flac:
-            ext = "flac"
-        else:
-            ext = "wav"
-        kwargs = {
-            "samplerate": separator.samplerate,
-            "bitrate": mp3_bitrate,
-            "preset": mp3_preset,
-            "clip": clip_mode,
-            "as_float": float32,
-            "bits_per_sample": 24 if int24 else 16,
-        }
-        if stem is None:
-            for name, source in res.items():
+            # Set up output format
+            if mp3:
+                ext = "mp3"
+            elif flac:
+                ext = "flac"
+            else:
+                ext = "wav"
+                
+            kwargs = {
+                "samplerate": separator.samplerate,
+                "bitrate": mp3_bitrate,
+                "preset": mp3_preset,
+                "clip": clip_mode,
+                "as_float": float32,
+                "bits_per_sample": 24 if int24 else 16,
+            }
+            
+            # Save each stem
+            for stem_name, source in sources_to_save.items():
                 stem_path = out_dir / filename.format(
                     track=track.name.rsplit(".", 1)[0],
                     trackext=track.name.rsplit(".", 1)[-1],
-                    stem=name,
+                    stem=stem_name,
                     ext=ext,
                 )
                 stem_path.parent.mkdir(parents=True, exist_ok=True)
                 save_audio(source, str(stem_path), **kwargs)
-        else:
-            stem_path = out_dir / filename.format(
-                track=track.name.rsplit(".", 1)[0],
-                trackext=track.name.rsplit(".", 1)[-1],
-                stem="minus_" + stem,
-                ext=ext,
-            )
-            if other_method == OtherMethod.minus:
-                stem_path.parent.mkdir(parents=True, exist_ok=True)
-                save_audio(origin - res[stem], str(stem_path), **kwargs)
-            stem_path = out_dir / filename.format(
-                track=track.name.rsplit(".", 1)[0],
-                trackext=track.name.rsplit(".", 1)[-1],
-                stem=stem,
-                ext=ext,
-            )
-            stem_path.parent.mkdir(parents=True, exist_ok=True)
-            save_audio(res.pop(stem), str(stem_path), **kwargs)
-            # Warning : after poping the stem, selected stem is no longer in the dict 'res'
-            if other_method == OtherMethod.add:
-                other_stem = th.zeros_like(next(iter(res.values())))
-                for i in res.values():
-                    other_stem += i
-                stem_path = out_dir / filename.format(
-                    track=track.name.rsplit(".", 1)[0],
-                    trackext=track.name.rsplit(".", 1)[-1],
-                    stem="no_" + stem,
-                    ext=ext,
-                )
-                stem_path.parent.mkdir(parents=True, exist_ok=True)
-                save_audio(other_stem, str(stem_path), **kwargs)
+                
+        except Exception as e:
+            console.print(f"[red]✗[/red] Error processing {track}: {str(e)}")
 
 
 def main():

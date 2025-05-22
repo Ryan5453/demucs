@@ -9,32 +9,34 @@ API methods for demucs
 
 Classes
 -------
-`demucs.api.Separator`: The base separator class
+`Separator`: The base separator class for isolating audio sources
 
 Functions
 ---------
-`demucs.api.save_audio`: Save an audio
-`demucs.api.list_models`: Get models list
+`save_audio`: Save an audio file
+`list_models`: Get models list
 """
 
 import subprocess
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Union, Any
 
 import torch as th
 import torchaudio as ta
 
 from .apply import _replace_dict, apply_model
 from .audio import AudioFile, convert_audio, save_audio
-from .pretrained import METADATA_PATH, get_model
-from .repo import ModelRepository
+from .pretrained import METADATA_PATH, get_model, DEFAULT_MODEL
+from .repo import ModelRepository, AnyModel
 
 
 class LoadAudioError(Exception):
+    """Exception raised when audio loading fails."""
     pass
 
 
 class LoadModelError(Exception):
+    """Exception raised when model loading fails."""
     pass
 
 
@@ -45,10 +47,117 @@ class _NotProvided:
 NotProvided = _NotProvided()
 
 
+class SeparatedSources:
+    """
+    Container for separated audio sources.
+    
+    This class provides easy access to the individual stems and utility methods
+    for manipulating them.
+    
+    Attributes:
+        sources (Dict[str, th.Tensor]): Dictionary mapping source names to audio tensors
+        samplerate (int): Sample rate of the audio
+        original (th.Tensor): Original mixed audio if available
+    """
+    
+    def __init__(self, sources: Dict[str, th.Tensor], samplerate: int, original: Optional[th.Tensor] = None):
+        """
+        Initialize a SeparatedSources object.
+        
+        Args:
+            sources: Dictionary mapping source names to audio tensors
+            samplerate: Sample rate of the audio
+            original: Original mixed audio if available
+        """
+        self.sources = sources
+        self.samplerate = samplerate
+        self.original = original
+        
+    def __getitem__(self, key: str) -> th.Tensor:
+        """Access individual stems by name."""
+        return self.sources[key]
+    
+    def __contains__(self, key: str) -> bool:
+        """Check if a stem exists."""
+        return key in self.sources
+    
+    def __iter__(self):
+        """Iterate over stem names."""
+        return iter(self.sources)
+    
+    def items(self):
+        """Iterate over (stem_name, audio_tensor) pairs."""
+        return self.sources.items()
+    
+    def keys(self):
+        """Get all stem names."""
+        return self.sources.keys()
+    
+    def values(self):
+        """Get all audio tensors."""
+        return self.sources.values()
+    
+    def get_stem(self, name: str) -> th.Tensor:
+        """Get a specific stem."""
+        return self.sources[name]
+    
+    def isolate_stem(self, name: str) -> Dict[str, th.Tensor]:
+        """
+        Isolate a single stem and its complement.
+        
+        Returns:
+            Dictionary containing the isolated stem and its complement.
+            The complement is named "no_{stem_name}".
+        """
+        if name not in self.sources:
+            raise ValueError(f"Stem {name} not found in sources")
+            
+        result = {name: self.sources[name]}
+        
+        # Calculate the complement by summing all other stems
+        other = th.zeros_like(self.sources[name])
+        for source, audio in self.sources.items():
+            if source != name:
+                other += audio
+                
+        result[f"no_{name}"] = other
+        return result
+    
+    def save(self, path: Union[str, Path], format: str = "wav", **kwargs) -> Dict[str, Path]:
+        """
+        Save all stems to disk.
+        
+        Args:
+            path: Base path where stems will be saved
+            format: Audio format to use (wav, mp3, flac)
+            **kwargs: Additional arguments to pass to save_audio
+            
+        Returns:
+            Dictionary mapping stem names to saved file paths
+        """
+        base_path = Path(path)
+        base_path.mkdir(exist_ok=True, parents=True)
+        
+        result = {}
+        for name, source in self.sources.items():
+            file_path = base_path / f"{name}.{format}"
+            save_audio(source, file_path, self.samplerate, **kwargs)
+            result[name] = file_path
+            
+        return result
+
+
 class Separator:
+    """
+    Audio source separation using Demucs models.
+    
+    This class provides methods for separating an audio mixture into individual
+    stems (vocals, drums, bass, other, etc.) using Demucs models.
+    """
+    
     def __init__(
         self,
-        model: str = "htdemucs",
+        model: Union[str, AnyModel] = DEFAULT_MODEL,
         repo: Optional[Path] = None,
         device: str = "cuda" if th.cuda.is_available() else "cpu",
         shifts: int = 1,
@@ -56,62 +165,38 @@ class Separator:
         split: bool = True,
         segment: Optional[int] = None,
         jobs: int = 0,
-        progress: bool = False,
-        callback: Optional[Callable[[dict], None]] = None,
-        callback_arg: Optional[dict] = None,
+        verbose: bool = False,
     ):
         """
-        `class Separator`
-        =================
-
-        Parameters
-        ----------
-        model: Pretrained model name or signature. Default is htdemucs.
-        repo: Folder containing all pre-trained models for use.
-        segment: Length (in seconds) of each segment (only available if `split` is `True`). If \
-            not specified, will use the command line option.
-        shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and \
-            apply the opposite shift to the output. This is repeated `shifts` time and all \
-            predictions are averaged. This effectively makes the model time equivariant and \
-            improves SDR by up to 0.2 points. If not specified, will use the command line option.
-        split: If True, the input will be broken down into small chunks (length set by `segment`) \
-            and predictions will be performed individually on each and concatenated. Useful for \
-            model with large memory footprint like Tasnet. If not specified, will use the command \
-            line option.
-        overlap: The overlap between the splits. If not specified, will use the command line \
-            option.
-        device (torch.device, str, or None): If provided, device on which to execute the \
-            computation, otherwise `wav.device` is assumed. When `device` is different from \
-            `wav.device`, only local computations will be on `device`, while the entire tracks \
-            will be stored on `wav.device`. If not specified, will use the command line option.
-        jobs: Number of jobs. This can increase memory usage but will be much faster when \
-            multiple cores are available. If not specified, will use the command line option.
-        callback: A function will be called when the separation of a chunk starts or finished. \
-            The argument passed to the function will be a dict. For more information, please see \
-            the Callback section.
-        callback_arg: A dict containing private parameters to be passed to callback function. For \
-            more information, please see the Callback section.
-        progress: If true, show a progress bar.
-
-        Callback
-        --------
-        The function will be called with only one positional parameter whose type is `dict`. The
-        `callback_arg` will be combined with information of current separation progress. The
-        progress information will override the values in `callback_arg` if same key has been used.
-        To abort the separation, raise `KeyboardInterrupt`.
-
-        Progress information contains several keys (These keys will always exist):
-        - `model_idx_in_bag`: The index of the submodel in `BagOfModels`. Starts from 0.
-        - `shift_idx`: The index of shifts. Starts from 0.
-        - `segment_offset`: The offset of current segment. If the number is 441000, it doesn't
-            mean that it is at the 441000 second of the audio, but the "frame" of the tensor.
-        - `state`: Could be `"start"` or `"end"`.
-        - `audio_length`: Length of the audio (in "frame" of the tensor).
-        - `models`: Count of submodels in the model.
+        Initialize a Separator with the specified model and parameters.
+        
+        Args:
+            model: Model to use for separation. Can be:
+                - A string with a model name or signature (e.g., "htdemucs", "mdx_q")
+                - A pre-loaded model instance (from demucs.pretrained.get_model)
+            repo: Folder containing pre-trained models (used only when model is a string)
+            device: Device to use for processing ("cuda", "cpu", etc.)
+            shifts: Number of random shifts for equivariant stabilization
+                   Higher values improve quality but increase processing time
+            overlap: Overlap between processing chunks (0.0 to 1.0)
+            split: Whether to split the input into chunks for processing
+            segment: Length (in seconds) of each chunk (only used if split=True)
+            jobs: Number of parallel jobs (0 means automatic)
+            verbose: Whether to show progress bars during processing (default False for API usage)
         """
-        self._name = model
         self._repo = repo
-        self._load_model()
+        self._verbose = verbose
+        
+        # Handle different model input types
+        if isinstance(model, str):
+            self._name = model
+            self._load_model()
+        else:
+            self._name = getattr(model, "name", "custom_model")
+            self._model = model
+            self._audio_channels = model.audio_channels
+            self._samplerate = model.samplerate
+            
         self.update_parameter(
             device=device,
             shifts=shifts,
@@ -119,9 +204,6 @@ class Separator:
             split=split,
             segment=segment,
             jobs=jobs,
-            progress=progress,
-            callback=callback,
-            callback_arg=callback_arg,
         )
 
     def update_parameter(
@@ -132,55 +214,19 @@ class Separator:
         split: Union[bool, _NotProvided] = NotProvided,
         segment: Optional[Union[int, _NotProvided]] = NotProvided,
         jobs: Union[int, _NotProvided] = NotProvided,
-        progress: Union[bool, _NotProvided] = NotProvided,
-        callback: Optional[Union[Callable[[dict], None], _NotProvided]] = NotProvided,
-        callback_arg: Optional[Union[dict, _NotProvided]] = NotProvided,
+        verbose: Union[bool, _NotProvided] = NotProvided,
     ):
         """
-        Update the parameters of separation.
-
-        Parameters
-        ----------
-        segment: Length (in seconds) of each segment (only available if `split` is `True`). If \
-            not specified, will use the command line option.
-        shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and \
-            apply the opposite shift to the output. This is repeated `shifts` time and all \
-            predictions are averaged. This effectively makes the model time equivariant and \
-            improves SDR by up to 0.2 points. If not specified, will use the command line option.
-        split: If True, the input will be broken down into small chunks (length set by `segment`) \
-            and predictions will be performed individually on each and concatenated. Useful for \
-            model with large memory footprint like Tasnet. If not specified, will use the command \
-            line option.
-        overlap: The overlap between the splits. If not specified, will use the command line \
-            option.
-        device (torch.device, str, or None): If provided, device on which to execute the \
-            computation, otherwise `wav.device` is assumed. When `device` is different from \
-            `wav.device`, only local computations will be on `device`, while the entire tracks \
-            will be stored on `wav.device`. If not specified, will use the command line option.
-        jobs: Number of jobs. This can increase memory usage but will be much faster when \
-            multiple cores are available. If not specified, will use the command line option.
-        callback: A function will be called when the separation of a chunk starts or finished. \
-            The argument passed to the function will be a dict. For more information, please see \
-            the Callback section.
-        callback_arg: A dict containing private parameters to be passed to callback function. For \
-            more information, please see the Callback section.
-        progress: If true, show a progress bar.
-
-        Callback
-        --------
-        The function will be called with only one positional parameter whose type is `dict`. The
-        `callback_arg` will be combined with information of current separation progress. The
-        progress information will override the values in `callback_arg` if same key has been used.
-        To abort the separation, raise `KeyboardInterrupt`.
-
-        Progress information contains several keys (These keys will always exist):
-        - `model_idx_in_bag`: The index of the submodel in `BagOfModels`. Starts from 0.
-        - `shift_idx`: The index of shifts. Starts from 0.
-        - `segment_offset`: The offset of current segment. If the number is 441000, it doesn't
-            mean that it is at the 441000 second of the audio, but the "frame" of the tensor.
-        - `state`: Could be `"start"` or `"end"`.
-        - `audio_length`: Length of the audio (in "frame" of the tensor).
-        - `models`: Count of submodels in the model.
+        Update separation parameters.
+        
+        Args:
+            device: Device to use for processing
+            shifts: Number of random shifts for equivariant stabilization
+            overlap: Overlap between processing chunks
+            split: Whether to split the input into chunks for processing  
+            segment: Length (in seconds) of each chunk
+            jobs: Number of parallel jobs
+            verbose: Whether to show progress bars during processing
         """
         if not isinstance(device, _NotProvided):
             self._device = device
@@ -194,14 +240,11 @@ class Separator:
             self._segment = segment
         if not isinstance(jobs, _NotProvided):
             self._jobs = jobs
-        if not isinstance(progress, _NotProvided):
-            self._progress = progress
-        if not isinstance(callback, _NotProvided):
-            self._callback = callback
-        if not isinstance(callback_arg, _NotProvided):
-            self._callback_arg = callback_arg
+        if not isinstance(verbose, _NotProvided):
+            self._verbose = verbose
 
     def _load_model(self):
+        """Load model by name."""
         self._model = get_model(name=self._name, repo=self._repo)
         if self._model is None:
             raise LoadModelError("Failed to load model")
@@ -209,173 +252,157 @@ class Separator:
         self._samplerate = self._model.samplerate
 
     def _load_audio(self, track: Path):
+        """Load audio file using either ffmpeg or torchaudio."""
         errors = {}
         wav = None
 
         try:
             wav = AudioFile(track).read(
-                streams=0, samplerate=self._samplerate, channels=self._audio_channels
+                streams=0,
+                samplerate=self._samplerate,
+                channels=self._audio_channels,
+                dtype=th.float32,
             )
-        except FileNotFoundError:
-            errors["ffmpeg"] = "FFmpeg is not installed."
-        except subprocess.CalledProcessError:
-            errors["ffmpeg"] = "FFmpeg could not read the file."
+            wav = wav.t()  # channels first
+            return wav
+        except Exception as e:
+            errors["ffmpeg"] = str(e)
 
-        if wav is None:
-            try:
-                wav, sr = ta.load(str(track))
-            except RuntimeError as err:
-                errors["torchaudio"] = err.args[0]
-            else:
-                wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
-
-        if wav is None:
+        try:
+            wav, sr = ta.load(str(track))
+        except Exception as e:
+            errors["torchaudio"] = str(e)
             raise LoadAudioError(
-                "\n".join(
-                    "When trying to load using {}, got the following error: {}".format(
-                        backend, error
-                    )
-                    for backend, error in errors.items()
-                )
+                f"Could not load file {track}. "
+                "Errors from various backends:\n"
+                f"ffmpeg: {errors['ffmpeg']}\n"
+                f"torchaudio: {errors['torchaudio']}"
             )
+
+        if wav.dim() == 1:
+            wav = wav[None]
+        if wav.dim() != 2:
+            raise LoadAudioError(
+                f"Expected audio tensor with 2 dimensions, got {wav.dim()}"
+            )
+        if sr != self._samplerate:
+            wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
         return wav
 
     def separate_tensor(
         self, wav: th.Tensor, sr: Optional[int] = None
-    ) -> Tuple[th.Tensor, Dict[str, th.Tensor]]:
+    ) -> SeparatedSources:
         """
-        Separate a loaded tensor.
-
-        Parameters
-        ----------
-        wav: Waveform of the audio. Should have 2 dimensions, the first is each audio channel, \
-            while the second is the waveform of each channel. Type should be float32. \
-            e.g. `tuple(wav.shape) == (2, 884000)` means the audio has 2 channels.
-        sr: Sample rate of the original audio, the wave will be resampled if it doesn't match the \
-            model.
-
-        Returns
-        -------
-        A tuple, whose first element is the original wave and second element is a dict, whose keys
-        are the name of stems and values are separated waves. The original wave will have already
-        been resampled.
-
-        Notes
-        -----
-        Use this function with cautiousness. This function does not provide data verifying.
+        Separate a loaded audio tensor into stems.
+        
+        Args:
+            wav: Audio tensor of shape [channels, samples]
+            sr: Sample rate of the input audio (if different from model's sample rate)
+            
+        Returns:
+            SeparatedSources object containing the separated stems
         """
-        if sr is not None and sr != self.samplerate:
-            wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
+        if wav.ndim == 1:
+            wav = wav.unsqueeze(0)
+        wav = wav.to(self._device)
+        
+        if sr is not None and sr != self._samplerate:
+            raise ValueError(
+                f"Input sample rate ({sr}) doesn't match model's expected rate ({self._samplerate})"
+            )
+
         ref = wav.mean(0)
-        wav -= ref.mean()
-        wav /= ref.std() + 1e-8
-        out = apply_model(
+        mean = ref.mean()
+        std = ref.std()
+        ref = (ref - mean) / (1e-5 + std)
+
+        sources_tensor = apply_model(
             self._model,
             wav[None],
-            segment=self._segment,
+            device=self._device,
             shifts=self._shifts,
             split=self._split,
             overlap=self._overlap,
-            device=self._device,
+            segment=self._segment,
             num_workers=self._jobs,
-            callback=self._callback,
-            callback_arg=_replace_dict(
-                self._callback_arg, ("audio_length", wav.shape[1])
-            ),
-            progress=self._progress,
-        )
-        if out is None:
-            raise KeyboardInterrupt
-        out *= ref.std() + 1e-8
-        out += ref.mean()
-        wav *= ref.std() + 1e-8
-        wav += ref.mean()
-        return (wav, dict(zip(self._model.sources, out[0])))
+            progress=self._verbose,
+        )[0]
+        
+        # Convert tensor output to dictionary of sources
+        sources = {}
+        for source_idx, source_name in enumerate(self._model.sources):
+            sources[source_name] = sources_tensor[source_idx] * std + mean
+        
+        return SeparatedSources(sources, self._samplerate, original=wav)
 
-    def separate_audio_file(self, file: Path):
+    def separate_audio_file(self, file: Union[str, Path]) -> SeparatedSources:
         """
-        Separate an audio file. The method will automatically read the file.
-
-        Parameters
-        ----------
-        wav: Path of the file to be separated.
-
-        Returns
-        -------
-        A tuple, whose first element is the original wave and second element is a dict, whose keys
-        are the name of stems and values are separated waves. The original wave will have already
-        been resampled.
+        Separate an audio file into stems.
+        
+        Args:
+            file: Path to the audio file
+            
+        Returns:
+            SeparatedSources object containing the separated stems
         """
-        return self.separate_tensor(self._load_audio(file), self.samplerate)
+        if isinstance(file, str):
+            file = Path(file)
+            
+        wav = self._load_audio(file)
+        return self.separate_tensor(wav)
+        
+    def isolate_stem(self, file: Union[str, Path], stem: str) -> Dict[str, th.Tensor]:
+        """
+        Separate an audio file and isolate a specific stem.
+        
+        Args:
+            file: Path to the audio file
+            stem: Name of the stem to isolate
+            
+        Returns:
+            Dictionary with two keys:
+                - stem: The isolated stem
+                - no_{stem}: Everything except the isolated stem
+                
+        Raises:
+            ValueError: If the requested stem isn't available in the model
+        """
+        if stem not in self.sources:
+            raise ValueError(f"Stem '{stem}' not available in this model. Available stems: {self.sources}")
+            
+        separated = self.separate_audio_file(file)
+        return separated.isolate_stem(stem)
 
     @property
     def samplerate(self):
+        """Get the model's sample rate."""
         return self._samplerate
 
     @property
     def audio_channels(self):
+        """Get the model's audio channels."""
         return self._audio_channels
 
     @property
     def model(self):
+        """Get the underlying model."""
         return self._model
+        
+    @property
+    def sources(self) -> List[str]:
+        """Get the list of sources (stems) available in this model."""
+        return self._model.sources
 
 
-def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, dict]]:
+def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
     """
-    List the available models. Please remember that not all the returned models can be
-    successfully loaded.
-
-    Parameters
-    ----------
-    repo: The repo whose models are to be listed.
-
-    Returns
-    -------
-    A dict mapping model names to their metadata
+    List all available models and collections.
+    
+    Args:
+        repo: Optional path to a local repository
+        
+    Returns:
+        Dictionary with model signatures/names as keys and metadata as values
     """
     model_repo = ModelRepository(METADATA_PATH, repo)
     return model_repo.list_models()
-
-
-if __name__ == "__main__":
-    from .separate import get_parser
-
-    args = get_parser().parse_args()
-    separator = Separator(
-        model=args.name,
-        repo=args.repo,
-        device=args.device,
-        shifts=args.shifts,
-        overlap=args.overlap,
-        split=args.split,
-        segment=args.segment,
-        jobs=args.jobs,
-        callback=print,
-    )
-    out = args.out / args.name
-    out.mkdir(parents=True, exist_ok=True)
-    for file in args.tracks:
-        separated = separator.separate_audio_file(file)[1]
-        if args.mp3:
-            ext = "mp3"
-        elif args.flac:
-            ext = "flac"
-        else:
-            ext = "wav"
-        kwargs = {
-            "samplerate": separator.samplerate,
-            "bitrate": args.mp3_bitrate,
-            "clip": args.clip_mode,
-            "as_float": args.float32,
-            "bits_per_sample": 24 if args.int24 else 16,
-        }
-        for stem, source in separated.items():
-            stem = out / args.filename.format(
-                track=Path(file).name.rsplit(".", 1)[0],
-                trackext=Path(file).name.rsplit(".", 1)[-1],
-                stem=stem,
-                ext=ext,
-            )
-            stem.parent.mkdir(parents=True, exist_ok=True)
-            save_audio(source, str(stem), **kwargs)

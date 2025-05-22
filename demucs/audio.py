@@ -212,7 +212,7 @@ def as_dtype_pcm(wav, dtype):
         return i16_pcm(wav)
 
 
-def encode_mp3(wav, path, samplerate=44100, bitrate=320, quality=2, verbose=False):
+def encode_mp3(wav, path, samplerate=44100, bitrate=320, quality=2):
     """Save given audio as mp3. This should work on all OSes."""
     C, T = wav.shape
     wav = i16_pcm(wav)
@@ -221,9 +221,8 @@ def encode_mp3(wav, path, samplerate=44100, bitrate=320, quality=2, verbose=Fals
     encoder.set_in_sample_rate(samplerate)
     encoder.set_channels(C)
     encoder.set_quality(quality)  # 2-highest, 7-fastest
-    if not verbose:
-        encoder.silence()
-    wav = wav.data.cpu()
+    encoder.silence()
+    # No need to call .cpu() again since save_audio already ensures the tensor is on CPU
     wav = wav.transpose(0, 1).numpy()
     mp3_data = encoder.encode(wav.tobytes())
     mp3_data += encoder.flush()
@@ -264,11 +263,15 @@ def save_audio(
     will save as mp3 with the given `bitrate`. Use `preset` to set mp3 quality:
     2 for highest quality, 7 for fastest speed
     """
+    # Ensure tensor is on CPU before any operations
+    if wav.device.type != 'cpu':
+        wav = wav.cpu()
+        
     wav = prevent_clip(wav, mode=clip)
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix == ".mp3":
-        encode_mp3(wav, path, samplerate, bitrate, preset, verbose=True)
+        encode_mp3(wav, path, samplerate, bitrate, preset)
     elif suffix == ".wav":
         if as_float:
             bits_per_sample = 32
