@@ -264,9 +264,9 @@ def save_audio(
     2 for highest quality, 7 for fastest speed
     """
     # Ensure tensor is on CPU before any operations
-    if wav.device.type != 'cpu':
+    if wav.device.type != "cpu":
         wav = wav.cpu()
-        
+
     wav = prevent_clip(wav, mode=clip)
     path = Path(path)
     suffix = path.suffix.lower()

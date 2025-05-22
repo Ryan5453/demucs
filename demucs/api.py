@@ -17,26 +17,27 @@ Functions
 `list_models`: Get models list
 """
 
-import subprocess
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
 
 import torch as th
 import torchaudio as ta
 
-from .apply import _replace_dict, apply_model
+from .apply import apply_model
 from .audio import AudioFile, convert_audio, save_audio
-from .pretrained import METADATA_PATH, get_model, DEFAULT_MODEL
-from .repo import ModelRepository, AnyModel
+from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
+from .repo import AnyModel, ModelRepository
 
 
 class LoadAudioError(Exception):
     """Exception raised when audio loading fails."""
+
     pass
 
 
 class LoadModelError(Exception):
     """Exception raised when model loading fails."""
+
     pass
 
 
@@ -50,20 +51,25 @@ NotProvided = _NotProvided()
 class SeparatedSources:
     """
     Container for separated audio sources.
-    
+
     This class provides easy access to the individual stems and utility methods
     for manipulating them.
-    
+
     Attributes:
         sources (Dict[str, th.Tensor]): Dictionary mapping source names to audio tensors
         samplerate (int): Sample rate of the audio
         original (th.Tensor): Original mixed audio if available
     """
-    
-    def __init__(self, sources: Dict[str, th.Tensor], samplerate: int, original: Optional[th.Tensor] = None):
+
+    def __init__(
+        self,
+        sources: Dict[str, th.Tensor],
+        samplerate: int,
+        original: Optional[th.Tensor] = None,
+    ):
         """
         Initialize a SeparatedSources object.
-        
+
         Args:
             sources: Dictionary mapping source names to audio tensors
             samplerate: Sample rate of the audio
@@ -72,89 +78,91 @@ class SeparatedSources:
         self.sources = sources
         self.samplerate = samplerate
         self.original = original
-        
+
     def __getitem__(self, key: str) -> th.Tensor:
         """Access individual stems by name."""
         return self.sources[key]
-    
+
     def __contains__(self, key: str) -> bool:
         """Check if a stem exists."""
         return key in self.sources
-    
+
     def __iter__(self):
         """Iterate over stem names."""
         return iter(self.sources)
-    
+
     def items(self):
         """Iterate over (stem_name, audio_tensor) pairs."""
         return self.sources.items()
-    
+
     def keys(self):
         """Get all stem names."""
         return self.sources.keys()
-    
+
     def values(self):
         """Get all audio tensors."""
         return self.sources.values()
-    
+
     def get_stem(self, name: str) -> th.Tensor:
         """Get a specific stem."""
         return self.sources[name]
-    
+
     def isolate_stem(self, name: str) -> Dict[str, th.Tensor]:
         """
         Isolate a single stem and its complement.
-        
+
         Returns:
             Dictionary containing the isolated stem and its complement.
             The complement is named "no_{stem_name}".
         """
         if name not in self.sources:
             raise ValueError(f"Stem {name} not found in sources")
-            
+
         result = {name: self.sources[name]}
-        
+
         # Calculate the complement by summing all other stems
         other = th.zeros_like(self.sources[name])
         for source, audio in self.sources.items():
             if source != name:
                 other += audio
-                
+
         result[f"no_{name}"] = other
         return result
-    
-    def save(self, path: Union[str, Path], format: str = "wav", **kwargs) -> Dict[str, Path]:
+
+    def save(
+        self, path: Union[str, Path], format: str = "wav", **kwargs
+    ) -> Dict[str, Path]:
         """
         Save all stems to disk.
-        
+
         Args:
             path: Base path where stems will be saved
             format: Audio format to use (wav, mp3, flac)
             **kwargs: Additional arguments to pass to save_audio
-            
+
         Returns:
             Dictionary mapping stem names to saved file paths
         """
         base_path = Path(path)
         base_path.mkdir(exist_ok=True, parents=True)
-        
+
         result = {}
         for name, source in self.sources.items():
             file_path = base_path / f"{name}.{format}"
             save_audio(source, file_path, self.samplerate, **kwargs)
             result[name] = file_path
-            
+
         return result
 
 
 class Separator:
     """
     Audio source separation using Demucs models.
-    
+
     This class provides methods for separating an audio mixture into individual
     stems (vocals, drums, bass, other, etc.) using Demucs models.
     """
-    
+
     def __init__(
         self,
         model: Union[str, AnyModel] = DEFAULT_MODEL,
@@ -169,7 +177,7 @@ class Separator:
     ):
         """
         Initialize a Separator with the specified model and parameters.
-        
+
         Args:
             model: Model to use for separation. Can be:
                 - A string with a model name or signature (e.g., "htdemucs", "mdx_q")
@@ -186,7 +194,7 @@ class Separator:
         """
         self._repo = repo
         self._verbose = verbose
-        
+
         # Handle different model input types
         if isinstance(model, str):
             self._name = model
@@ -196,7 +204,7 @@ class Separator:
             self._model = model
             self._audio_channels = model.audio_channels
             self._samplerate = model.samplerate
-            
+
         self.update_parameter(
             device=device,
             shifts=shifts,
@@ -218,12 +226,12 @@ class Separator:
     ):
         """
         Update separation parameters.
-        
+
         Args:
             device: Device to use for processing
             shifts: Number of random shifts for equivariant stabilization
             overlap: Overlap between processing chunks
-            split: Whether to split the input into chunks for processing  
+            split: Whether to split the input into chunks for processing
             segment: Length (in seconds) of each chunk
             jobs: Number of parallel jobs
             verbose: Whether to show progress bars during processing
@@ -294,18 +302,18 @@ class Separator:
     ) -> SeparatedSources:
         """
         Separate a loaded audio tensor into stems.
-        
+
         Args:
             wav: Audio tensor of shape [channels, samples]
             sr: Sample rate of the input audio (if different from model's sample rate)
-            
+
         Returns:
             SeparatedSources object containing the separated stems
         """
         if wav.ndim == 1:
             wav = wav.unsqueeze(0)
         wav = wav.to(self._device)
-        
+
         if sr is not None and sr != self._samplerate:
             raise ValueError(
                 f"Input sample rate ({sr}) doesn't match model's expected rate ({self._samplerate})"
@@ -327,49 +335,51 @@ class Separator:
             num_workers=self._jobs,
             progress=self._verbose,
         )[0]
-        
+
         # Convert tensor output to dictionary of sources
         sources = {}
         for source_idx, source_name in enumerate(self._model.sources):
             sources[source_name] = sources_tensor[source_idx] * std + mean
-        
+
         return SeparatedSources(sources, self._samplerate, original=wav)
 
     def separate_audio_file(self, file: Union[str, Path]) -> SeparatedSources:
         """
         Separate an audio file into stems.
-        
+
         Args:
             file: Path to the audio file
-            
+
         Returns:
             SeparatedSources object containing the separated stems
         """
         if isinstance(file, str):
             file = Path(file)
-            
+
         wav = self._load_audio(file)
         return self.separate_tensor(wav)
-        
+
     def isolate_stem(self, file: Union[str, Path], stem: str) -> Dict[str, th.Tensor]:
         """
         Separate an audio file and isolate a specific stem.
-        
+
         Args:
             file: Path to the audio file
             stem: Name of the stem to isolate
-            
+
         Returns:
             Dictionary with two keys:
                 - stem: The isolated stem
                 - no_{stem}: Everything except the isolated stem
-                
+
         Raises:
             ValueError: If the requested stem isn't available in the model
         """
         if stem not in self.sources:
-            raise ValueError(f"Stem '{stem}' not available in this model. Available stems: {self.sources}")
-            
+            raise ValueError(
+                f"Stem '{stem}' not available in this model. Available stems: {self.sources}"
+            )
+
         separated = self.separate_audio_file(file)
         return separated.isolate_stem(stem)
 
@@ -387,7 +397,7 @@ class Separator:
     def model(self):
         """Get the underlying model."""
         return self._model
-        
+
     @property
     def sources(self) -> List[str]:
         """Get the list of sources (stems) available in this model."""
@@ -397,10 +407,10 @@ class Separator:
 def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
     """
     List all available models and collections.
-    
+
     Args:
         repo: Optional path to a local repository
-        
+
     Returns:
         Dictionary with model signatures/names as keys and metadata as values
     """
