@@ -1,7 +1,7 @@
 # Demucs
 
-> [!NOTE] 
-> This is a mantained fork of the [author's fork](https://github.com/adefossez/demucs) of the [original](https://github.com/facebookresearch/demucs) Demucs repository. It has been modified to be a inference-only package. Read the [changelog](docs/changelog.md) for more information.
+> [!WARNING] 
+> THIS IS IN PROGRESS DONT BELIEVE ANYTHING IN THIS README.
 
 Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Samples are available [online][samples] for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper][htdemucs] for more information.
 
