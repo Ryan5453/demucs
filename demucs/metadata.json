@@ -1,113 +1,32 @@
 {
   "models": {
-    "0d19c1c6": {
-      "filename": "0d19c1c6.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/0d19c1c6.th"
-    },
-    "5d2d6c55": {
-      "filename": "5d2d6c55.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/5d2d6c55.th"
-    },
-    "7d865c68": {
-      "filename": "7d865c68.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7d865c68.th"
-    },
-    "7ecf8ec1": {
-      "filename": "7ecf8ec1.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7ecf8ec1.th"
-    },
-    "a1d90b5c": {
-      "filename": "a1d90b5c.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/a1d90b5c.th"
-    },
-    "c511e2ab": {
-      "filename": "c511e2ab.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/c511e2ab.th"
-    },
-    "cfa93e08": {
-      "filename": "cfa93e08.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/cfa93e08.th"
-    },
-    "e51eebcc": {
-      "filename": "e51eebcc.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/e51eebcc.th"
-    },
-    "6b9c2ca1": {
-      "filename": "6b9c2ca1.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/6b9c2ca1.th"
-    },
-    "b72baf4e": {
-      "filename": "b72baf4e.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/b72baf4e.th"
-    },
-    "42e558d4": {
-      "filename": "42e558d4.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/42e558d4.th"
-    },
-    "305bc58f": {
-      "filename": "305bc58f.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/305bc58f.th"
-    },
-    "14fc6a69": {
-      "filename": "14fc6a69.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/14fc6a69.th"
-    },
-    "464b36d7": {
-      "filename": "464b36d7.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/464b36d7.th"
-    },
-    "7fd6ef75": {
-      "filename": "7fd6ef75.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7fd6ef75.th"
-    },
-    "83fc094f": {
-      "filename": "83fc094f.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/83fc094f.th"
-    },
-    "1ef250f1": {
-      "filename": "1ef250f1.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/1ef250f1.th"
-    },
-    "902315c2": {
-      "filename": "902315c2.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/902315c2.th"
-    },
-    "9a6b4851": {
-      "filename": "9a6b4851.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/9a6b4851.th"
-    },
-    "fa0cb7f9": {
-      "filename": "fa0cb7f9.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/fa0cb7f9.th"
-    },
-    "955717e8": {
-      "filename": "955717e8.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/955717e8.th"
-    },
-    "f7e0c4bc": {
-      "filename": "f7e0c4bc.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/f7e0c4bc.th"
-    },
-    "d12395a8": {
-      "filename": "d12395a8.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/d12395a8.th"
-    },
-    "92cfc3b6": {
-      "filename": "92cfc3b6.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/92cfc3b6.th"
-    },
-    "04573f0d": {
-      "filename": "04573f0d.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/04573f0d.th"
-    },
-    "75fc33f5": {
-      "filename": "75fc33f5.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/75fc33f5.th"
-    },
-    "5c90dfd2": {
-      "filename": "5c90dfd2.th",
-      "url": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/5c90dfd2.th"
-    }
+    "0d19c1c6": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/0d19c1c6.th",
+    "5d2d6c55": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/5d2d6c55.th",
+    "7d865c68": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7d865c68.th",
+    "7ecf8ec1": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7ecf8ec1.th",
+    "a1d90b5c": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/a1d90b5c.th",
+    "c511e2ab": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/c511e2ab.th",
+    "cfa93e08": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/cfa93e08.th",
+    "e51eebcc": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/e51eebcc.th",
+    "6b9c2ca1": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/6b9c2ca1.th",
+    "b72baf4e": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/b72baf4e.th",
+    "42e558d4": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/42e558d4.th",
+    "305bc58f": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/305bc58f.th",
+    "14fc6a69": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/14fc6a69.th",
+    "464b36d7": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/464b36d7.th",
+    "7fd6ef75": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7fd6ef75.th",
+    "83fc094f": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/83fc094f.th",
+    "1ef250f1": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/1ef250f1.th",
+    "902315c2": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/902315c2.th",
+    "9a6b4851": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/9a6b4851.th",
+    "fa0cb7f9": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/fa0cb7f9.th",
+    "955717e8": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/955717e8.th",
+    "f7e0c4bc": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/f7e0c4bc.th",
+    "d12395a8": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/d12395a8.th",
+    "92cfc3b6": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/92cfc3b6.th",
+    "04573f0d": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/04573f0d.th",
+    "75fc33f5": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/75fc33f5.th",
+    "5c90dfd2": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/5c90dfd2.th"
   },
   "collections": {
     "mdx": {

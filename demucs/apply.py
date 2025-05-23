@@ -10,11 +10,11 @@ inteprolation between chunks, as well as the "shift trick".
 
 import copy
 import random
-import typing as tp
+import typing
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
-import torch as th
+import torch
 import torch.nn as nn
 from rich.console import Console
 from rich.progress import (
@@ -25,6 +25,7 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from torch import Tensor
 from torch.nn import functional as F
 
 from .demucs import Demucs
@@ -32,7 +33,7 @@ from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
 from .utils import DummyPoolExecutor, center_trim
 
-Model = tp.Union[Demucs, HDemucs, HTDemucs]
+Model = typing.Union[Demucs, HDemucs, HTDemucs]
 
 console = Console()
 
@@ -40,9 +41,9 @@ console = Console()
 class BagOfModels(nn.Module):
     def __init__(
         self,
-        models: tp.List[Model],
-        weights: tp.Optional[tp.List[tp.List[float]]] = None,
-        segment: tp.Optional[float] = None,
+        models: typing.List[Model],
+        weights: typing.Optional[typing.List[typing.List[float]]] = None,
+        segment: typing.Optional[float] = None,
     ):
         """
         Represents a bag of models with specific weights.
@@ -142,12 +143,12 @@ def tensor_chunk(tensor_or_chunk):
     if isinstance(tensor_or_chunk, TensorChunk):
         return tensor_or_chunk
     else:
-        assert isinstance(tensor_or_chunk, th.Tensor)
+        assert isinstance(tensor_or_chunk, Tensor)
         return TensorChunk(tensor_or_chunk)
 
 
 def _replace_dict(
-    _dict: tp.Optional[dict], *subs: tp.Tuple[tp.Hashable, tp.Any]
+    _dict: typing.Optional[dict], *subs: typing.Tuple[typing.Hashable, typing.Any]
 ) -> dict:
     if _dict is None:
         _dict = {}
@@ -159,8 +160,8 @@ def _replace_dict(
 
 
 def apply_model(
-    model: tp.Union[BagOfModels, Model],
-    mix: tp.Union[th.Tensor, TensorChunk],
+    model: typing.Union[BagOfModels, Model],
+    mix: typing.Union[Tensor, TensorChunk],
     shifts: int = 1,
     split: bool = True,
     overlap: float = 0.25,
@@ -168,12 +169,12 @@ def apply_model(
     progress: bool = False,
     device=None,
     num_workers: int = 0,
-    segment: tp.Optional[float] = None,
+    segment: typing.Optional[float] = None,
     pool=None,
     lock=None,
-    callback: tp.Optional[tp.Callable[[dict], None]] = None,
-    callback_arg: tp.Optional[dict] = None,
-) -> th.Tensor:
+    callback: typing.Optional[typing.Callable[[dict], None]] = None,
+    callback_arg: typing.Optional[dict] = None,
+) -> Tensor:
     """
     Apply model to a given mixture.
 
@@ -197,7 +198,7 @@ def apply_model(
     if device is None:
         device = mix.device
     else:
-        device = th.device(device)
+        device = torch.device(device)
     if pool is None:
         if num_workers > 0 and device.type == "cpu":
             pool = ThreadPoolExecutor(num_workers)
@@ -209,7 +210,7 @@ def apply_model(
         callback_arg,
         *{"model_idx_in_bag": 0, "shift_idx": 0, "segment_offset": 0}.items(),
     )
-    kwargs: tp.Dict[str, tp.Any] = {
+    kwargs: typing.Dict[str, typing.Any] = {
         "shifts": shifts,
         "split": split,
         "overlap": overlap,
@@ -220,13 +221,13 @@ def apply_model(
         "segment": segment,
         "lock": lock,
     }
-    out: tp.Union[float, th.Tensor]
-    res: tp.Union[float, th.Tensor]
+    out: typing.Union[float, Tensor]
+    res: typing.Union[float, Tensor]
     if isinstance(model, BagOfModels):
         # Special treatment for bag of model.
         # We explicitely apply multiple times `apply_model` so that the random shifts
         # are different for each model.
-        estimates: tp.Union[float, th.Tensor] = 0.0
+        estimates: typing.Union[float, Tensor] = 0.0
         totals = [0.0] * len(model.sources)
         callback_arg["models"] = len(model.models)
         for sub_model, model_weights in zip(model.models, model.weights):
@@ -250,7 +251,7 @@ def apply_model(
             del out
             callback_arg["model_idx_in_bag"] += 1
 
-        assert isinstance(estimates, th.Tensor)
+        assert isinstance(estimates, Tensor)
         for k in range(estimates.shape[1]):
             estimates[:, k, :, :] /= totals[k]
         return estimates
@@ -280,12 +281,14 @@ def apply_model(
             shifted_out = res
             out += shifted_out[..., max_shift - offset :]
         out /= shifts
-        assert isinstance(out, th.Tensor)
+        assert isinstance(out, Tensor)
         return out
     elif split:
         kwargs["split"] = False
-        out = th.zeros(batch, len(model.sources), channels, length, device=mix.device)
-        sum_weight = th.zeros(length, device=mix.device)
+        out = torch.zeros(
+            batch, len(model.sources), channels, length, device=mix.device
+        )
+        sum_weight = torch.zeros(length, device=mix.device)
         if segment is None:
             segment = model.segment
         assert segment is not None and segment > 0.0
@@ -295,10 +298,12 @@ def apply_model(
         # We start from a triangle shaped weight, with maximal weight in the middle
         # of the segment. Then we normalize and take to the power `transition_power`.
         # Large values of transition power will lead to sharper transitions.
-        weight = th.cat(
+        weight = torch.cat(
             [
-                th.arange(1, segment_length // 2 + 1, device=device),
-                th.arange(segment_length - segment_length // 2, 0, -1, device=device),
+                torch.arange(1, segment_length // 2 + 1, device=device),
+                torch.arange(
+                    segment_length - segment_length // 2, 0, -1, device=device
+                ),
             ]
         )
         assert len(weight) == segment_length
@@ -338,7 +343,7 @@ def apply_model(
                 task = progress_bar.add_task("Processing audio", total=len(futures))
                 for future, offset in futures:
                     try:
-                        chunk_out = future.result()  # type: th.Tensor
+                        chunk_out = future.result()  # type: Tensor
                         chunk_length = chunk_out.shape[-1]
                         out[..., offset : offset + segment_length] += (
                             weight[:chunk_length] * chunk_out
@@ -353,7 +358,7 @@ def apply_model(
         else:
             for future, offset in futures:
                 try:
-                    chunk_out = future.result()  # type: th.Tensor
+                    chunk_out = future.result()  # type: Tensor
                     chunk_length = chunk_out.shape[-1]
                     out[..., offset : offset + segment_length] += (
                         weight[:chunk_length] * chunk_out
@@ -366,7 +371,7 @@ def apply_model(
                     raise
         assert sum_weight.min() > 0
         out /= sum_weight
-        assert isinstance(out, th.Tensor)
+        assert isinstance(out, Tensor)
         return out
     else:
         valid_length: int
@@ -382,10 +387,10 @@ def apply_model(
         with lock:
             if callback is not None:
                 callback(_replace_dict(callback_arg, ("state", "start")))  # type: ignore
-        with th.no_grad():
+        with torch.no_grad():
             out = model(padded_mix)
         with lock:
             if callback is not None:
                 callback(_replace_dict(callback_arg, ("state", "end")))  # type: ignore
-        assert isinstance(out, th.Tensor)
+        assert isinstance(out, Tensor)
         return center_trim(out, length)

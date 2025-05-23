@@ -6,7 +6,7 @@ import json
 import os
 import shutil
 import tempfile
-import typing as tp
+import typing
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -18,7 +18,7 @@ from rich.progress import Progress, TaskID
 from .apply import BagOfModels, Model
 from .states import load_model
 
-AnyModel = tp.Union[Model, BagOfModels]
+AnyModel = typing.Union[Model, BagOfModels]
 
 
 class ModelLoadingError(RuntimeError):
@@ -26,6 +26,13 @@ class ModelLoadingError(RuntimeError):
 
 
 def check_checksum(path: Path, checksum: str):
+    """
+    Verifies that a file matches an expected checksum.
+
+    :param path: Path to the file to check
+    :param checksum: Expected SHA-256 checksum (can be truncated)
+    :raises ModelLoadingError: If the actual checksum does not match the expected one
+    """
     sha = sha256()
     with open(path, "rb") as file:
         while True:
@@ -41,8 +48,13 @@ def check_checksum(path: Path, checksum: str):
         )
 
 
-def format_file_size(size_bytes):
-    """Format file size in a human-readable way"""
+def format_file_size(size_bytes: int) -> str:
+    """
+    Formats a file size in a human-readable way
+
+    :param size_bytes: The size of the file in bytes
+    :return: A string representing the size of the file in a human-readable way
+    """
     if size_bytes < 1024:
         return f"{size_bytes} B"
     elif size_bytes < 1024 * 1024:
@@ -56,7 +68,9 @@ def format_file_size(size_bytes):
 class ModelRepository:
     """Unified repository system for accessing models and collections."""
 
-    def __init__(self, metadata_path: Path, local_repo_path: tp.Optional[Path] = None):
+    def __init__(
+        self, metadata_path: Path, local_repo_path: typing.Optional[Path] = None
+    ):
         """
         Initialize the repository.
 
@@ -109,7 +123,7 @@ class ModelRepository:
         # Finally check collections
         return name in self._collections
 
-    def get_cache_info(self) -> tp.Dict[str, tp.Dict]:
+    def get_cache_info(self) -> typing.Dict[str, typing.Dict]:
         """
         Get information about cached models.
 
@@ -120,19 +134,17 @@ class ModelRepository:
         cached_models = {}
 
         # Check which remote models are downloaded
-        for sig, info in self._models.items():
-            if "url" in info:
-                url = info["url"]
-                filename = os.path.basename(url)
-                model_path = cache_dir / filename
+        for sig, url in self._models.items():
+            filename = os.path.basename(url)
+            model_path = cache_dir / filename
 
-                if model_path.exists():
-                    size_bytes = model_path.stat().st_size
-                    cached_models[sig] = {
-                        "path": str(model_path),
-                        "size_bytes": size_bytes,
-                        "size_mb": size_bytes / (1024 * 1024),
-                    }
+            if model_path.exists():
+                size_bytes = model_path.stat().st_size
+                cached_models[sig] = {
+                    "path": str(model_path),
+                    "size_bytes": size_bytes,
+                    "size_mb": size_bytes / (1024 * 1024),
+                }
 
         # Handle collections
         for name, info in self._collections.items():
@@ -163,9 +175,9 @@ class ModelRepository:
         self,
         url: str,
         cache_path: Path,
-        expected_hash: tp.Optional[str] = None,
-        progress_bar: tp.Optional[Progress] = None,
-        task_id: tp.Optional[TaskID] = None,
+        expected_hash: typing.Optional[str] = None,
+        progress_bar: typing.Optional[Progress] = None,
+        task_id: typing.Optional[TaskID] = None,
     ) -> AnyModel:
         """Download and load a model from a URL."""
         # Download the file to memory first
@@ -259,9 +271,9 @@ class ModelRepository:
     def get_model(
         self,
         name: str,
-        progress_bar: tp.Optional[Progress] = None,
-        task_id: tp.Optional[TaskID] = None,
-        collection_name: tp.Optional[str] = None,
+        progress_bar: typing.Optional[Progress] = None,
+        task_id: typing.Optional[TaskID] = None,
+        collection_name: typing.Optional[str] = None,
     ) -> AnyModel:
         """
         Get a model or collection by name.
@@ -284,8 +296,7 @@ class ModelRepository:
 
         # Try loading as a remote model
         if name in self._models:
-            model_info = self._models[name]
-            url = model_info["url"]
+            url = self._models[name]
 
             # Determine cache path
             cache_dir = Path(torch.hub.get_dir()) / "checkpoints"
@@ -293,10 +304,9 @@ class ModelRepository:
             filename = os.path.basename(url)
             cache_path = cache_dir / filename
 
-            # Get expected hash from model info
-            expected_hash = model_info.get("hash")
-            if expected_hash is None and "-" in filename:
-                # Try to get hash from filename (model-<hash>.th format)
+            # Get expected hash from filename if available (model-<hash>.th format)
+            expected_hash = None
+            if "-" in filename:
                 expected_hash = filename.split("-")[-1].split(".")[0]
 
             # Check if file exists and verify hash
@@ -359,7 +369,7 @@ class ModelRepository:
             f"Could not find a model or collection with name {name}."
         )
 
-    def list_models(self) -> tp.Dict[str, tp.Dict]:
+    def list_models(self) -> typing.Dict[str, typing.Dict]:
         """
         List all available models and collections.
 
@@ -369,8 +379,8 @@ class ModelRepository:
         result = {}
 
         # Add remote models
-        for sig, info in self._models.items():
-            result[sig] = {"type": "remote_model", "info": info}
+        for sig, url in self._models.items():
+            result[sig] = {"type": "remote_model", "url": url}
 
         # Add local models
         if self.local_repo_path is not None:
@@ -397,26 +407,24 @@ class ModelRepository:
 
         # For single models
         if name in self._models:
-            url = self._models[name].get("url")
-            if url:
-                filename = os.path.basename(url)
-                model_path = cache_dir / filename
-                if model_path.exists():
-                    model_path.unlink()
-                    return True
+            url = self._models[name]
+            filename = os.path.basename(url)
+            model_path = cache_dir / filename
+            if model_path.exists():
+                model_path.unlink()
+                return True
 
         # For collections, remove all component models
         elif name in self._collections:
             removed_any = False
             for component in self._collections[name].get("models", []):
                 if component in self._models:
-                    url = self._models[component].get("url")
-                    if url:
-                        filename = os.path.basename(url)
-                        model_path = cache_dir / filename
-                        if model_path.exists():
-                            model_path.unlink()
-                            removed_any = True
+                    url = self._models[component]
+                    filename = os.path.basename(url)
+                    model_path = cache_dir / filename
+                    if model_path.exists():
+                        model_path.unlink()
+                        removed_any = True
             return removed_any
 
         return False

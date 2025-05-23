@@ -5,14 +5,15 @@
 # LICENSE file in the root directory of this source tree.
 import json
 import subprocess as sp
-import typing as tp
+import typing
 from pathlib import Path
 
 import julius
 import lameenc
 import numpy as np
 import torch
-import torchaudio as ta
+import torchaudio
+from torch import Tensor
 
 from .utils import temp_filenames
 
@@ -182,7 +183,7 @@ def convert_audio_channels(wav, channels=2):
     return wav
 
 
-def convert_audio(wav, from_samplerate, to_samplerate, channels) -> torch.Tensor:
+def convert_audio(wav, from_samplerate, to_samplerate, channels) -> Tensor:
     """Convert audio from a given samplerate to a target one and target number of channels."""
     wav = convert_audio_channels(wav, channels)
     return julius.resample_frac(wav, from_samplerate, to_samplerate)
@@ -249,14 +250,14 @@ def prevent_clip(wav, mode="rescale"):
 
 
 def save_audio(
-    wav: torch.Tensor,
-    path: tp.Union[str, Path],
+    wav: Tensor,
+    path: typing.Union[str, Path],
     samplerate: int,
     bitrate: int = 320,
-    clip: tp.Literal["rescale", "clamp", "tanh", "none"] = "rescale",
-    bits_per_sample: tp.Literal[16, 24, 32] = 16,
+    clip: typing.Literal["rescale", "clamp", "tanh", "none"] = "rescale",
+    bits_per_sample: typing.Literal[16, 24, 32] = 16,
     as_float: bool = False,
-    preset: tp.Literal[2, 3, 4, 5, 6, 7] = 2,
+    preset: typing.Literal[2, 3, 4, 5, 6, 7] = 2,
 ):
     """Save audio file, automatically preventing clipping if necessary
     based on the given `clip` strategy. If the path ends in `.mp3`, this
@@ -278,7 +279,7 @@ def save_audio(
             encoding = "PCM_F"
         else:
             encoding = "PCM_S"
-        ta.save(
+        torchaudio.save(
             str(path),
             wav,
             sample_rate=samplerate,
@@ -286,6 +287,8 @@ def save_audio(
             bits_per_sample=bits_per_sample,
         )
     elif suffix == ".flac":
-        ta.save(str(path), wav, sample_rate=samplerate, bits_per_sample=bits_per_sample)
+        torchaudio.save(
+            str(path), wav, sample_rate=samplerate, bits_per_sample=bits_per_sample
+        )
     else:
         raise ValueError(f"Invalid suffix for path: {suffix}")

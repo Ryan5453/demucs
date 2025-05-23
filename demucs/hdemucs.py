@@ -8,12 +8,12 @@ This code contains the spectrogram and Hybrid version of Demucs.
 """
 
 import math
-import typing as tp
+import typing
 from copy import deepcopy
 
 import torch
 from openunmix.filtering import wiener
-from torch import nn
+from torch import Tensor, nn
 from torch.nn import functional as F
 
 from .demucs import DConv, rescale_module
@@ -22,8 +22,8 @@ from .utils import ispectro, spectro
 
 
 def pad1d(
-    x: torch.Tensor,
-    paddings: tp.Tuple[int, int],
+    x: Tensor,
+    paddings: typing.Tuple[int, int],
     mode: str = "constant",
     value: float = 0.0,
 ):

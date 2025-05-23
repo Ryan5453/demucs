@@ -7,12 +7,13 @@
 import math
 import os
 import tempfile
-import typing as tp
+import typing
 from collections import defaultdict
 from concurrent.futures import CancelledError
 from contextlib import contextmanager
 
 import torch
+from torch import Tensor
 from torch.nn import functional as F
 from torch.utils.data import Subset
 
@@ -35,14 +36,14 @@ def unfold(a, kernel_size, stride):
     return a.as_strided([*shape, n_frames, kernel_size], strides)
 
 
-def center_trim(tensor: torch.Tensor, reference: tp.Union[torch.Tensor, int]):
+def center_trim(tensor: Tensor, reference: typing.Union[Tensor, int]):
     """
     Center trim `tensor` with respect to `reference`, along the last dimension.
     `reference` can also be a number, representing the length to trim to.
     If the size difference != 0 mod 2, the extra sample is removed on the right side.
     """
     ref_size: int
-    if isinstance(reference, torch.Tensor):
+    if isinstance(reference, Tensor):
         ref_size = reference.size(-1)
     else:
         ref_size = reference
@@ -54,7 +55,7 @@ def center_trim(tensor: torch.Tensor, reference: tp.Union[torch.Tensor, int]):
     return tensor
 
 
-def pull_metric(history: tp.List[dict], name: str):
+def pull_metric(history: typing.List[dict], name: str):
     out = []
     for metrics in history:
         metric = metrics
@@ -73,8 +74,8 @@ def EMA(beta: float = 1):
 
     Note that for `beta=1`, this is just plain averaging.
     """
-    fix: tp.Dict[str, float] = defaultdict(float)
-    total: tp.Dict[str, float] = defaultdict(float)
+    fix: typing.Dict[str, float] = defaultdict(float)
+    total: typing.Dict[str, float] = defaultdict(float)
 
     def _update(metrics: dict, weight: float = 1) -> dict:
         nonlocal total, fix

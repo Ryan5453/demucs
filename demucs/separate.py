@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import torch as th
+import torch
 import typer
 from rich.console import Console
 from rich.progress import (
@@ -467,9 +467,9 @@ def main_command(
         ),
     ] = (
         "cuda"
-        if th.cuda.is_available()
+        if torch.cuda.is_available()
         else "mps"
-        if th.backends.mps.is_available()
+        if torch.backends.mps.is_available()
         else "cpu"
     ),
     shifts: Annotated[

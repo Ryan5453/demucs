@@ -4,24 +4,12 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""
-API methods for demucs
-
-Classes
--------
-`Separator`: The base separator class for isolating audio sources
-
-Functions
----------
-`save_audio`: Save an audio file
-`list_models`: Get models list
-"""
-
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import torch as th
-import torchaudio as ta
+import torch
+import torchaudio
+from torch import Tensor
 
 from .apply import apply_model
 from .audio import AudioFile, convert_audio, save_audio
@@ -30,18 +18,26 @@ from .repo import AnyModel, ModelRepository
 
 
 class LoadAudioError(Exception):
-    """Exception raised when audio loading fails."""
+    """
+    Exception raised when audio loading fails.
+    """
 
     pass
 
 
 class LoadModelError(Exception):
-    """Exception raised when model loading fails."""
+    """
+    Exception raised when model loading fails.
+    """
 
     pass
 
 
 class _NotProvided:
+    """
+    A class to indicate that a parameter is not provided.
+    """
+
     pass
 
 
@@ -50,78 +46,94 @@ NotProvided = _NotProvided()
 
 class SeparatedSources:
     """
-    Container for separated audio sources.
-
-    This class provides easy access to the individual stems and utility methods
-    for manipulating them.
-
-    Attributes:
-        sources (Dict[str, th.Tensor]): Dictionary mapping source names to audio tensors
-        samplerate (int): Sample rate of the audio
-        original (th.Tensor): Original mixed audio if available
+    Container for storing and processing separated audio sources.
     """
 
     def __init__(
         self,
-        sources: Dict[str, th.Tensor],
-        samplerate: int,
-        original: Optional[th.Tensor] = None,
+        sources: Dict[str, Tensor],
+        sample_rate: int,
+        original: Optional[Tensor] = None,
     ):
         """
         Initialize a SeparatedSources object.
 
-        Args:
-            sources: Dictionary mapping source names to audio tensors
-            samplerate: Sample rate of the audio
-            original: Original mixed audio if available
+        :param sources: Mapping of stem names to audio tensors
+        :param sample_rate: Sample rate of the audio
+        :param original: Original mixed audio if available
         """
         self.sources = sources
-        self.samplerate = samplerate
+        self.sample_rate = sample_rate
         self.original = original
 
-    def __getitem__(self, key: str) -> th.Tensor:
-        """Access individual stems by name."""
+    def __getitem__(self, key: str) -> Tensor:
+        """
+        Access individual stems by name.
+
+        :param key: Name of the stem to access
+        :return: Audio tensor for the stem
+        """
         return self.sources[key]
 
     def __contains__(self, key: str) -> bool:
-        """Check if a stem exists."""
+        """
+        Check if a stem exists.
+
+        :param key: Name of the stem to check
+        :return: True if the stem exists, False otherwise
+        """
         return key in self.sources
 
     def __iter__(self):
-        """Iterate over stem names."""
+        """
+        Iterate over stem names.
+
+        :return: Iterator over stem names
+        """
         return iter(self.sources)
 
     def items(self):
-        """Iterate over (stem_name, audio_tensor) pairs."""
+        """
+        Iterate over (stem_name, audio_tensor) pairs.
+
+        :return: Iterator over (stem_name, audio_tensor) pairs
+        """
         return self.sources.items()
 
     def keys(self):
-        """Get all stem names."""
+        """
+        Get all stem names.
+
+        :return: Iterator over stem names
+        """
         return self.sources.keys()
 
     def values(self):
-        """Get all audio tensors."""
+        """
+        Get all audio tensors.
+
+        :return: Iterator over audio tensors
+        """
         return self.sources.values()
 
-    def get_stem(self, name: str) -> th.Tensor:
-        """Get a specific stem."""
-        return self.sources[name]
 
-    def isolate_stem(self, name: str) -> Dict[str, th.Tensor]:
+    def isolate_stem(self, name: str) -> Dict[str, Tensor]:
         """
-        Isolate a single stem and its complement.
+        Isolates a single stem and its complement.
 
-        Returns:
-            Dictionary containing the isolated stem and its complement.
-            The complement is named "no_{stem_name}".
+        :param name: Name of the stem to isolate
+        :return: Dictionary containing the isolated stem and its complement
+        :raises ValueError: If the requested stem isn't found in the sources
         """
         if name not in self.sources:
             raise ValueError(f"Stem {name} not found in sources")
 
         result = {name: self.sources[name]}
 
-        # Calculate the complement by summing all other stems
-        other = th.zeros_like(self.sources[name])
+        # This works by creating a Tensor with the same shape as the stems
+        # filled with zeros and then adding all the other stems except the one
+        # we want to isolate to it
+        other = torch.zeros_like(self.sources[name])
         for source, audio in self.sources.items():
             if source != name:
                 other += audio
@@ -149,7 +161,7 @@ class SeparatedSources:
         result = {}
         for name, source in self.sources.items():
             file_path = base_path / f"{name}.{format}"
-            save_audio(source, file_path, self.samplerate, **kwargs)
+            save_audio(source, file_path, self.sample_rate, **kwargs)
             result[name] = file_path
 
         return result
@@ -158,16 +170,13 @@ class SeparatedSources:
 class Separator:
     """
     Audio source separation using Demucs models.
-
-    This class provides methods for separating an audio mixture into individual
-    stems (vocals, drums, bass, other, etc.) using Demucs models.
     """
 
     def __init__(
         self,
         model: Union[str, AnyModel] = DEFAULT_MODEL,
         repo: Optional[Path] = None,
-        device: str = "cuda" if th.cuda.is_available() else "cpu",
+        device: str = "cuda" if torch.cuda.is_available() else "cpu",
         shifts: int = 1,
         overlap: float = 0.25,
         split: bool = True,
@@ -269,7 +278,7 @@ class Separator:
                 streams=0,
                 samplerate=self._samplerate,
                 channels=self._audio_channels,
-                dtype=th.float32,
+                dtype=torch.float32,
             )
             wav = wav.t()  # channels first
             return wav
@@ -277,7 +286,7 @@ class Separator:
             errors["ffmpeg"] = str(e)
 
         try:
-            wav, sr = ta.load(str(track))
+            wav, sr = torchaudio.load(str(track))
         except Exception as e:
             errors["torchaudio"] = str(e)
             raise LoadAudioError(
@@ -298,7 +307,7 @@ class Separator:
         return wav
 
     def separate_tensor(
-        self, wav: th.Tensor, sr: Optional[int] = None
+        self, wav: Tensor, sr: Optional[int] = None
     ) -> SeparatedSources:
         """
         Separate a loaded audio tensor into stems.
@@ -359,7 +368,7 @@ class Separator:
         wav = self._load_audio(file)
         return self.separate_tensor(wav)
 
-    def isolate_stem(self, file: Union[str, Path], stem: str) -> Dict[str, th.Tensor]:
+    def isolate_stem(self, file: Union[str, Path], stem: str) -> Dict[str, Tensor]:
         """
         Separate an audio file and isolate a specific stem.
 
