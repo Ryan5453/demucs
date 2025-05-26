@@ -8,7 +8,7 @@ This code contains the spectrogram and Hybrid version of Demucs.
 """
 
 import math
-import typing
+from typing import Tuple
 from copy import deepcopy
 
 import torch
@@ -23,7 +23,7 @@ from .utils import ispectro, spectro
 
 def pad1d(
     x: Tensor,
-    paddings: typing.Tuple[int, int],
+    paddings: Tuple[int, int],
     mode: str = "constant",
     value: float = 0.0,
 ):

@@ -6,7 +6,7 @@ import json
 import os
 import shutil
 import tempfile
-import typing
+from typing import Dict, Optional, Union
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -18,7 +18,7 @@ from rich.progress import Progress, TaskID
 from .apply import BagOfModels, Model
 from .states import load_model
 
-AnyModel = typing.Union[Model, BagOfModels]
+AnyModel = Union[Model, BagOfModels]
 
 
 class ModelLoadingError(RuntimeError):
@@ -69,7 +69,7 @@ class ModelRepository:
     """Unified repository system for accessing models and collections."""
 
     def __init__(
-        self, metadata_path: Path, local_repo_path: typing.Optional[Path] = None
+        self, metadata_path: Path, local_repo_path: Optional[Path] = None
     ):
         """
         Initialize the repository.
@@ -123,7 +123,7 @@ class ModelRepository:
         # Finally check collections
         return name in self._collections
 
-    def get_cache_info(self) -> typing.Dict[str, typing.Dict]:
+    def get_cache_info(self) -> Dict[str, Dict]:
         """
         Get information about cached models.
 
@@ -175,9 +175,9 @@ class ModelRepository:
         self,
         url: str,
         cache_path: Path,
-        expected_hash: typing.Optional[str] = None,
-        progress_bar: typing.Optional[Progress] = None,
-        task_id: typing.Optional[TaskID] = None,
+        expected_hash: Optional[str] = None,
+        progress_bar: Optional[Progress] = None,
+        task_id: Optional[TaskID] = None,
     ) -> AnyModel:
         """Download and load a model from a URL."""
         # Download the file to memory first
@@ -271,9 +271,9 @@ class ModelRepository:
     def get_model(
         self,
         name: str,
-        progress_bar: typing.Optional[Progress] = None,
-        task_id: typing.Optional[TaskID] = None,
-        collection_name: typing.Optional[str] = None,
+        progress_bar: Optional[Progress] = None,
+        task_id: Optional[TaskID] = None,
+        collection_name: Optional[str] = None,
     ) -> AnyModel:
         """
         Get a model or collection by name.
@@ -369,7 +369,7 @@ class ModelRepository:
             f"Could not find a model or collection with name {name}."
         )
 
-    def list_models(self) -> typing.Dict[str, typing.Dict]:
+    def list_models(self) -> Dict[str, Dict]:
         """
         List all available models and collections.
 

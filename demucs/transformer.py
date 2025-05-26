@@ -7,7 +7,7 @@
 
 import math
 import random
-import typing
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -559,7 +559,7 @@ class CrossTransformerEncoder(nn.Module):
         norm_out: bool = False,
         max_period: float = 10000.0,
         weight_decay: float = 0.0,
-        lr: typing.Optional[float] = None,
+        lr: Optional[float] = None,
         layer_scale: bool = False,
         gelu: bool = True,
         sin_random_shift: int = 0,
@@ -601,7 +601,7 @@ class CrossTransformerEncoder(nn.Module):
 
         self.lr = lr
 
-        activation: typing.Any = F.gelu if gelu else F.relu
+        activation: Any = F.gelu if gelu else F.relu
 
         self.norm_in: nn.Module
         self.norm_in_t: nn.Module

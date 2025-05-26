@@ -10,7 +10,7 @@ inteprolation between chunks, as well as the "shift trick".
 
 import copy
 import random
-import typing
+from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
@@ -33,7 +33,7 @@ from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
 from .utils import DummyPoolExecutor, center_trim
 
-Model = typing.Union[Demucs, HDemucs, HTDemucs]
+Model = Union[Demucs, HDemucs, HTDemucs]
 
 console = Console()
 
@@ -41,9 +41,9 @@ console = Console()
 class BagOfModels(nn.Module):
     def __init__(
         self,
-        models: typing.List[Model],
-        weights: typing.Optional[typing.List[typing.List[float]]] = None,
-        segment: typing.Optional[float] = None,
+        models: List[Model],
+        weights: Optional[List[List[float]]] = None,
+        segment: Optional[float] = None,
     ):
         """
         Represents a bag of models with specific weights.
@@ -148,7 +148,7 @@ def tensor_chunk(tensor_or_chunk):
 
 
 def _replace_dict(
-    _dict: typing.Optional[dict], *subs: typing.Tuple[typing.Hashable, typing.Any]
+    _dict: Optional[dict], *subs: Tuple[Hashable, Any]
 ) -> dict:
     if _dict is None:
         _dict = {}
@@ -160,8 +160,8 @@ def _replace_dict(
 
 
 def apply_model(
-    model: typing.Union[BagOfModels, Model],
-    mix: typing.Union[Tensor, TensorChunk],
+    model: Union[BagOfModels, Model],
+    mix: Union[Tensor, TensorChunk],
     shifts: int = 1,
     split: bool = True,
     overlap: float = 0.25,
@@ -169,11 +169,11 @@ def apply_model(
     progress: bool = False,
     device=None,
     num_workers: int = 0,
-    segment: typing.Optional[float] = None,
+    segment: Optional[float] = None,
     pool=None,
     lock=None,
-    callback: typing.Optional[typing.Callable[[dict], None]] = None,
-    callback_arg: typing.Optional[dict] = None,
+    callback: Optional[Callable[[dict], None]] = None,
+    callback_arg: Optional[dict] = None,
 ) -> Tensor:
     """
     Apply model to a given mixture.
@@ -210,7 +210,7 @@ def apply_model(
         callback_arg,
         *{"model_idx_in_bag": 0, "shift_idx": 0, "segment_offset": 0}.items(),
     )
-    kwargs: typing.Dict[str, typing.Any] = {
+    kwargs: Dict[str, Any] = {
         "shifts": shifts,
         "split": split,
         "overlap": overlap,
@@ -221,13 +221,13 @@ def apply_model(
         "segment": segment,
         "lock": lock,
     }
-    out: typing.Union[float, Tensor]
-    res: typing.Union[float, Tensor]
+    out: Union[float, Tensor]
+    res: Union[float, Tensor]
     if isinstance(model, BagOfModels):
         # Special treatment for bag of model.
         # We explicitely apply multiple times `apply_model` so that the random shifts
         # are different for each model.
-        estimates: typing.Union[float, Tensor] = 0.0
+        estimates: Union[float, Tensor] = 0.0
         totals = [0.0] * len(model.sources)
         callback_arg["models"] = len(model.models)
         for sub_model, model_weights in zip(model.models, model.weights):

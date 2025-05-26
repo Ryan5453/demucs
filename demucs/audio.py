@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 import json
 import subprocess as sp
-import typing
+from typing import Literal, Union
 from pathlib import Path
 
 import julius
@@ -251,13 +251,13 @@ def prevent_clip(wav, mode="rescale"):
 
 def save_audio(
     wav: Tensor,
-    path: typing.Union[str, Path],
+    path: Union[str, Path],
     samplerate: int,
     bitrate: int = 320,
-    clip: typing.Literal["rescale", "clamp", "tanh", "none"] = "rescale",
-    bits_per_sample: typing.Literal[16, 24, 32] = 16,
+    clip: Literal["rescale", "clamp", "tanh", "none"] = "rescale",
+    bits_per_sample: Literal[16, 24, 32] = 16,
     as_float: bool = False,
-    preset: typing.Literal[2, 3, 4, 5, 6, 7] = 2,
+    preset: Literal[2, 3, 4, 5, 6, 7] = 2,
 ):
     """Save audio file, automatically preventing clipping if necessary
     based on the given `clip` strategy. If the path ends in `.mp3`, this

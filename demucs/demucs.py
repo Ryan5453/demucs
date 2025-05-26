@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-import typing
+from typing import Callable, Type
 
 import julius
 import torch
@@ -134,14 +134,14 @@ class DConv(nn.Module):
         self.depth = abs(depth)
         dilate = depth > 0
 
-        norm_fn: typing.Callable[[int], nn.Module]
+        norm_fn: Callable[[int], nn.Module]
         norm_fn = lambda d: nn.Identity()  # noqa
         if norm:
             norm_fn = lambda d: nn.GroupNorm(1, d)  # noqa
 
         hidden = int(channels / compress)
 
-        act: typing.Type[nn.Module]
+        act: Type[nn.Module]
         if gelu:
             act = nn.GELU
         else:

@@ -7,7 +7,7 @@
 import math
 import os
 import tempfile
-import typing
+from typing import Dict, List, Union
 from collections import defaultdict
 from concurrent.futures import CancelledError
 from contextlib import contextmanager
@@ -36,7 +36,7 @@ def unfold(a, kernel_size, stride):
     return a.as_strided([*shape, n_frames, kernel_size], strides)
 
 
-def center_trim(tensor: Tensor, reference: typing.Union[Tensor, int]):
+def center_trim(tensor: Tensor, reference: Union[Tensor, int]):
     """
     Center trim `tensor` with respect to `reference`, along the last dimension.
     `reference` can also be a number, representing the length to trim to.
@@ -55,7 +55,7 @@ def center_trim(tensor: Tensor, reference: typing.Union[Tensor, int]):
     return tensor
 
 
-def pull_metric(history: typing.List[dict], name: str):
+def pull_metric(history: List[dict], name: str):
     out = []
     for metrics in history:
         metric = metrics
@@ -74,8 +74,8 @@ def EMA(beta: float = 1):
 
     Note that for `beta=1`, this is just plain averaging.
     """
-    fix: typing.Dict[str, float] = defaultdict(float)
-    total: typing.Dict[str, float] = defaultdict(float)
+    fix: Dict[str, float] = defaultdict(float)
+    total: Dict[str, float] = defaultdict(float)
 
     def _update(metrics: dict, weight: float = 1) -> dict:
         nonlocal total, fix

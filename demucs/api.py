@@ -368,30 +368,6 @@ class Separator:
         wav = self._load_audio(file)
         return self.separate_tensor(wav)
 
-    def isolate_stem(self, file: Union[str, Path], stem: str) -> Dict[str, Tensor]:
-        """
-        Separate an audio file and isolate a specific stem.
-
-        Args:
-            file: Path to the audio file
-            stem: Name of the stem to isolate
-
-        Returns:
-            Dictionary with two keys:
-                - stem: The isolated stem
-                - no_{stem}: Everything except the isolated stem
-
-        Raises:
-            ValueError: If the requested stem isn't available in the model
-        """
-        if stem not in self.sources:
-            raise ValueError(
-                f"Stem '{stem}' not available in this model. Available stems: {self.sources}"
-            )
-
-        separated = self.separate_audio_file(file)
-        return separated.isolate_stem(stem)
-
     @property
     def samplerate(self):
         """Get the model's sample rate."""

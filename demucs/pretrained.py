@@ -6,7 +6,7 @@
 """Loading pretrained models from GitHub releases."""
 
 import logging
-import typing
+from typing import Optional
 from pathlib import Path
 
 from rich.console import Console
@@ -25,9 +25,9 @@ DEFAULT_MODEL = "htdemucs"
 
 def get_model(
     name: str,
-    repo: typing.Optional[Path] = None,
-    progress_bar: typing.Optional[Progress] = None,
-    task_id: typing.Optional[TaskID] = None,
+    repo: Optional[Path] = None,
+    progress_bar: Optional[Progress] = None,
+    task_id: Optional[TaskID] = None,
 ):
     """
     Load a model by name from the model repository.
