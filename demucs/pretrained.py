@@ -6,8 +6,8 @@
 """Loading pretrained models from GitHub releases."""
 
 import logging
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 
 from rich.console import Console
 from rich.progress import Progress, TaskID

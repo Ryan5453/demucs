@@ -35,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-demucs = "demucs.separate:main"
+demucs = "demucs.cli:main"
 
 [build-system]
 requires = ["hatchling"]

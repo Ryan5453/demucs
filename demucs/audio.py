@@ -5,8 +5,8 @@
 # LICENSE file in the root directory of this source tree.
 import json
 import subprocess as sp
-from typing import Literal, Union
 from pathlib import Path
+from typing import Literal, Union
 
 import julius
 import lameenc

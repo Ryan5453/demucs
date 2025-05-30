@@ -5,8 +5,3 @@
 # LICENSE file in the root directory of this source tree.
 
 __version__ = "5.0.0"
-
-from .api import Separator, list_models, save_audio
-from .pretrained import DEFAULT_MODEL, get_model
-
-__all__ = ["Separator", "save_audio", "list_models", "DEFAULT_MODEL", "get_model"]

@@ -10,9 +10,9 @@ inteprolation between chunks, as well as the "shift trick".
 
 import copy
 import random
-from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -147,9 +147,7 @@ def tensor_chunk(tensor_or_chunk):
         return TensorChunk(tensor_or_chunk)
 
 
-def _replace_dict(
-    _dict: Optional[dict], *subs: Tuple[Hashable, Any]
-) -> dict:
+def _replace_dict(_dict: Optional[dict], *subs: Tuple[Hashable, Any]) -> dict:
     if _dict is None:
         _dict = {}
     else:

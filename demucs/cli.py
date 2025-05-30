@@ -19,25 +19,20 @@ from rich.table import Table
 from typing_extensions import Annotated
 
 from . import __version__
-from .api import Separator, save_audio
+from .api import Separator, save_audio, OtherMethod, ClipMode, SegmentValidationError
 from .apply import BagOfModels
-from .htdemucs import HTDemucs
 from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
 from .repo import ModelLoadingError, ModelRepository
 
 console = Console()
 
 
-class ClipMode(str, Enum):
-    rescale = "rescale"
-    clamp = "clamp"
-    none = "none"
-
-
-class OtherMethod(str, Enum):
-    none = "none"
-    add = "add"
-    minus = "minus"
+class OutputFormat(str, Enum):
+    wav16 = "wav16"  # 16-bit integer WAV (most common)
+    wav24 = "wav24"  # 24-bit integer WAV (higher quality)
+    wav32f = "wav32f"  # 32-bit float WAV (professional/highest quality)
+    mp3 = "mp3"
+    flac = "flac"
 
 
 def version_command():
@@ -448,21 +443,13 @@ def main_command(
             rich_help_panel="Model Selection",
         ),
     ] = None,
-    list_models_flag: Annotated[
-        bool,
-        typer.Option(
-            "--list-models",
-            help="List available models from current repo and exit",
-            rich_help_panel="Model Selection",
-        ),
-    ] = False,
     # Processing Options
     device: Annotated[
         str,
         typer.Option(
             "-d",
             "--device",
-            help="Device to use, default is cuda if available else cpu",
+            help="Device to process on, default is cuda if available, mps if available, else cpu",
             rich_help_panel="Processing",
         ),
     ] = (
@@ -475,9 +462,7 @@ def main_command(
     shifts: Annotated[
         int,
         typer.Option(
-            help="Number of random shifts for equivariant stabilization. "
-            "Increase separation time but improves quality for Demucs. "
-            "10 was used in the original paper.",
+            help="Number of random shifts for equivariant stabilization. Increase separation time but improves quality.",
             rich_help_panel="Processing",
         ),
     ] = 1,
@@ -486,29 +471,28 @@ def main_command(
         typer.Option(
             "-j",
             "--jobs",
-            help="Number of jobs. This can increase memory usage but will be much faster when multiple cores are available.",
+            help="Number of jobs. Increases memory usage but will be much faster when multiple cores are available.",
             rich_help_panel="Processing",
         ),
     ] = 0,
-    # Memory Management
-    no_split: Annotated[
+    split: Annotated[
         bool,
         typer.Option(
-            help="Doesn't split audio in chunks. This can use large amounts of memory.",
-            rich_help_panel="Memory Management",
+            help="Split audio in chunks to save memory.",
+            rich_help_panel="Processing",
         ),
-    ] = False,
+    ] = True,
     segment: Annotated[
         Optional[int],
         typer.Option(
             help="Set split size of each chunk. This can help save memory of graphic card.",
-            rich_help_panel="Memory Management",
+            rich_help_panel="Processing",
         ),
     ] = None,
     overlap: Annotated[
         float,
         typer.Option(
-            help="Overlap between the splits.", rich_help_panel="Memory Management"
+            help="Overlap between the splits.", rich_help_panel="Processing"
         ),
     ] = 0.25,
     # Stem Selection
@@ -556,62 +540,26 @@ def main_command(
             rich_help_panel="Output",
         ),
     ] = ClipMode.rescale,
-    mp3: Annotated[
-        bool,
-        typer.Option(help="Convert the output wavs to mp3.", rich_help_panel="Output"),
-    ] = False,
-    mp3_bitrate: Annotated[
-        int,
-        typer.Option(help="Bitrate of converted mp3.", rich_help_panel="Output"),
-    ] = 320,
-    mp3_preset: Annotated[
-        int,
+    format: Annotated[
+        OutputFormat,
         typer.Option(
-            help="Encoder preset of MP3, 2 for highest quality, 7 for "
-            "fastest speed. Default is 2",
-            min=2,
-            max=7,
+            "-f",
+            "--format",
+            help="Output audio format. wav16=16-bit integer WAV (standard), wav24=24-bit integer WAV (higher quality), wav32f=32-bit float WAV (professional/highest quality), mp3=320kbps MP3, flac=FLAC",
             rich_help_panel="Output",
         ),
-    ] = 2,
-    int24: Annotated[
-        bool,
-        typer.Option(help="Save wav output as 24 bits wav.", rich_help_panel="Output"),
-    ] = False,
-    float32: Annotated[
-        bool,
-        typer.Option(
-            help="Save wav output as float32 (2x bigger).", rich_help_panel="Output"
-        ),
-    ] = False,
-    flac: Annotated[
-        bool,
-        typer.Option(help="Convert the output wavs to flac.", rich_help_panel="Output"),
-    ] = False,
+    ] = OutputFormat.wav16,
 ):
     """
     Separate the sources for the given tracks.
     """
-    if list_models_flag:
-        collections = get_collections()
-        typer.echo("Available models:")
-        for name in sorted(collections.keys()):
-            typer.echo(f"  {name}")
-        return
-
-    # Display a helpful message about downloading models
-    if name != DEFAULT_MODEL:
-        console.print(f"[bold]Using model: [cyan]{name}[/cyan][/bold]")
-        console.print(
-            f"[dim]To pre-download this model, run: demucs models download {name}[/dim]"
-        )
-
     if tracks is None or not tracks:
         typer.echo("No tracks provided.")
         typer.echo("Usage: demucs separate [options] tracks... \nHelp: demucs --help")
         return
 
-    split = not no_split
+    if name == DEFAULT_MODEL:
+        console.print(f"[bold]Using default model: [cyan]{name}[/cyan][/bold]")
 
     try:
         separator = Separator(
@@ -623,21 +571,10 @@ def main_command(
             overlap=overlap,
             jobs=jobs,
             segment=segment,
-            verbose=True,  # Always show progress in CLI
+            verbose=True
         )
-    except ModelLoadingError as error:
+    except Exception as error:
         console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
-        return
-
-    max_allowed_segment = float("inf")
-    if isinstance(separator.model, HTDemucs):
-        max_allowed_segment = float(separator.model.segment)
-    elif isinstance(separator.model, BagOfModels):
-        max_allowed_segment = separator.model.max_allowed_segment
-    if segment is not None and segment > max_allowed_segment:
-        console.print(
-            f"[red]✗[/red] [bold]{name}[/bold]: Cannot use a Transformer model with a longer segment than it was trained for. Maximum segment is: {max_allowed_segment}"
-        )
         return
 
     if isinstance(separator.model, BagOfModels):
@@ -681,21 +618,41 @@ def main_command(
                     sources_to_save[f"no_{stem}"] = isolated[f"no_{stem}"]
 
             # Set up output format
-            if mp3:
-                ext = "mp3"
-            elif flac:
-                ext = "flac"
-            else:
+            if format == OutputFormat.wav16:
                 ext = "wav"
-
-            kwargs = {
-                "samplerate": separator.samplerate,
-                "bitrate": mp3_bitrate,
-                "preset": mp3_preset,
-                "clip": clip_mode,
-                "as_float": float32,
-                "bits_per_sample": 24 if int24 else 16,
-            }
+                kwargs = {
+                    "samplerate": separator.samplerate,
+                    "clip": clip_mode,
+                    "bits_per_sample": 16,
+                }
+            elif format == OutputFormat.wav24:
+                ext = "wav"
+                kwargs = {
+                    "samplerate": separator.samplerate,
+                    "clip": clip_mode,
+                    "bits_per_sample": 24,
+                }
+            elif format == OutputFormat.wav32f:
+                ext = "wav"
+                kwargs = {
+                    "samplerate": separator.samplerate,
+                    "clip": clip_mode,
+                    "as_float": True,
+                }
+            elif format == OutputFormat.mp3:
+                ext = "mp3"
+                kwargs = {
+                    "samplerate": separator.samplerate,
+                    "clip": clip_mode,
+                    "bitrate": 320,
+                    "preset": 2,
+                }
+            elif format == OutputFormat.flac:
+                ext = "flac"
+                kwargs = {
+                    "samplerate": separator.samplerate,
+                    "clip": clip_mode,
+                }
 
             # Save each stem
             for stem_name, source in sources_to_save.items():
@@ -717,11 +674,11 @@ def main():
     Load the checkpoints file and run the command.
     """
     app = typer.Typer(
-        help="Demucs: Music Source Separation",
+        help="Demucs: Audio Source Separation",
         add_completion=False,
-        no_args_is_help=True,  # Show help when no arguments are provided
+        no_args_is_help=True,
     )
-    # Create models command group
+
     models_app = typer.Typer(
         help="Download, list and manage models", no_args_is_help=True
     )
@@ -733,21 +690,6 @@ def main():
     app.command(name="separate")(main_command)
     app.add_typer(models_app, name="models")
     app.command(name="version")(version_command)
-
-    # Create a callback for the main command to show helpful info
-    @app.callback()
-    def callback():
-        """
-        Demucs: Music Source Separation tool
-
-        USAGE:
-          demucs separate [OPTIONS] TRACKS...    - Separate audio tracks
-          demucs models list                     - List available models
-          demucs models download [OPTIONS] [NAMES]... - Download model(s)
-          demucs models remove [OPTIONS] [NAMES]...  - Remove model(s)
-          demucs version                         - Show version information
-        """
-        pass
 
     # Run the app
     app()

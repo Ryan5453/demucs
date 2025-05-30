@@ -6,10 +6,10 @@ import json
 import os
 import shutil
 import tempfile
-from typing import Dict, Optional, Union
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
+from typing import Dict, Optional, Union
 
 import httpx
 import torch
@@ -68,9 +68,7 @@ def format_file_size(size_bytes: int) -> str:
 class ModelRepository:
     """Unified repository system for accessing models and collections."""
 
-    def __init__(
-        self, metadata_path: Path, local_repo_path: Optional[Path] = None
-    ):
+    def __init__(self, metadata_path: Path, local_repo_path: Optional[Path] = None):
         """
         Initialize the repository.
 

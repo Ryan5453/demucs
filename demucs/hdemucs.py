@@ -8,8 +8,8 @@ This code contains the spectrogram and Hybrid version of Demucs.
 """
 
 import math
-from typing import Tuple
 from copy import deepcopy
+from typing import Tuple
 
 import torch
 from openunmix.filtering import wiener
