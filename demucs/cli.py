@@ -1,5 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
+# Copyright (c) 2025-present Ryan Fahey
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
@@ -47,12 +47,10 @@ def list_models_command():
     List all available models and show which ones are downloaded.
     """
     # Create a ModelRepository to manage models
-    model_repo = ModelRepository(METADATA_PATH, None)
+    model_repo = ModelRepository(METADATA_PATH)
 
-    # Get collections from metadata.json
-    with open(METADATA_PATH, "r") as f:
-        metadata = json.load(f)
-    collections = metadata.get("collections", {})
+    # Get models from metadata.json
+    models = get_models()
 
     # Get cache info to determine which models are downloaded
     cache_info = model_repo.get_cache_info()
@@ -60,18 +58,17 @@ def list_models_command():
     # Create a table with detailed model information
     table = Table(title="Available Demucs Models")
     table.add_column("Model Name", style="cyan")
-    table.add_column("Type", style="green")
-    table.add_column("Components", style="blue")
+    table.add_column("Layers", style="blue")
     table.add_column("Segment", style="yellow")
     table.add_column("Size", style="magenta")
     table.add_column("Status", style="bright_green")
 
     # Use the order from metadata.json
-    for name in collections.keys():
-        info = collections[name]
+    for name in models.keys():
+        info = models[name]
 
         # Get model details
-        model_count = len(info.get("models", []))
+        layer_count = len(info.get("models", []))
         segment = info.get("segment", "N/A")
 
         # Determine if model is downloaded and its size
@@ -82,8 +79,7 @@ def list_models_command():
 
         table.add_row(
             name,
-            "Collection",
-            str(model_count) + (" model" if model_count == 1 else " models"),
+            str(layer_count) + (" layer" if layer_count == 1 else " layers"),
             str(segment),
             model_size,
             "[green]Downloaded[/green]"
@@ -109,7 +105,7 @@ def format_file_size(size_bytes):
 def download_models_command(
     names: Annotated[
         List[str],
-        typer.Argument(help="Pretrained model names or signatures to download."),
+        typer.Argument(help="Model names to download."),
     ] = None,
     all_models: Annotated[
         bool,
@@ -142,46 +138,35 @@ def download_models_command(
 
     # Get model names to download
     if all_models:
-        # Get all collection names
-        collections = get_collections()
-        model_names = list(collections.keys())
+        # Get all model names
+        models = get_models()
+        model_names = list(models.keys())
     else:
         model_names = names
 
     # Create a ModelRepository to check if models are already downloaded
-    model_repo = ModelRepository(METADATA_PATH, None)
+    model_repo = ModelRepository(METADATA_PATH)
     cache_info = model_repo.get_cache_info()
 
-    # Get collections info to identify which models are collections
-    collections = get_collections()
+    # Get models info
+    models = get_models()
 
-    # Filter out already downloaded models and count total models to download
+    # Filter out already downloaded models and count total layers to download
     to_download = []
-    total_models = 0  # Count of actual model files to download
-    collection_count = 0  # Count of collections
-    single_model_count = 0  # Count of individual models
+    total_layers = 0  # Count of actual layer files to download
 
     for name in model_names:
         if name in cache_info:
-            # Check if it's a collection and show appropriate message
-            if name in collections and "models" in collections[name]:
-                model_count = len(collections[name]["models"])
-                model_word = "model" if model_count == 1 else "models"
-                console.print(
-                    f"[green]✓[/green] [bold]{name}[/bold]: Already downloaded collection ({model_count} {model_word}, {format_file_size(cache_info[name]['size_bytes'])})"
-                )
-            else:
-                console.print(
-                    f"[green]✓[/green] [bold]{name}[/bold]: Already downloaded ({format_file_size(cache_info[name]['size_bytes'])})"
-                )
+            # Show already downloaded message
+            layer_count = len(models[name]["models"])
+            layer_word = "layer" if layer_count == 1 else "layers"
+            console.print(
+                f"[green]✓[/green] [bold]{name}[/bold]: Already downloaded ({layer_count} {layer_word}, {format_file_size(cache_info[name]['size_bytes'])})"
+            )
         else:
             to_download.append(name)
-            if name in collections and "models" in collections[name]:
-                total_models += len(collections[name]["models"])
-                collection_count += 1
-            else:
-                total_models += 1
-                single_model_count += 1
+            if name in models:
+                total_layers += len(models[name]["models"])
 
     if not to_download:
         console.print("[green]All specified models are already downloaded.[/green]")
@@ -189,27 +174,17 @@ def download_models_command(
 
     # Show appropriate message based on what we're downloading
     if len(to_download) > 1:
-        parts = []
-        if collection_count > 0:
-            parts.append(
-                f"{collection_count} collection{'s' if collection_count > 1 else ''}"
-            )
-        if single_model_count > 0:
-            parts.append(
-                f"{single_model_count} model{'s' if single_model_count > 1 else ''}"
-            )
-        what = " and ".join(parts)
         console.print(
-            f"[bold]Downloading {what} ({total_models} total model files)...[/bold]"
+            f"[bold]Downloading {len(to_download)} models ({total_layers} total layers)...[/bold]"
         )
     else:
         # For a single item, show a simpler message
         name = to_download[0]
-        if name in collections and "models" in collections[name]:
-            model_count = len(collections[name]["models"])
-            model_word = "model" if model_count == 1 else "models"
+        if name in models:
+            layer_count = len(models[name]["models"])
+            layer_word = "layer" if layer_count == 1 else "layers"
             console.print(
-                f"[bold]Downloading collection {name} ({model_count} {model_word})...[/bold]"
+                f"[bold]Downloading model {name} ({layer_count} {layer_word})...[/bold]"
             )
         else:
             console.print(f"[bold]Downloading model {name}...[/bold]")
@@ -230,50 +205,26 @@ def download_models_command(
                 # Record start time for speed calculation
                 start_time = time.time()
 
-                if name in collections and "models" in collections[name]:
-                    # For collections, create a parent task to track overall progress
-                    collection = collections[name]
-                    model_count = len(collection["models"])
-                    model_word = "model" if model_count == 1 else "models"
-                    parent_task = progress_bar.add_task(
-                        f"[cyan bold]Collection Progress: 0/{model_count} {model_word} downloaded[/cyan bold]",
-                        total=model_count,
+                if name in models:
+                    # Create a progress task for this model
+                    layer_count = len(models[name]["models"])
+                    layer_word = "layer" if layer_count == 1 else "layers"
+                    task = progress_bar.add_task(
+                        f"[cyan]Downloading {name} ({layer_count} {layer_word})[/cyan]",
+                        total=100,
                         completed=0,
                     )
 
-                    # Download each model in the collection
-                    for i, model_name in enumerate(collection["models"], 1):
-                        # Update parent task description
-                        progress_bar.update(
-                            parent_task,
-                            description=f"[cyan bold]Collection Progress: {i - 1}/{model_count} {model_word} downloaded[/cyan bold]",
-                            completed=i - 1,
-                        )
+                    # Download the model
+                    model = get_model(
+                        name=name,
+                        progress_bar=progress_bar,
+                        task_id=task,
+                    )
 
-                        # Create a task for this specific model
-                        model_task = progress_bar.add_task(
-                            f"[cyan]Downloading {model_name} ({i}/{model_count})[/cyan]",
-                            total=100,
-                            completed=0,
-                        )
-
-                        # Download the model
-                        model = get_model(
-                            name=model_name,
-                            repo=None,
-                            progress_bar=progress_bar,
-                            task_id=model_task,
-                        )
-
-                        # Remove the model task once complete
-                        progress_bar.remove_task(model_task)
-
-                    # Complete and remove the parent task
-                    progress_bar.update(parent_task, completed=model_count)
-                    progress_bar.remove_task(parent_task)
-
+                    # Remove the task once complete
+                    progress_bar.remove_task(task)
                 else:
-                    # For single models
                     console.print(f"[bold]Downloading model {name}...[/bold]")
 
                     # Create a new progress bar just for this model
@@ -293,7 +244,6 @@ def download_models_command(
                         # Download the model
                         model = get_model(
                             name=name,
-                            repo=None,
                             progress_bar=download_progress,
                             task_id=task,
                         )
@@ -307,13 +257,13 @@ def download_models_command(
                 # Show success message with size and speed info
                 num_sources = len(model.sources)
 
-                # Determine model type based on metadata
-                if name in collections and "models" in collections[name]:
-                    model_count = len(collections[name]["models"])
-                    model_word = "model" if model_count == 1 else "models"
-                    model_type = f"Collection of {model_count} {model_word}"
+                # Determine model info
+                if name in models:
+                    layer_count = len(models[name]["models"])
+                    layer_word = "layer" if layer_count == 1 else "layers"
+                    model_type = f"{layer_count} {layer_word}"
                 else:
-                    model_type = "Single Model"
+                    model_type = "Model"
 
                 size_str = ""
                 speed_str = ""
@@ -344,7 +294,7 @@ def download_models_command(
 def remove_models_command(
     names: Annotated[
         List[str],
-        typer.Argument(help="Pretrained model names or signatures to remove."),
+        typer.Argument(help="Model names to remove."),
     ] = None,
     all_models: Annotated[
         bool,
@@ -364,7 +314,7 @@ def remove_models_command(
     )
 
     # Create a ModelRepository to manage models
-    model_repo = ModelRepository(METADATA_PATH, None)
+    model_repo = ModelRepository(METADATA_PATH)
 
     # Get models to remove
     if all_models:
@@ -413,12 +363,19 @@ def remove_models_command(
     console.print("[bold green]Model removal complete![/bold green]")
 
 
-# Add a function to get collections directly from metadata.json
-def get_collections() -> Dict[str, Dict]:
-    """Get collections from metadata.json"""
+# Add a function to get models directly from metadata.json
+def get_models() -> Dict[str, Dict]:
+    """Get models from metadata.json"""
     with open(METADATA_PATH, "r") as f:
         metadata = json.load(f)
-    return metadata.get("collections", {})
+    
+    # Support both old and new metadata structure
+    if "models" in metadata:
+        return metadata["models"]
+    elif "collections" in metadata:
+        return metadata["collections"]
+    else:
+        raise RuntimeError("Invalid metadata structure: no models or collections found")
 
 
 def main_command(
@@ -432,17 +389,10 @@ def main_command(
         typer.Option(
             "-n",
             "--name",
-            help="Model name or signature. Can be a pretrained model, a local model from --repo, or a model collection.",
+            help="Model name. Use 'demucs models list' to see available models.",
             rich_help_panel="Model Selection",
         ),
     ] = DEFAULT_MODEL,
-    repo: Annotated[
-        Optional[Path],
-        typer.Option(
-            help="Path to local model repository. Models in this folder will be available by their signature.",
-            rich_help_panel="Model Selection",
-        ),
-    ] = None,
     # Processing Options
     device: Annotated[
         str,
@@ -564,7 +514,6 @@ def main_command(
     try:
         separator = Separator(
             model=name,
-            repo=repo,
             device=device,
             shifts=shifts,
             split=split,
@@ -610,8 +559,9 @@ def main_command(
                 separated = separator.separate_audio_file(track)
                 sources_to_save = separated.sources
             else:
-                # Isolate the requested stem
-                isolated = separator.isolate_stem(track, stem)
+                # First separate all stems, then isolate the requested stem
+                separated = separator.separate_audio_file(track)
+                isolated = separated.isolate_stem(stem, other_method)
                 sources_to_save = {}
                 sources_to_save[stem] = isolated[stem]
                 if other_method != OtherMethod.none:

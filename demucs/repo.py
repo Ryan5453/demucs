@@ -1,6 +1,9 @@
-"""
-Repository system for managing pretrained models.
-"""
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) 2025-present Ryan Fahey
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 
 import json
 import os
@@ -20,6 +23,9 @@ from .states import load_model
 
 AnyModel = Union[Model, BagOfModels]
 
+# Base URL for model downloads
+BASE_MODEL_URL = "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/"
+
 
 class ModelLoadingError(RuntimeError):
     pass
@@ -30,7 +36,7 @@ def check_checksum(path: Path, checksum: str):
     Verifies that a file matches an expected checksum.
 
     :param path: Path to the file to check
-    :param checksum: Expected SHA-256 checksum (can be truncated)
+    :param checksum: Expected SHA-256 checksum (first 8 characters)
     :raises ModelLoadingError: If the actual checksum does not match the expected one
     """
     sha = sha256()
@@ -40,7 +46,7 @@ def check_checksum(path: Path, checksum: str):
             if not buf:
                 break
             sha.update(buf)
-    actual_checksum = sha.hexdigest()[: len(checksum)]
+    actual_checksum = sha.hexdigest()[:8]
     if actual_checksum != checksum:
         raise ModelLoadingError(
             f"Invalid checksum for file {path}, "
@@ -65,61 +71,64 @@ def format_file_size(size_bytes: int) -> str:
         return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 
-class ModelRepository:
-    """Unified repository system for accessing models and collections."""
+def get_cache_dir() -> Path:
+    """
+    Get the cache directory for Demucs models.
+    
+    :return: Path to the cache directory
+    """
+    home = Path.home()
+    cache_dir = home / ".demucs" / "models"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
-    def __init__(self, metadata_path: Path, local_repo_path: Optional[Path] = None):
+
+def generate_model_url(checksum: str) -> str:
+    """
+    Generate a model download URL from a checksum.
+    
+    :param checksum: Model checksum identifier
+    :return: Full download URL for the model
+    """
+    return f"{BASE_MODEL_URL}{checksum}.th"
+
+
+class ModelRepository:
+    """Repository system for accessing models."""
+
+    def __init__(self, metadata_path: Path):
         """
         Initialize the repository.
 
         Args:
             metadata_path: Path to metadata.json containing model information
-            local_repo_path: Path to local model repository (if None, use remote)
         """
         self.metadata_path = metadata_path
-        self.local_repo_path = local_repo_path
 
         # Load metadata
         with open(metadata_path, "r") as f:
             self.metadata = json.load(f)
 
-        self._models = self.metadata["models"]
-        self._collections = self.metadata["collections"]
+        # Support both old and new metadata structure
+        if "models" in self.metadata:
+            # New structure: models section contains the actual models
+            self._models = self.metadata["models"]
+        elif "collections" in self.metadata:
+            # Old structure: collections section contains the models
+            self._models = self.metadata["collections"]
+        else:
+            raise ModelLoadingError("Invalid metadata structure: no models or collections found")
 
-        # Scan local repository if provided
-        self._local_models = {}
-        self._local_checksums = {}
-        if local_repo_path is not None:
-            self._scan_local_repo()
-
-    def _scan_local_repo(self):
-        """Scan local repository for model files."""
-        for file in self.local_repo_path.iterdir():
-            if file.suffix == ".th":
-                if "-" in file.stem:
-                    sig, checksum = file.stem.split("-")
-                    self._local_checksums[sig] = checksum
-                else:
-                    sig = file.stem
-                if sig in self._local_models:
-                    raise ModelLoadingError(
-                        f"Duplicate pre-trained model exist for signature {sig}. "
-                        "Please delete all but one."
-                    )
-                self._local_models[sig] = file
+        # Generate layer URLs dynamically from model checksums
+        self._layer_urls = {}
+        for model_name, model_info in self._models.items():
+            if "models" in model_info:
+                for checksum in model_info["models"]:
+                    self._layer_urls[checksum] = generate_model_url(checksum)
 
     def has_model(self, name: str) -> bool:
-        """Check if a model or collection exists."""
-        # Check local models first
-        if self.local_repo_path is not None and name in self._local_models:
-            return True
-
-        # Then check remote models
-        if name in self._models:
-            return True
-
-        # Finally check collections
-        return name in self._collections
+        """Check if a model exists."""
+        return name in self._models
 
     def get_cache_info(self) -> Dict[str, Dict]:
         """
@@ -128,56 +137,57 @@ class ModelRepository:
         Returns:
             Dictionary with information about cached models
         """
-        cache_dir = Path(torch.hub.get_dir()) / "checkpoints"
+        cache_dir = get_cache_dir()
         cached_models = {}
 
-        # Check which remote models are downloaded
-        for sig, url in self._models.items():
-            filename = os.path.basename(url)
-            model_path = cache_dir / filename
+        # Check which layer files are downloaded
+        cached_layers = {}
+        for checksum, url in self._layer_urls.items():
+            filename = f"{checksum}.th"
+            layer_path = cache_dir / filename
 
-            if model_path.exists():
-                size_bytes = model_path.stat().st_size
-                cached_models[sig] = {
-                    "path": str(model_path),
+            if layer_path.exists():
+                size_bytes = layer_path.stat().st_size
+                cached_layers[checksum] = {
+                    "path": str(layer_path),
                     "size_bytes": size_bytes,
                     "size_mb": size_bytes / (1024 * 1024),
                 }
 
-        # Handle collections
-        for name, info in self._collections.items():
+        # Handle models
+        for name, info in self._models.items():
             if "models" in info:
-                component_models = info["models"]
+                component_layers = info["models"]
                 all_cached = True
                 total_size = 0
                 components = {}
 
-                for component in component_models:
-                    if component in cached_models:
-                        components[component] = cached_models[component]
-                        total_size += cached_models[component]["size_bytes"]
+                for component in component_layers:
+                    if component in cached_layers:
+                        components[component] = cached_layers[component]
+                        total_size += cached_layers[component]["size_bytes"]
                     else:
                         all_cached = False
 
                 if all_cached:
                     cached_models[name] = {
-                        "type": "collection",
-                        "components": components,
+                        "type": "model",
+                        "layers": components,
                         "size_bytes": total_size,
                         "size_mb": total_size / (1024 * 1024),
                     }
 
         return cached_models
 
-    def _download_and_load_model(
+    def _download_and_load_layer(
         self,
         url: str,
         cache_path: Path,
-        expected_hash: Optional[str] = None,
+        expected_checksum: str,
         progress_bar: Optional[Progress] = None,
         task_id: Optional[TaskID] = None,
     ) -> AnyModel:
-        """Download and load a model from a URL."""
+        """Download and load a model layer from a URL."""
         # Download the file to memory first
         try:
             with httpx.stream("GET", url, follow_redirects=True) as response:
@@ -228,7 +238,7 @@ class ModelRepository:
                         tmp_path = Path(tmp_file.name)
                         tmp_file.write(buffer.getvalue())
 
-                    # Load the model
+                    # Load the model to verify it's valid
                     model_data = torch.load(tmp_path, map_location="cpu")
 
                     if progress_bar and task_id:
@@ -242,15 +252,12 @@ class ModelRepository:
                     cache_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(tmp_path), str(cache_path))
 
-                    # Verify checksum if available
-                    if expected_hash:
-                        try:
-                            check_checksum(cache_path, expected_hash)
-                        except ModelLoadingError:
-                            cache_path.unlink()
-                            raise ModelLoadingError(
-                                "Downloaded file has invalid checksum"
-                            )
+                    # Verify checksum
+                    try:
+                        check_checksum(cache_path, expected_checksum)
+                    except ModelLoadingError:
+                        cache_path.unlink()
+                        raise
 
                     if progress_bar and task_id:
                         progress_bar.update(task_id, completed=100)
@@ -271,123 +278,89 @@ class ModelRepository:
         name: str,
         progress_bar: Optional[Progress] = None,
         task_id: Optional[TaskID] = None,
-        collection_name: Optional[str] = None,
     ) -> AnyModel:
         """
-        Get a model or collection by name.
+        Get a model by name.
 
         Args:
-            name: Model name, signature, or collection name
+            name: Model name
             progress_bar: Optional rich.progress.Progress instance for download progress
             task_id: Optional TaskID for the progress bar
-            collection_name: Optional name of parent collection (for nested progress)
 
         Returns:
-            The requested model or model collection
+            The requested model
         """
-        # Try loading from local repository first
-        if self.local_repo_path is not None and name in self._local_models:
-            file = self._local_models[name]
-            if name in self._local_checksums:
-                check_checksum(file, self._local_checksums[name])
-            return load_model(torch.load(file, map_location="cpu"))
+        # Only load models, not individual layers
+        if name not in self._models:
+            raise ModelLoadingError(
+                f"Could not find a model with name {name}. "
+                f"Available models: {', '.join(self._models.keys())}"
+            )
 
-        # Try loading as a remote model
-        if name in self._models:
-            url = self._models[name]
+        model_info = self._models[name]
+        layer_checksums = model_info["models"]
+
+        # Download each layer
+        layers = []
+        cache_dir = get_cache_dir()
+        
+        for layer_checksum in layer_checksums:
+            if layer_checksum not in self._layer_urls:
+                raise ModelLoadingError(f"Layer {layer_checksum} not found in metadata")
+                
+            url = self._layer_urls[layer_checksum]
 
             # Determine cache path
-            cache_dir = Path(torch.hub.get_dir()) / "checkpoints"
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            filename = os.path.basename(url)
+            filename = f"{layer_checksum}.th"
             cache_path = cache_dir / filename
 
-            # Get expected hash from filename if available (model-<hash>.th format)
-            expected_hash = None
-            if "-" in filename:
-                expected_hash = filename.split("-")[-1].split(".")[0]
-
-            # Check if file exists and verify hash
+            # Check if file exists and validate its integrity
             if cache_path.exists():
-                if expected_hash:
-                    try:
-                        check_checksum(cache_path, expected_hash)
-                        return load_model(torch.load(cache_path, map_location="cpu"))
-                    except ModelLoadingError:
-                        # Invalid checksum, delete and redownload
+                try:
+                    # Validate checksum
+                    check_checksum(cache_path, layer_checksum)
+                    
+                    # Try to load the model
+                    layer = load_model(torch.load(cache_path, map_location="cpu"))
+                    layers.append(layer)
+                    continue
+                except (ModelLoadingError, Exception):
+                    # If validation or loading fails, delete and redownload
+                    if cache_path.exists():
                         cache_path.unlink()
-                else:
-                    # No hash available, use existing file
-                    return load_model(torch.load(cache_path, map_location="cpu"))
 
             # Update progress bar description
             if progress_bar and task_id:
-                desc = f"Downloading {name}"
-                if collection_name:
-                    desc = f"Downloading {collection_name} - {name}"
+                desc = f"Downloading layer {layer_checksum} ({len(layers) + 1}/{len(layer_checksums)})"
                 progress_bar.update(task_id, description=desc)
 
-            # Download and load the model
-            return self._download_and_load_model(
+            # Download and load the layer
+            layer = self._download_and_load_layer(
                 url=url,
                 cache_path=cache_path,
-                expected_hash=expected_hash,
+                expected_checksum=layer_checksum,
                 progress_bar=progress_bar,
                 task_id=task_id,
             )
+            layers.append(layer)
 
-        # Try loading as a collection
-        if name in self._collections:
-            collection = self._collections[name]
-            signatures = collection["models"]
-
-            # For collections, download each model
-            models = []
-            for sig in signatures:
-                if progress_bar and task_id:
-                    # Update description to show collection progress
-                    desc = f"Collection {name} ({len(models) + 1}/{len(signatures)})"
-                    progress_bar.update(task_id, description=desc)
-
-                # Download each model, passing the collection name for nested progress
-                model = self.get_model(
-                    sig,
-                    progress_bar=progress_bar,
-                    task_id=task_id,
-                    collection_name=name,
-                )
-                models.append(model)
-
-            weights = collection.get("weights")
-            segment = collection.get("segment")
-            return BagOfModels(models, weights, segment)
-
-        # If we got here, the model doesn't exist
-        raise ModelLoadingError(
-            f"Could not find a model or collection with name {name}."
-        )
+        # Create BagOfModels from the layers
+        weights = model_info.get("weights")
+        segment = model_info.get("segment")
+        return BagOfModels(layers, weights, segment)
 
     def list_models(self) -> Dict[str, Dict]:
         """
-        List all available models and collections.
+        List all available models.
 
         Returns:
-            Dictionary mapping model/collection names to their metadata
+            Dictionary mapping model names to their metadata
         """
         result = {}
 
-        # Add remote models
-        for sig, url in self._models.items():
-            result[sig] = {"type": "remote_model", "url": url}
-
-        # Add local models
-        if self.local_repo_path is not None:
-            for sig, path in self._local_models.items():
-                result[sig] = {"type": "local_model", "path": str(path)}
-
-        # Add collections
-        for name, info in self._collections.items():
-            result[name] = {"type": "collection", "info": info}
+        # Add models
+        for name, info in self._models.items():
+            result[name] = {"type": "model", "info": info}
 
         return result
 
@@ -396,33 +369,23 @@ class ModelRepository:
         Remove a model from the cache.
 
         Args:
-            name: Model name or signature
+            name: Model name
 
         Returns:
             True if the model was successfully removed, False otherwise
         """
-        cache_dir = Path(torch.hub.get_dir()) / "checkpoints"
-
-        # For single models
-        if name in self._models:
-            url = self._models[name]
-            filename = os.path.basename(url)
-            model_path = cache_dir / filename
-            if model_path.exists():
-                model_path.unlink()
-                return True
-
-        # For collections, remove all component models
-        elif name in self._collections:
-            removed_any = False
-            for component in self._collections[name].get("models", []):
-                if component in self._models:
-                    url = self._models[component]
-                    filename = os.path.basename(url)
-                    model_path = cache_dir / filename
-                    if model_path.exists():
-                        model_path.unlink()
-                        removed_any = True
-            return removed_any
-
-        return False
+        if name not in self._models:
+            return False
+            
+        cache_dir = get_cache_dir()
+        removed_any = False
+        
+        # Remove all layer files for this model
+        for layer_checksum in self._models[name].get("models", []):
+            filename = f"{layer_checksum}.th"
+            layer_path = cache_dir / filename
+            if layer_path.exists():
+                layer_path.unlink()
+                removed_any = True
+                    
+        return removed_any

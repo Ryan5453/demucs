@@ -1,5 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
+# Copyright (c) 2025-present Ryan Fahey
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
@@ -205,7 +205,6 @@ class Separator:
     def __init__(
         self,
         model: Union[str, AnyModel] = DEFAULT_MODEL,
-        repo: Optional[Path] = None,
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
         shifts: int = 1,
         overlap: float = 0.25,
@@ -218,9 +217,8 @@ class Separator:
         Initialize a Separator with the specified model and parameters.
 
         :param model: Model to use for separation. Can be:
-                     - A string with a model name or signature (e.g., "htdemucs", "mdx_q")
+                     - A string with a model name (e.g., "htdemucs", "mdx_q")
                      - A pre-loaded model instance (from demucs.pretrained.get_model)
-        :param repo: Folder containing pre-trained models (used only when model is a string)
         :param device: Device to use for processing ("cuda", "cpu", etc.)
         :param shifts: Number of random shifts for equivariant stabilization
                       Higher values improve quality but increase processing time
@@ -230,7 +228,6 @@ class Separator:
         :param jobs: Number of parallel jobs (0 means automatic)
         :param verbose: Whether to show progress bars during processing (default False for API usage)
         """
-        self._repo = repo
         self._verbose = verbose
 
         # Handle different model input types
@@ -297,7 +294,7 @@ class Separator:
         """
         Load model by name.
         """
-        self._model = get_model(name=self._name, repo=self._repo)
+        self._model = get_model(name=self._name)
         if self._model is None:
             raise LoadModelError("Failed to load model")
         self._audio_channels = self._model.audio_channels
@@ -486,12 +483,11 @@ class Separator:
         return self._get_max_allowed_segment()
 
 
-def list_models(repo: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+def list_models() -> Dict[str, Dict[str, Any]]:
     """
-    List all available models and collections.
+    List all available models.
 
-    :param repo: Optional path to a local repository
-    :return: Dictionary with model signatures/names as keys and metadata as values
+    :return: Dictionary with model names as keys and metadata as values
     """
-    model_repo = ModelRepository(METADATA_PATH, repo)
+    model_repo = ModelRepository(METADATA_PATH)
     return model_repo.list_models()

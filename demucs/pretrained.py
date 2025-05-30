@@ -1,9 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
+# Copyright (c) 2025-present Ryan Fahey
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-"""Loading pretrained models from GitHub releases."""
+
 
 import logging
 from pathlib import Path
@@ -25,7 +25,6 @@ DEFAULT_MODEL = "htdemucs"
 
 def get_model(
     name: str,
-    repo: Optional[Path] = None,
     progress_bar: Optional[Progress] = None,
     task_id: Optional[TaskID] = None,
 ):
@@ -33,12 +32,11 @@ def get_model(
     Load a model by name from the model repository.
 
     Args:
-        name: Model name, signature or collection name from the model repository
-        repo: Optional path to local repository to check first
+        name: Model name from the model repository
         progress_bar: Optional Progress instance for download progress
         task_id: Optional TaskID for the progress bar
     """
-    model_repo = ModelRepository(METADATA_PATH, repo)
+    model_repo = ModelRepository(METADATA_PATH)
 
     try:
         model = model_repo.get_model(name, progress_bar=progress_bar, task_id=task_id)
@@ -53,8 +51,8 @@ def get_model(
 
 def get_model_from_args(args):
     """
-    Load local model package or pre-trained model.
+    Load pre-trained model.
     """
     if args.name is None:
         args.name = DEFAULT_MODEL
-    return get_model(name=args.name, repo=args.repo)
+    return get_model(name=args.name)

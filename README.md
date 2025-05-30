@@ -1,7 +1,7 @@
-# Demucs
+# 🎛️ Demucs
 
 > [!WARNING] 
-> THIS IS IN PROGRESS DONT BELIEVE ANYTHING IN THIS README. DONT USE THE CODE EITHER FOR NOW.
+> This project is a work in progress. Do not believe any statements in this README. Do not use the code either for now.
 
 Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Samples are available [online][samples] for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper][htdemucs] for more information.
 

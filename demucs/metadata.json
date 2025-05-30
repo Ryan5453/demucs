@@ -1,40 +1,11 @@
 {
   "models": {
-    "0d19c1c6": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/0d19c1c6.th",
-    "5d2d6c55": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/5d2d6c55.th",
-    "7d865c68": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7d865c68.th",
-    "7ecf8ec1": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7ecf8ec1.th",
-    "a1d90b5c": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/a1d90b5c.th",
-    "c511e2ab": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/c511e2ab.th",
-    "cfa93e08": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/cfa93e08.th",
-    "e51eebcc": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/e51eebcc.th",
-    "6b9c2ca1": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/6b9c2ca1.th",
-    "b72baf4e": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/b72baf4e.th",
-    "42e558d4": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/42e558d4.th",
-    "305bc58f": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/305bc58f.th",
-    "14fc6a69": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/14fc6a69.th",
-    "464b36d7": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/464b36d7.th",
-    "7fd6ef75": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/7fd6ef75.th",
-    "83fc094f": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/83fc094f.th",
-    "1ef250f1": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/1ef250f1.th",
-    "902315c2": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/902315c2.th",
-    "9a6b4851": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/9a6b4851.th",
-    "fa0cb7f9": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/fa0cb7f9.th",
-    "955717e8": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/955717e8.th",
-    "f7e0c4bc": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/f7e0c4bc.th",
-    "d12395a8": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/d12395a8.th",
-    "92cfc3b6": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/92cfc3b6.th",
-    "04573f0d": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/04573f0d.th",
-    "75fc33f5": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/75fc33f5.th",
-    "5c90dfd2": "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/5c90dfd2.th"
-  },
-  "collections": {
     "mdx": {
       "models": [
-        "0d19c1c6",
-        "7ecf8ec1",
-        "c511e2ab",
-        "7d865c68"
+        "ca8a1789",
+        "df64c5a0",
+        "fbe77f30",
+        "6fad65c8"
       ],
       "weights": [
         [
@@ -66,19 +37,19 @@
     },
     "mdx_extra": {
       "models": [
-        "e51eebcc",
-        "a1d90b5c",
-        "5d2d6c55",
-        "cfa93e08"
+        "73abf175",
+        "cbd4abc5",
+        "d02525ff",
+        "9aef4d64"
       ],
       "segment": 44
     },
     "mdx_q": {
       "models": [
-        "6b9c2ca1",
-        "b72baf4e",
-        "42e558d4",
-        "305bc58f"
+        "3fd82607",
+        "8778635e",
+        "196e0e1b",
+        "18378783"
       ],
       "weights": [
         [
@@ -110,30 +81,30 @@
     },
     "mdx_extra_q": {
       "models": [
-        "83fc094f",
-        "464b36d7",
-        "14fc6a69",
-        "7fd6ef75"
+        "4a16d450",
+        "e5a9386e",
+        "a89dd0ee",
+        "a905dd85"
       ],
       "segment": 44
     },
     "hdemucs_mmi": {
       "models": [
-        "75fc33f5"
+        "ce8f4e35"
       ],
       "segment": 44
     },
     "htdemucs": {
       "models": [
-        "955717e8"
+        "93158b9f"
       ]
     },
     "htdemucs_ft": {
       "models": [
-        "f7e0c4bc",
-        "d12395a8",
-        "92cfc3b6",
-        "04573f0d"
+        "5b4673ab",
+        "1ad92346",
+        "872bc4b2",
+        "88879611"
       ],
       "weights": [
         [
@@ -164,7 +135,7 @@
     },
     "htdemucs_6s": {
       "models": [
-        "5c90dfd2"
+        "bb10289e"
       ]
     }
   }
