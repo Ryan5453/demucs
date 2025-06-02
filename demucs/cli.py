@@ -27,14 +27,6 @@ from .repo import ModelLoadingError, ModelRepository
 console = Console()
 
 
-class OutputFormat(str, Enum):
-    wav16 = "wav16"  # 16-bit integer WAV (most common)
-    wav24 = "wav24"  # 24-bit integer WAV (higher quality)
-    wav32f = "wav32f"  # 32-bit float WAV (professional/highest quality)
-    mp3 = "mp3"
-    flac = "flac"
-
-
 def version_command():
     """
     Show the installed version of Demucs.
@@ -490,15 +482,6 @@ def main_command(
             rich_help_panel="Output",
         ),
     ] = ClipMode.rescale,
-    format: Annotated[
-        OutputFormat,
-        typer.Option(
-            "-f",
-            "--format",
-            help="Output audio format. wav16=16-bit integer WAV (standard), wav24=24-bit integer WAV (higher quality), wav32f=32-bit float WAV (professional/highest quality), mp3=320kbps MP3, flac=FLAC",
-            rich_help_panel="Output",
-        ),
-    ] = OutputFormat.wav16,
 ):
     """
     Separate the sources for the given tracks.
@@ -561,48 +544,6 @@ def main_command(
             else:
                 # First separate all stems, then isolate the requested stem
                 separated = separator.separate_audio_file(track)
-                isolated = separated.isolate_stem(stem, other_method)
-                sources_to_save = {}
-                sources_to_save[stem] = isolated[stem]
-                if other_method != OtherMethod.none:
-                    sources_to_save[f"no_{stem}"] = isolated[f"no_{stem}"]
-
-            # Set up output format
-            if format == OutputFormat.wav16:
-                ext = "wav"
-                kwargs = {
-                    "samplerate": separator.samplerate,
-                    "clip": clip_mode,
-                    "bits_per_sample": 16,
-                }
-            elif format == OutputFormat.wav24:
-                ext = "wav"
-                kwargs = {
-                    "samplerate": separator.samplerate,
-                    "clip": clip_mode,
-                    "bits_per_sample": 24,
-                }
-            elif format == OutputFormat.wav32f:
-                ext = "wav"
-                kwargs = {
-                    "samplerate": separator.samplerate,
-                    "clip": clip_mode,
-                    "as_float": True,
-                }
-            elif format == OutputFormat.mp3:
-                ext = "mp3"
-                kwargs = {
-                    "samplerate": separator.samplerate,
-                    "clip": clip_mode,
-                    "bitrate": 320,
-                    "preset": 2,
-                }
-            elif format == OutputFormat.flac:
-                ext = "flac"
-                kwargs = {
-                    "samplerate": separator.samplerate,
-                    "clip": clip_mode,
-                }
 
             # Save each stem
             for stem_name, source in sources_to_save.items():
@@ -610,10 +551,15 @@ def main_command(
                     track=track.name.rsplit(".", 1)[0],
                     trackext=track.name.rsplit(".", 1)[-1],
                     stem=stem_name,
-                    ext=ext,
+                    ext="wav",
                 )
                 stem_path.parent.mkdir(parents=True, exist_ok=True)
-                save_audio(source, str(stem_path), **kwargs)
+                save_audio(
+                    source, 
+                    str(stem_path), 
+                    samplerate=separator.samplerate, 
+                    clip=clip_mode, 
+                )
 
         except Exception as e:
             console.print(f"[red]✗[/red] Error processing {track}: {str(e)}")

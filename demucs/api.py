@@ -6,6 +6,7 @@
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from io import BytesIO
 
 import torch
 import torchaudio
@@ -13,15 +14,9 @@ from torch import Tensor
 
 from enum import Enum
 from .apply import apply_model
-from .audio import AudioFile, convert_audio, save_audio
+from .audio import ClipMode, convert_audio, save_audio, prevent_clip
 from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
 from .repo import AnyModel, ModelRepository
-
-
-class ClipMode(str, Enum):
-    rescale = "rescale"
-    clamp = "clamp"
-    none = "none"
 
 
 class OtherMethod(str, Enum):
@@ -138,8 +133,6 @@ class SeparatedSources:
         :return: Iterator over audio tensors
         """
         return self.sources.values()
-
-    def isolate_stem(self, name: str, method: OtherMethod) -> Dict[str, Tensor]:
         """
         Isolates a single stem and its complement.
 
@@ -164,16 +157,85 @@ class SeparatedSources:
 
         return {name: self.sources[name], f"no_{name}": other}
 
+    def add_complement_stem(self, name: str, method: OtherMethod = OtherMethod.minus) -> 'SeparatedSources':
+        """
+        Add the complement of a stem to this SeparatedSources object.
+        This modifies the current object by adding a "no_{name}" stem.
+
+        :param name: Name of the stem to create complement for
+        :param method: Method to use for creating the complement ("add" or "minus")
+        :return: Self for method chaining
+        :raises ValueError: If the requested stem isn't found in the sources or method is invalid
+        
+        Example:
+            # Add complement stem in-place
+            separated.add_complement_stem("vocals")  # Adds "no_vocals" to sources
+            separated.save_stem("no_vocals", "backing_track.wav")
+        """
+        if name not in self.sources:
+            raise ValueError(f"Stem '{name}' not found in sources. Available: {list(self.sources.keys())}")
+
+        complement_name = f"no_{name}"
+        
+        if method == OtherMethod.add:
+            complement = torch.zeros_like(self.sources[name])
+            for source, audio in self.sources.items():
+                if source != name and not source.startswith("no_"):  # Don't include other "no_" stems
+                    complement += audio
+        elif method == OtherMethod.minus:
+            complement = self.original - self.sources[name]
+        else:
+            raise ValueError(f"Invalid method: {method}. Use 'add' or 'minus'.")
+
+        self.sources[complement_name] = complement
+        return self
+
+    def isolate_stem(self, name: str, method: OtherMethod = OtherMethod.minus) -> 'SeparatedSources':
+        """
+        Create a new SeparatedSources object containing only the specified stem and its complement.
+
+        :param name: Name of the stem to isolate
+        :param method: Method to use for creating the complement ("add" or "minus")
+        :return: New SeparatedSources object with just the stem and its complement
+        :raises ValueError: If the requested stem isn't found in the sources or method is invalid
+        
+        Example:
+            # Create isolated version
+            vocals_only = separated.isolate_stem("vocals")
+            vocals_only.save_stem("vocals", "vocals.wav")
+            vocals_only.save_stem("no_vocals", "backing.wav")
+        """
+        if name not in self.sources:
+            raise ValueError(f"Stem '{name}' not found in sources. Available: {list(self.sources.keys())}")
+
+        complement_name = f"no_{name}"
+        
+        if method == OtherMethod.add:
+            complement = torch.zeros_like(self.sources[name])
+            for source, audio in self.sources.items():
+                if source != name and not source.startswith("no_"):  # Don't include other "no_" stems
+                    complement += audio
+        elif method == OtherMethod.minus:
+            complement = self.original - self.sources[name]
+        else:
+            raise ValueError(f"Invalid method: {method}. Use 'add' or 'minus'.")
+
+        isolated_sources = {
+            name: self.sources[name],
+            complement_name: complement
+        }
+
+        return SeparatedSources(isolated_sources, self.sample_rate, self.original)
+
     def save_stem(
-        self, stem_name: str, path: Union[str, Path], format: str = "wav", **kwargs
+        self, stem_name: str, path: Union[str, Path], **kwargs
     ) -> Path:
         """
-        Save a specific stem to disk. 
+        Save a specific stem to disk as 32-bit float WAV format (native model output).
 
         :param stem_name: Name of the stem to save
-        :param path: Path where the stem will be saved (without extension)
-        :param format: Audio format to use (wav, mp3, flac)
-        :param kwargs: Additional arguments to pass to save_audio
+        :param path: Path where the stem will be saved (with or without .wav extension)
+        :param kwargs: Additional arguments to pass to save_audio (e.g., clip=ClipMode.clamp)
         :return: Path to the saved file
         :raises ValueError: If the stem name is not found
         """
@@ -184,32 +246,148 @@ class SeparatedSources:
 
         path = Path(path)
 
-        # If path doesn't have an extension, add the format extension
+        # If path doesn't have an extension, add .wav
         if not path.suffix:
-            file_path = path.with_suffix(f".{format}")
+            file_path = path.with_suffix(".wav")
         else:
             file_path = path
 
         # Create parent directories if they don't exist
         file_path.parent.mkdir(exist_ok=True, parents=True)
 
-        save_audio(self.sources[stem_name], file_path, self.sample_rate, **kwargs)
+        save_audio(
+            self.sources[stem_name], 
+            file_path, 
+            self.sample_rate, 
+            **kwargs
+        )
         return file_path
+
+    def export_stem(
+        self, stem_name: str, format: str = "wav", clip: ClipMode = ClipMode.rescale
+    ) -> bytes:
+        """
+        Export a specific stem as raw audio bytes in memory.
+
+        :param stem_name: Name of the stem to export
+        :param format: Audio format ("wav", "flac", etc.)
+        :param clip: Clipping mode to prevent audio distortion
+        :return: Raw audio bytes ready for streaming, web APIs, etc.
+        :raises ValueError: If the stem name is not found
+        
+        Example:
+            # For web APIs
+            audio_bytes = separated.export_stem("vocals", format="mp3")
+            return Response(audio_bytes, mimetype="audio/mpeg")
+            
+            # For streaming
+            wav_data = separated.export_stem("drums", format="wav")
+            audio_stream.write(wav_data)
+        """
+        if stem_name not in self.sources:
+            raise ValueError(
+                f"Stem '{stem_name}' not found. Available stems: {list(self.sources.keys())}"
+            )
+
+        # Get the audio tensor and prepare it
+        wav = self.sources[stem_name]
+        
+        # Ensure tensor is on CPU and apply clipping
+        if wav.device.type != "cpu":
+            wav = wav.cpu()
+        
+        # Apply clipping prevention
+        wav = prevent_clip(wav, mode=clip)
+        
+        # Export to bytes using BytesIO
+        buffer = BytesIO()
+        try:
+            # Set encoding parameters based on format
+            save_kwargs = {
+                "sample_rate": self.sample_rate,
+                "format": format,
+            }
+            
+            # WAV supports custom encoding and bits per sample
+            if format.lower() == "wav":
+                save_kwargs.update({
+                    "encoding": "PCM_F",
+                    "bits_per_sample": 32,
+                })
+            
+            torchaudio.save(buffer, wav, **save_kwargs)
+            return buffer.getvalue()
+        except Exception as e:
+            raise RuntimeError(f"Failed to export stem '{stem_name}' as {format}: {e}")
+        finally:
+            buffer.close()
+
+    def export_all_stems(
+        self, format: str = "wav", clip: ClipMode = ClipMode.rescale
+    ) -> Dict[str, bytes]:
+        """
+        Export all stems as raw audio bytes in memory.
+
+        :param format: Audio format ("wav", "flac", etc.)
+        :param clip: Clipping mode to prevent audio distortion
+        :return: Dictionary mapping stem names to raw audio bytes
+        """
+        return {
+            stem_name: self.export_stem(stem_name, format=format, clip=clip)
+            for stem_name in self.sources.keys()
+        }
+
+    def save_all_stems(
+        self, 
+        output_dir: Union[str, Path], 
+        filename_template: str = "{stem_name}", 
+        **kwargs
+    ) -> Dict[str, Path]:
+        """
+        Save all stems to disk.
+
+        :param output_dir: Directory where stems will be saved
+        :param filename_template: Template for naming files. Use {stem_name} as placeholder.
+        :param kwargs: Additional arguments to pass to save_audio (e.g., clip=ClipMode.clamp)
+        :return: Dictionary mapping stem names to absolute file paths
+        
+        Example:
+            # Save all stems with default naming
+            paths = separated.save_all_stems("output/")
+            # Result: {"vocals": "/full/path/to/output/vocals.wav", "drums": "/full/path/to/output/drums.wav", ...}
+            
+            # Save with custom naming
+            paths = separated.save_all_stems("output/", "{stem_name}_separated")
+            # Result: {"vocals": "/full/path/to/output/vocals_separated.wav", ...}
+        """
+        output_dir = Path(output_dir)
+        output_dir.mkdir(exist_ok=True, parents=True)
+        
+        saved_paths = {}
+        for stem_name in self.sources.keys():
+            filename = filename_template.format(stem_name=stem_name)
+            file_path = output_dir / filename
+            saved_paths[stem_name] = self.save_stem(stem_name, file_path, **kwargs).resolve()
+            
+        return saved_paths
 
 
 class Separator:
     """
     Audio source separation using Demucs models.
+    
+    Note: Requires FFmpeg to be installed for audio file loading.
+    Install with: conda install -c conda-forge 'ffmpeg<7'
     """
 
     def __init__(
         self,
         model: Union[str, AnyModel] = DEFAULT_MODEL,
-        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu",
         shifts: int = 1,
         overlap: float = 0.25,
         split: bool = True,
-        segment: Optional[int] = None,
+        segment: Optional[int] = None, # Default is different for each model
         jobs: int = 0,
         verbose: bool = False,
     ):
@@ -338,47 +516,34 @@ class Separator:
 
     def _load_audio(self, track: Path):
         """
-        Load audio file using either ffmpeg or torchaudio.
+        Load audio file using torchaudio with FFmpeg backend.
 
         :param track: Path to the audio file to load
         :return: Audio tensor
-        :raises LoadAudioError: If loading fails with both ffmpeg and torchaudio
+        :raises LoadAudioError: If loading fails
         """
-        errors = {}
-        wav = None
-
         try:
-            wav = AudioFile(track).read(
-                streams=0,
-                samplerate=self._samplerate,
-                channels=self._audio_channels,
-                dtype=torch.float32,
-            )
-            wav = wav.t()  # channels first
+            wav, sr = torchaudio.load(str(track), backend="ffmpeg")
+            
+            # Ensure tensor has correct dimensions
+            if wav.dim() == 1:
+                wav = wav[None]
+            if wav.dim() != 2:
+                raise LoadAudioError(
+                    f"Expected audio tensor with 2 dimensions, got {wav.dim()}"
+                )
+            
+            # Convert to target sample rate and channels if needed
+            if sr != self._samplerate:
+                wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
+                
             return wav
+            
         except Exception as e:
-            errors["ffmpeg"] = str(e)
-
-        try:
-            wav, sr = torchaudio.load(str(track))
-        except Exception as e:
-            errors["torchaudio"] = str(e)
             raise LoadAudioError(
-                f"Could not load file {track}. "
-                "Errors from various backends:\n"
-                f"ffmpeg: {errors['ffmpeg']}\n"
-                f"torchaudio: {errors['torchaudio']}"
+                f"Could not load file {track} using FFmpeg backend: {e}. "
+                "Make sure FFmpeg is installed and the file format is supported."
             )
-
-        if wav.dim() == 1:
-            wav = wav[None]
-        if wav.dim() != 2:
-            raise LoadAudioError(
-                f"Expected audio tensor with 2 dimensions, got {wav.dim()}"
-            )
-        if sr != self._samplerate:
-            wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
-        return wav
 
     def separate_tensor(
         self, wav: Tensor, sr: Optional[int] = None
@@ -436,6 +601,55 @@ class Separator:
 
         wav = self._load_audio(file)
         return self.separate_tensor(wav)
+
+    def separate_audio_bytes(self, audio_bytes: bytes) -> SeparatedSources:
+        """
+        Separate audio from raw bytes into stems.
+
+        :param audio_bytes: Raw audio bytes (e.g., from uploaded file, API request, etc.)
+        :return: SeparatedSources object containing the separated stems
+        :raises LoadAudioError: If loading fails
+        
+        Example:
+            # For web APIs
+            audio_bytes = request.files['audio'].read()
+            separated = separator.separate_audio_bytes(audio_bytes)
+            
+            # For streaming/in-memory processing
+            with open('song.mp3', 'rb') as f:
+                audio_bytes = f.read()
+            separated = separator.separate_audio_bytes(audio_bytes)
+        """
+        try:
+            # Create a BytesIO object from the bytes
+            audio_buffer = BytesIO(audio_bytes)
+            
+            # Load audio from the buffer using torchaudio with FFmpeg backend
+            wav, sr = torchaudio.load(audio_buffer, backend="ffmpeg")
+            
+            # Ensure tensor has correct dimensions
+            if wav.dim() == 1:
+                wav = wav[None]
+            if wav.dim() != 2:
+                raise LoadAudioError(
+                    f"Expected audio tensor with 2 dimensions, got {wav.dim()}"
+                )
+            
+            # Convert to target sample rate and channels if needed
+            if sr != self._samplerate:
+                wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
+                
+            return self.separate_tensor(wav)
+            
+        except Exception as e:
+            raise LoadAudioError(
+                f"Could not load audio from bytes using FFmpeg backend: {e}. "
+                "Make sure the audio format is supported."
+            )
+        finally:
+            # Clean up the buffer
+            if 'audio_buffer' in locals():
+                audio_buffer.close()
 
     @property
     def samplerate(self):
