@@ -16,54 +16,15 @@ from enum import Enum
 from .apply import apply_model
 from .audio import ClipMode, convert_audio, save_audio, prevent_clip
 from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
-from .repo import AnyModel, ModelRepository, get_cache_dir, ModelLoadingError
+from .repo import AnyModel, ModelRepository
+from .errors import LoadAudioError, LoadModelError, SegmentValidationError
 from . import __version__
-
-
-__all__ = [
-    'Separator',
-    'SeparatedSources',
-    'OtherMethod',
-    'ClipMode',
-    'ModelRepository',
-    'list_models',
-    'get_version',
-    'get_cache_dir',
-    'ModelLoadingError',
-    'LoadAudioError',
-    'LoadModelError',
-    'SegmentValidationError',
-]
 
 
 class OtherMethod(str, Enum):
     none = "none"
     add = "add"
     minus = "minus"
-
-
-class LoadAudioError(Exception):
-    """
-    Exception raised when audio loading fails.
-    """
-
-    pass
-
-
-class LoadModelError(Exception):
-    """
-    Exception raised when model loading fails.
-    """
-
-    pass
-
-
-class SegmentValidationError(Exception):
-    """
-    Exception raised when segment parameter is invalid for the model.
-    """
-
-    pass
 
 
 class _NotProvided:
