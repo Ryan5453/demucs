@@ -1,204 +1,272 @@
-# Demucs APIs
+# Demucs Python API
 
-## Quick start
+Demucs has a Python API that allows you to use the various pre-trained models to separate audio files into stems.
 
-Notes: Type hints have been added to all API functions. It is recommended to check them before passing parameters to a function as some arguments only support limited types (e.g. parameter `repo` of method `load_model` only support type `pathlib.Path`).
+## `Separator`
 
-1. The first step is to import api module:
+The `Separator` class is the main class for separating audio files into stems.
+It handles model loading, audio processing, and applying the separation model.
 
-```python
-import demucs.api
-```
+**Note:** Requires FFmpeg to be installed for audio file loading.
+Install with: `conda install -c conda-forge 'ffmpeg<7'`
 
-2. Then initialize the `Separator`. Parameters which will be served as default values for methods can be passed. Model should be specified.
-
-```python
-# Initialize with default parameters:
-separator = demucs.api.Separator()
-
-# Use another model and segment:
-separator = demucs.api.Separator(model="mdx_extra", segment=12)
-
-# You can also use other parameters defined
-```
-
-3. Separate it!
+### Example
 
 ```python
-# Separating an audio file
-origin, separated = separator.separate_audio_file("file.mp3")
+from demucs.api import Separator
 
-# Separating a loaded audio
-origin, separated = separator.separate_tensor(audio)
+# Initialize Separator with a specific model
+separator = Separator(model="htdemucs_ft", segment=4)
 
-# If you encounter an error like CUDA out of memory, you can use this to change parameters like `segment`:
-separator.update_parameter(segment=smaller_segment)
+# Separate an audio file
+separated_sources = separator.separate_audio_file("my_song.mp3")
+
+# Save all stems to a directory
+saved_paths = separated_sources.save_all_stems(output_dir="separated_output/")
+
+# Isolate a stem and its complement
+vocals_and_accompaniment = separated_sources.isolate_stem("vocals")
+vocals_and_accompaniment.save_stem("vocals", "vocals_only.wav")
+vocals_and_accompaniment.save_stem("no_vocals", "accompaniment_only.wav")
 ```
 
-4. Save audio
+### Constructor
 
 ```python
-# Remember to create the destination folder before calling `save_audio`
-# Or you are likely to recieve `FileNotFoundError`
-for file, sources in separated:
-    for stem, source in sources.items():
-        demucs.api.save_audio(source, f"{stem}_{file}", samplerate=separator.samplerate)
+separator = Separator(
+    model: Union[str, AnyModel] = DEFAULT_MODEL,
+    device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu",
+    shifts: int = 1,
+    overlap: float = 0.25,
+    split: bool = True,
+    segment: Optional[int] = None, # Default is different for each model
+    jobs: int = 0,
+    verbose: bool = False,
+)
 ```
 
-## API References
+**Parameters:**
 
-The types of each parameter and return value is not listed in this document. To know the exact type of them, please read the type hints in api.py (most modern code editors support inferring types based on type hints).
+*   `model`: Model to use. Can be a model name string (e.g., `"htdemucs"`, `"mdx_q"`) or a pre-loaded model instance. Defaults to `demucs.pretrained.DEFAULT_MODEL`.
+*   `device`: Device for processing (`"cuda"`, `"mps"`, `"cpu"`). Auto-detected if not specified.
+*   `shifts`: Number of random shifts for equivariant stabilization. Higher values improve quality but increase processing time.
+*   `overlap`: Overlap between processing chunks (0.0 to 1.0).
+*   `split`: Whether to split input into chunks.
+*   `segment`: Length (in seconds) of each chunk (if `split=True`). If `None`, model-specific default is used. Note: Transformer models have a maximum segment length.
+*   `jobs`: Number of parallel jobs (0 for automatic).
+*   `verbose`: Show progress bars (default `False`).
 
-### `class Separator`
+### Methods
 
-The base separator class
+#### `update_parameter(...)`
 
-##### Parameters
+Updates separation parameters dynamically.
+Accepts any of the constructor parameters as keyword arguments.
 
-model: Pretrained model name or signature. Default is htdemucs.
+```python
+separator.update_parameter(shifts=2, overlap=0.5)
+```
 
-repo: Folder containing all pre-trained models for use.
+#### `separate_audio_file(file: Union[str, Path]) -> SeparatedSources`
 
-segment: Length (in seconds) of each segment (only available if `split` is `True`). If not specified, will use the command line option.
+Separates an audio file into stems.
 
-shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and apply the opposite shift to the output. This is repeated `shifts` time and all predictions are averaged. This effectively makes the model time equivariant and improves SDR by up to 0.2 points. If not specified, will use the command line option.
+*   `file`: Path to the audio file.
+*   **Returns:** A `SeparatedSources` object.
+*   **Raises:** `LoadAudioError` if the audio file cannot be loaded.
 
-split: If True, the input will be broken down into small chunks (length set by `segment`) and predictions will be performed individually on each and concatenated. Useful for model with large memory footprint like Tasnet. If not specified, will use the command line option.
+#### `separate_audio_bytes(audio_bytes: bytes) -> SeparatedSources`
 
-overlap: The overlap between the splits. If not specified, will use the command line option.
+Separates audio from raw bytes (e.g., from an uploaded file or API request).
 
-device (torch.device, str, or None): If provided, device on which to execute the computation, otherwise `wav.device` is assumed. When `device` is different from `wav.device`, only local computations will be on `device`, while the entire tracks will be stored on `wav.device`. If not specified, will use the command line option.
+*   `audio_bytes`: Raw audio bytes.
+*   **Returns:** A `SeparatedSources` object.
+*   **Raises:** `LoadAudioError` if the audio bytes cannot be loaded.
 
-jobs: Number of jobs. This can increase memory usage but will be much faster when multiple cores are available. If not specified, will use the command line option.
+#### `separate_tensor(wav: Tensor, sr: Optional[int] = None) -> SeparatedSources`
 
-callback: A function will be called when the separation of a chunk starts or finished. The argument passed to the function will be a dict. For more information, please see the Callback section.
+Separates a pre-loaded audio tensor.
 
-callback_arg: A dict containing private parameters to be passed to callback function. For more information, please see the Callback section.
+*   `wav`: Audio tensor of shape `[channels, samples]`.
+*   `sr`: Sample rate of `wav`. If `None`, assumes it matches the model's sample rate.
+*   **Returns:** A `SeparatedSources` object.
 
-progress: If true, show a progress bar.
+## `SeparatedSources`
 
-##### Notes for callback
+A container object returned by `Separator` methods, holding the separated audio stems.
+It provides methods to access, save, and export these stems.
 
-The function will be called with only one positional parameter whose type is `dict`. The `callback_arg` will be combined with information of current separation progress. The progress information will override the values in `callback_arg` if same key has been used. To abort the separation, raise an exception in `callback` which should be handled by yourself if you want your codes continue to function.
+### Methods
 
-Progress information contains several keys (These keys will always exist):
-- `model_idx_in_bag`: The index of the submodel in `BagOfModels`. Starts from 0.
-- `shift_idx`: The index of shifts. Starts from 0.
-- `segment_offset`: The offset of current segment. If the number is 441000, it doesn't mean that it is at the 441000 second of the audio, but the "frame" of the tensor.
-- `state`: Could be `"start"` or `"end"`.
-- `audio_length`: Length of the audio (in "frame" of the tensor).
-- `models`: Count of submodels in the model.
+#### `save_stem(stem_name: str, path: Union[str, Path], **kwargs) -> Path`
 
-#### `property samplerate`
+Saves a specific stem to a file as a 32-bit float WAV.
 
-A read-only property saving sample rate of the model requires. Will raise a warning if the model is not loaded and return the default value.
+*   `stem_name`: Name of the stem to save.
+*   `path`: Output file path. `.wav` extension is added if not present.
+*   `**kwargs`: Additional arguments for `demucs.audio.save_audio` (e.g., `clip=ClipMode.clamp`).
+*   **Returns:** `Path` object of the saved file.
 
-#### `property audio_channels`
+#### `save_all_stems(output_dir: Union[str, Path], filename_template: str = "{stem_name}", **kwargs) -> Dict[str, Path]`
 
-A read-only property saving audio channels of the model requires. Will raise a warning if the model is not loaded and return the default value.
+Saves all stems to a directory.
 
-#### `property model`
+*   `output_dir`: Directory to save stems.
+*   `filename_template`: Filename template. `{stem_name}` is replaced by the stem name (e.g., `"{stem_name}_mix.wav"`).
+*   `**kwargs`: Additional arguments for `demucs.audio.save_audio`.
+*   **Returns:** A dictionary mapping stem names to their saved `Path` objects.
 
-A read-only property saving the model.
+#### `export_stem(stem_name: str, format: str = "wav", clip: ClipMode = ClipMode.rescale) -> bytes`
 
-#### `method update_parameter()`
+Exports a stem as raw audio bytes in memory.
 
-Update the parameters of separation.
+*   `stem_name`: Name of the stem.
+*   `format`: Desired audio format (e.g., `"wav"`, `"flac"`, `"mp3"`).
+*   `clip`: Clipping mode from `demucs.audio.ClipMode` (e.g., `ClipMode.rescale`, `ClipMode.clamp`).
+*   **Returns:** Raw audio `bytes`.
 
-##### Parameters
+#### `export_all_stems(format: str = "wav", clip: ClipMode = ClipMode.rescale) -> Dict[str, bytes]`
 
-segment: Length (in seconds) of each segment (only available if `split` is `True`). If not specified, will use the command line option.
+Exports all stems as raw audio bytes.
 
-shifts: If > 0, will shift in time `wav` by a random amount between 0 and 0.5 sec and apply the opposite shift to the output. This is repeated `shifts` time and all predictions are averaged. This effectively makes the model time equivariant and improves SDR by up to 0.2 points. If not specified, will use the command line option.
+*   `format`: Audio format.
+*   `clip`: Clipping mode.
+*   **Returns:** Dictionary mapping stem names to `bytes`.
 
-split: If True, the input will be broken down into small chunks (length set by `segment`) and predictions will be performed individually on each and concatenated. Useful for model with large memory footprint like Tasnet. If not specified, will use the command line option.
+#### `add_complement_stem(name: str, method: OtherMethod = OtherMethod.minus) -> SeparatedSources`
 
-overlap: The overlap between the splits. If not specified, will use the command line option.
+Adds the complement of a specified stem (e.g., "no_vocals") to the `SeparatedSources` object in-place.
+The complement is everything else in the mix.
 
-device (torch.device, str, or None): If provided, device on which to execute the computation, otherwise `wav.device` is assumed. When `device` is different from `wav.device`, only local computations will be on `device`, while the entire tracks will be stored on `wav.device`. If not specified, will use the command line option.
+*   `name`: Name of the stem to create a complement for (e.g., `"vocals"` will create `"no_vocals"`).
+*   `method`: `OtherMethod.minus` (original - stem) or `OtherMethod.add` (sum of other stems).
+*   **Returns:** The same `SeparatedSources` object, now modified.
 
-jobs: Number of jobs. This can increase memory usage but will be much faster when multiple cores are available. If not specified, will use the command line option.
+#### `isolate_stem(name: str, method: OtherMethod = OtherMethod.minus) -> SeparatedSources`
 
-callback: A function will be called when the separation of a chunk starts or finished. The argument passed to the function will be a dict. For more information, please see the Callback section.
+Creates a *new* `SeparatedSources` object containing only the specified stem and its complement.
 
-callback_arg: A dict containing private parameters to be passed to callback function. For more information, please see the Callback section.
+*   `name`: Name of the stem to isolate.
+*   `method`: `OtherMethod.minus` or `OtherMethod.add` for complement calculation.
+*   **Returns:** A new `SeparatedSources` object.
 
-progress: If true, show a progress bar.
+## Model Management
 
-##### Notes for callback
+Demucs provides utilities for managing models, including listing available models, checking cache status, downloading models, and more.
 
-The function will be called with only one positional parameter whose type is `dict`. The `callback_arg` will be combined with information of current separation progress. The progress information will override the values in `callback_arg` if same key has been used. To abort the separation, raise an exception in `callback` which should be handled by yourself if you want your codes continue to function.
+### `list_models() -> Dict[str, Dict]`
 
-Progress information contains several keys (These keys will always exist):
-- `model_idx_in_bag`: The index of the submodel in `BagOfModels`. Starts from 0.
-- `shift_idx`: The index of shifts. Starts from 0.
-- `segment_offset`: The offset of current segment. If the number is 441000, it doesn't mean that it is at the 441000 second of the audio, but the "frame" of the tensor.
-- `state`: Could be `"start"` or `"end"`.
-- `audio_length`: Length of the audio (in "frame" of the tensor).
-- `models`: Count of submodels in the model.
+Lists all available pre-trained models from the Demucs model repository.
 
-#### `method separate_tensor()`
+*   **Returns:** A dictionary where keys are model names and values are dictionaries of their metadata.
 
-Separate an audio.
+```python
+from demucs.api import list_models
 
-##### Parameters
+available_models = list_models()
+print(f"Available models: {list(available_models.keys())}")
+```
 
-wav: Waveform of the audio. Should have 2 dimensions, the first is each audio channel, while the second is the waveform of each channel. e.g. `tuple(wav.shape) == (2, 884000)` means the audio has 2 channels.
+### `get_version() -> str`
 
-sr: Sample rate of the original audio, the wave will be resampled if it doesn't match the model.
+Returns the installed version of Demucs.
 
-##### Returns
+*   **Returns:** Version string.
 
-A tuple, whose first element is the original wave and second element is a dict, whose keys are the name of stems and values are separated waves. The original wave will have already been resampled.
+```python
+from demucs.api import get_version
 
-##### Notes
+print(f"Demucs version: {get_version()}")
+```
 
-Use this function with cautiousness. This function does not provide data verifying.
+### `ModelRepository`
 
-#### `method separate_audio_file()`
+For advanced model management, Demucs provides the `ModelRepository` class that gives direct access to the model repository.
 
-Separate an audio file. The method will automatically read the file.
+```python
+from demucs.api import ModelRepository
 
-##### Parameters
+# Initialize the repository
+repo = ModelRepository()
 
-wav: Path of the file to be separated.
+# List available models
+models = repo.list_models()
+print(f"Available models: {list(models.keys())}")
 
-##### Returns
+# Get information about cached models
+cache_info = repo.get_cache_info()
+print(f"Downloaded models: {list(cache_info.keys())}")
 
-A tuple, whose first element is the original wave and second element is a dict, whose keys are the name of stems and values are separated waves. The original wave will have already been resampled.
+# Download a model
+model = repo.get_model("htdemucs")
 
-### `function save_audio()`
+# Remove a model from cache
+repo.remove_model("htdemucs")
+```
 
-Save audio file.
+#### `list_models() -> Dict[str, Dict]`
 
-##### Parameters
+Lists all available models in the repository.
 
-wav: Audio to be saved
+* **Returns:** A dictionary mapping model names to their metadata.
 
-path: The file path to be saved. Ending must be one of `.mp3` and `.wav`.
+#### `get_cache_info() -> Dict[str, Dict]`
 
-samplerate: File sample rate.
+Gets information about currently cached models.
 
-bitrate: If the suffix of `path` is `.mp3`, it will be used to specify the bitrate of mp3.
+* **Returns:** A dictionary mapping model names to cache information (path, size, etc.).
 
-clip: Clipping preventing strategy.
+#### `get_model(name: str) -> AnyModel`
 
-bits_per_sample: If the suffix of `path` is `.wav`, it will be used to specify the bit depth of wav.
+Downloads (if necessary) and loads a model by name.
 
-as_float: If it is True and the suffix of `path` is `.wav`, then `bits_per_sample` will be set to 32 and will write the wave file with float format.
+* `name`: Name of the model to get.
+* **Returns:** The loaded model.
+* **Raises:** `ModelLoadingError` if the model cannot be loaded.
 
-##### Returns
+#### `remove_model(name: str) -> bool`
 
-None
+Removes a model from the cache.
 
-### `function list_models()`
+* `name`: Name of the model to remove.
+* **Returns:** `True` if the model was successfully removed, `False` otherwise.
 
-List the available models. Please remember that not all the returned models can be successfully loaded.
+#### `has_model(name: str) -> bool`
 
-##### Parameters
+Checks if a model exists in the repository.
 
-repo: The repo whose models are to be listed.
+* `name`: Name of the model to check.
+* **Returns:** `True` if the model exists, `False` otherwise.
 
-##### Returns
+### `get_cache_dir() -> Path`
 
-A dict with two keys ("single" for single models and "bag" for bag of models). The values are lists whose components are strs.
+Returns the path to the Demucs model cache directory.
+
+* **Returns:** Path object for the cache directory.
+
+```python
+from demucs.api import get_cache_dir
+
+cache_path = get_cache_dir()
+print(f"Models are stored in: {cache_path}")
+```
+
+## Exception Classes
+
+Demucs API defines several exception classes that you might encounter when working with the library.
+
+### `ModelLoadingError`
+
+Raised when a model cannot be loaded, either due to download issues, invalid checksums, or other model-related problems.
+
+### `LoadAudioError`
+
+Raised when an audio file or audio bytes cannot be loaded or processed.
+
+### `LoadModelError`
+
+Raised when there's an issue loading a model, typically related to model format or compatibility.
+
+### `SegmentValidationError`
+
+Raised when the provided segment parameter is invalid for the selected model, particularly for transformer models with maximum segment length restrictions.

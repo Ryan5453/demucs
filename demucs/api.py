@@ -16,7 +16,24 @@ from enum import Enum
 from .apply import apply_model
 from .audio import ClipMode, convert_audio, save_audio, prevent_clip
 from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
-from .repo import AnyModel, ModelRepository
+from .repo import AnyModel, ModelRepository, get_cache_dir, ModelLoadingError
+from . import __version__
+
+
+__all__ = [
+    'Separator',
+    'SeparatedSources',
+    'OtherMethod',
+    'ClipMode',
+    'ModelRepository',
+    'list_models',
+    'get_version',
+    'get_cache_dir',
+    'ModelLoadingError',
+    'LoadAudioError',
+    'LoadModelError',
+    'SegmentValidationError',
+]
 
 
 class OtherMethod(str, Enum):
@@ -133,29 +150,6 @@ class SeparatedSources:
         :return: Iterator over audio tensors
         """
         return self.sources.values()
-        """
-        Isolates a single stem and its complement.
-
-        :param name: Name of the stem to isolate
-        :param method: Method to use for isolating the stem
-        :return: Dictionary containing the isolated stem and its complement (no_name and name)
-        :raises ValueError: If the requested stem isn't found in the sources or method is not add or minus
-        """
-        if name not in self.sources:
-            raise ValueError(f"Stem {name} not found in sources")
-
-        other = None
-        if method == OtherMethod.add:
-            other = torch.zeros_like(self.sources[name])
-            for source, audio in self.sources.items():
-                if source != name:
-                    other += audio
-        elif method == OtherMethod.minus:
-            other = self.original - self.sources[name]
-        else:
-            raise ValueError(f"Unknown method: {method}. Use 'add' or 'minus'.")
-
-        return {name: self.sources[name], f"no_{name}": other}
 
     def add_complement_stem(self, name: str, method: OtherMethod = OtherMethod.minus) -> 'SeparatedSources':
         """
@@ -705,3 +699,8 @@ def list_models() -> Dict[str, Dict[str, Any]]:
     """
     model_repo = ModelRepository(METADATA_PATH)
     return model_repo.list_models()
+
+
+def get_version() -> str:
+    """Return the installed version of Demucs."""
+    return __version__

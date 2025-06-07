@@ -96,28 +96,25 @@ def generate_model_url(checksum: str) -> str:
 class ModelRepository:
     """Repository system for accessing models."""
 
-    def __init__(self, metadata_path: Path):
+    def __init__(self):
         """
         Initialize the repository.
-
-        Args:
-            metadata_path: Path to metadata.json containing model information
         """
-        self.metadata_path = metadata_path
+        # Determine metadata_path relative to this file
+        current_file_path = Path(__file__)
+        self.metadata_path = current_file_path.parent / "metadata.json"
 
         # Load metadata
-        with open(metadata_path, "r") as f:
+        with open(self.metadata_path, "r") as f:
             self.metadata = json.load(f)
 
-        # Support both old and new metadata structure
         if "models" in self.metadata:
-            # New structure: models section contains the actual models
             self._models = self.metadata["models"]
-        elif "collections" in self.metadata:
-            # Old structure: collections section contains the models
-            self._models = self.metadata["collections"]
         else:
-            raise ModelLoadingError("Invalid metadata structure: no models or collections found")
+            raise ModelLoadingError(
+                "Invalid metadata structure: 'models' key not found in metadata.json. "
+                "The expected format is a top-level 'models' dictionary."
+            )
 
         # Generate layer URLs dynamically from model checksums
         self._layer_urls = {}
