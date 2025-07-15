@@ -5,13 +5,16 @@
 # LICENSE file in the root directory of this source tree.
 
 from pathlib import Path
-from typing import Union
+from typing import TypeAlias
 from enum import Enum
 
 import julius
 import torch
 import torchaudio
 from torch import Tensor
+
+# Type alias for path-like objects
+PathLike: TypeAlias = str | Path
 
 
 class ClipMode(str, Enum):
@@ -75,21 +78,21 @@ def prevent_clip(wav, mode: ClipMode = ClipMode.rescale):
 
 def save_audio(
     wav: Tensor,
-    path: Union[str, Path],
+    path: PathLike,
     samplerate: int,
     clip: ClipMode = ClipMode.rescale,
 ):
-    """Save audio file as 32-bit float WAV (native model output format), 
+    """Save audio file as 32-bit float WAV (native model output format),
     automatically preventing clipping if necessary based on the given `clip` strategy.
     """
     path = Path(path)
-    
+
     # Ensure tensor is on CPU before any operations
     if wav.device.type != "cpu":
         wav = wav.cpu()
 
     wav = prevent_clip(wav, mode=clip)
-    
+
     # Always save as 32-bit float (native model format)
     torchaudio.save(
         path,

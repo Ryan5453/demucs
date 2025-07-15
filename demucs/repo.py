@@ -12,7 +12,7 @@ import tempfile
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, TypeAlias
 
 import httpx
 import torch
@@ -20,9 +20,10 @@ from rich.progress import Progress, TaskID
 
 from .apply import BagOfModels, Model
 from .states import load_model
-from .errors import LoadModelError
+from .errors import ModelLoadingError
 
-AnyModel = Union[Model, BagOfModels]
+# Type alias for models
+AnyModel: TypeAlias = Model | BagOfModels
 
 # Base URL for model downloads
 BASE_MODEL_URL = "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/"
@@ -34,7 +35,7 @@ def check_checksum(path: Path, checksum: str):
 
     :param path: Path to the file to check
     :param checksum: Expected SHA-256 checksum (first 8 characters)
-    :raises LoadModelError: If the actual checksum does not match the expected one
+    :raises ModelLoadingError: If the actual checksum does not match the expected one
     """
     sha = sha256()
     with open(path, "rb") as file:
@@ -45,7 +46,7 @@ def check_checksum(path: Path, checksum: str):
             sha.update(buf)
     actual_checksum = sha.hexdigest()[:8]
     if actual_checksum != checksum:
-        raise LoadModelError(
+        raise ModelLoadingError(
             f"Invalid checksum for file {path}, "
             f"expected {checksum} but got {actual_checksum}"
         )
@@ -71,7 +72,7 @@ def format_file_size(size_bytes: int) -> str:
 def get_cache_dir() -> Path:
     """
     Get the cache directory for Demucs models.
-    
+
     :return: Path to the cache directory
     """
     home = Path.home()
@@ -83,7 +84,7 @@ def get_cache_dir() -> Path:
 def generate_model_url(checksum: str) -> str:
     """
     Generate a model download URL from a checksum.
-    
+
     :param checksum: Model checksum identifier
     :return: Full download URL for the model
     """
@@ -108,7 +109,7 @@ class ModelRepository:
         if "models" in self.metadata:
             self._models = self.metadata["models"]
         else:
-            raise LoadModelError(
+            raise ModelLoadingError(
                 "Invalid metadata structure: 'models' key not found in metadata.json. "
                 "The expected format is a top-level 'models' dictionary."
             )
@@ -249,7 +250,7 @@ class ModelRepository:
                     # Verify checksum
                     try:
                         check_checksum(cache_path, expected_checksum)
-                    except LoadModelError:
+                    except ModelLoadingError:
                         cache_path.unlink()
                         raise
 
@@ -262,10 +263,10 @@ class ModelRepository:
                     # Clean up temp file
                     if tmp_path.exists():
                         tmp_path.unlink()
-                    raise LoadModelError(f"Failed to load model: {str(e)}")
+                    raise ModelLoadingError(f"Failed to load model: {str(e)}")
 
         except httpx.HTTPError as e:
-            raise LoadModelError(f"Failed to download {url}: {str(e)}")
+            raise ModelLoadingError(f"Failed to download {url}: {str(e)}")
 
     def get_model(
         self,
@@ -286,7 +287,7 @@ class ModelRepository:
         """
         # Only load models, not individual layers
         if name not in self._models:
-            raise LoadModelError(
+            raise ModelLoadingError(
                 f"Could not find a model with name {name}. "
                 f"Available models: {', '.join(self._models.keys())}"
             )
@@ -297,11 +298,11 @@ class ModelRepository:
         # Download each layer
         layers = []
         cache_dir = get_cache_dir()
-        
+
         for layer_checksum in layer_checksums:
             if layer_checksum not in self._layer_urls:
-                raise LoadModelError(f"Layer {layer_checksum} not found in metadata")
-                
+                raise ModelLoadingError(f"Layer {layer_checksum} not found in metadata")
+
             url = self._layer_urls[layer_checksum]
 
             # Determine cache path
@@ -313,12 +314,12 @@ class ModelRepository:
                 try:
                     # Validate checksum
                     check_checksum(cache_path, layer_checksum)
-                    
+
                     # Try to load the model
                     layer = load_model(torch.load(cache_path, map_location="cpu"))
                     layers.append(layer)
                     continue
-                except (LoadModelError, Exception):
+                except (ModelLoadingError, Exception):
                     # If validation or loading fails, delete and redownload
                     if cache_path.exists():
                         cache_path.unlink()
@@ -370,10 +371,10 @@ class ModelRepository:
         """
         if name not in self._models:
             return False
-            
+
         cache_dir = get_cache_dir()
         removed_any = False
-        
+
         # Remove all layer files for this model
         for layer_checksum in self._models[name].get("models", []):
             filename = f"{layer_checksum}.th"
@@ -381,5 +382,5 @@ class ModelRepository:
             if layer_path.exists():
                 layer_path.unlink()
                 removed_any = True
-                    
+
         return removed_any

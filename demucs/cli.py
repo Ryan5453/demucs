@@ -5,7 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
-from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -19,10 +18,11 @@ from rich.table import Table
 from typing_extensions import Annotated
 
 from . import __version__
-from .api import Separator, save_audio, OtherMethod, ClipMode, SegmentValidationError
+from .api import Separator, save_audio, OtherMethod, ClipMode
 from .apply import BagOfModels
 from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
-from .repo import ModelLoadingError, ModelRepository
+from .repo import ModelRepository
+from .errors import ModelLoadingError
 
 console = Console()
 
@@ -39,7 +39,7 @@ def list_models_command():
     List all available models and show which ones are downloaded.
     """
     # Create a ModelRepository to manage models
-    model_repo = ModelRepository(METADATA_PATH)
+    model_repo = ModelRepository()
 
     # Get models from metadata.json
     models = get_models()
@@ -137,7 +137,7 @@ def download_models_command(
         model_names = names
 
     # Create a ModelRepository to check if models are already downloaded
-    model_repo = ModelRepository(METADATA_PATH)
+    model_repo = ModelRepository()
     cache_info = model_repo.get_cache_info()
 
     # Get models info
@@ -306,7 +306,7 @@ def remove_models_command(
     )
 
     # Create a ModelRepository to manage models
-    model_repo = ModelRepository(METADATA_PATH)
+    model_repo = ModelRepository()
 
     # Get models to remove
     if all_models:
@@ -360,7 +360,7 @@ def get_models() -> Dict[str, Dict]:
     """Get models from metadata.json"""
     with open(METADATA_PATH, "r") as f:
         metadata = json.load(f)
-    
+
     # Support both old and new metadata structure
     if "models" in metadata:
         return metadata["models"]
@@ -433,9 +433,7 @@ def main_command(
     ] = None,
     overlap: Annotated[
         float,
-        typer.Option(
-            help="Overlap between the splits.", rich_help_panel="Processing"
-        ),
+        typer.Option(help="Overlap between the splits.", rich_help_panel="Processing"),
     ] = 0.25,
     # Stem Selection
     stem: Annotated[
@@ -503,7 +501,7 @@ def main_command(
             overlap=overlap,
             jobs=jobs,
             segment=segment,
-            verbose=True
+            verbose=True,
         )
     except Exception as error:
         console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
@@ -555,10 +553,10 @@ def main_command(
                 )
                 stem_path.parent.mkdir(parents=True, exist_ok=True)
                 save_audio(
-                    source, 
-                    str(stem_path), 
-                    samplerate=separator.samplerate, 
-                    clip=clip_mode, 
+                    source,
+                    str(stem_path),
+                    samplerate=separator.samplerate,
+                    clip=clip_mode,
                 )
 
         except Exception as e:

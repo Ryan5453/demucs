@@ -8,7 +8,7 @@ authors = [
     {name = "Ryan Fahey", email = "git@ryan.science"}
 ]
 license = {text = "MIT License"}
-requires-python = ">=3.9"
+requires-python = ">=3.10, <3.14"
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Topic :: Multimedia :: Sound/Audio",
@@ -36,23 +36,3 @@ dev = [
 
 [project.scripts]
 demucs = "demucs.cli:main"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[[tool.uv.index]]
-name = "pytorch-cu121"
-url = "https://download.pytorch.org/whl/cu121"
-explicit = true
-
-[tool.uv.sources]
-torch = [
-  { index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-torchvision = [
-  { index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-torchaudio = [
-  { index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]

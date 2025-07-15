@@ -36,7 +36,7 @@ def get_model(
         progress_bar: Optional Progress instance for download progress
         task_id: Optional TaskID for the progress bar
     """
-    model_repo = ModelRepository(METADATA_PATH)
+    model_repo = ModelRepository()
 
     try:
         model = model_repo.get_model(name, progress_bar=progress_bar, task_id=task_id)

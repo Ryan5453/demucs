@@ -1,30 +1,23 @@
 # 🎛️ Demucs
 
-> [!WARNING] 
-> This project is a work in progress. Do not believe any statements in this README. Do not use the code either for now.
-
-Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Samples are available [online][samples] for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper][htdemucs] for more information.
+Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Samples are available [online][[samples](https://ai.honu.io/papers/htdemucs/index.html)] for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper][[htdemucs](https://arxiv.org/abs/2211.08553)] for more information.
 
 ## Installation
 
 ### Prerequisites
 
-Before installing Demucs, you need:
+Before installing Demucs, you need to install FFmpeg on your system.
 
-- Python 3.9 or later
-- FFmpeg (required for audio processing):
+Use the following commands to install FFmpeg:
   - macOS: `brew install ffmpeg`
   - Ubuntu/Debian: `sudo apt-get install ffmpeg` 
   - Windows: Download from [FFmpeg.org](https://ffmpeg.org/download.html)
 
-### For Command Line Users
+### Install UV (optional, but recommended)
 
-If you want to use Demucs as a command-line tool to separate audio tracks:
+It is recommended to install Demucs using UV, a fast, modern Python package manager with isolated environments. 
 
-#### Install UV (Recommended)
-
-UV is a fast, modern Python package manager with isolated environments:
-
+Use the following commands to install UV:
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -33,51 +26,30 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-#### Installation Options
+### Temporary Installation
 
-1. **UV Tool Install** (Recommended) - Creates an isolated environment:
-   ```bash
-   uv tool install demucs-inference
-   ```
-
-2. **Run Without Installing** - For one-time or occasional use:
-   ```bash
-   uvx --with demucs-inference demucs audio_file.mp3
-   ```
-
-3. **Standard pip Install**:
-   ```bash
-   pip install demucs-inference
-   ```
-
-### For Python Developers
-
-If you want to use Demucs as a library in your Python applications:
+With UV, you can use the `uvx` command to run Demucs without installing it permanently on your system. This sets up a temporary virtual enviornment for the duration of the command. Keep in mind Demucs does not come with a CUDA-enabled version of PyTorch which means it will only run on CPU or Apple Silicon GPUs.
 
 ```bash
-# Using UV (recommended)
-uv pip install demucs-inference
-# or 
-uv add demucs-inference
+uvx --with demucs-inference demucs audio_file.mp3
+```
 
-# Using standard pip
+### Install using UV
+
+Install Demucs using the following command:
+
+```bash
+uv pip install demucs-inference --torch-backend=auto
+```
+### Install without UV
+
+Install Demucs using the following command:
+
+```bash
 pip install demucs-inference
 ```
 
-### Upgrading
-
-```bash
-# If installed with uv tool
-uv tool upgrade demucs-inference
-
-# If installed with standard uv
-uv pip install -U demucs-inference
-# or
-uv add -U demucs-inference
-
-# If installed with pip
-pip install -U demucs-inference
-```
+**Note**: For (non-Apple Silicon) GPU support, either use `--extra-index-url`  with a PyTorch wheel or install PyTorch with support for your GPU yourself.
 
 ## Usage
 
@@ -88,40 +60,15 @@ After installing Demucs, you can use it like the following:
 demucs --help
 
 # Separate one audio file
-demucs audio_file.mp3
+demucs separate audio_file.mp3
 
 # Separate multiple audio files
-demucs audio_file_1.mp3 audio_file_2.mp3
+demucs separate audio_file_1.mp3 audio_file_2.mp3
 
 # Separate all audio files in the current directory
-demucs *.mp3
+demucs separate *.mp3
 ```
 
-### Pre-downloading Models
-
-You can download and cache models before using them for offline use:
-
-```bash
-# Download the default model (htdemucs)
-demucs download
-
-# Download a specific model
-demucs download mdx
-
-# Download multiple models
-demucs download mdx htdemucs_ft htdemucs_6s
-
-# List all available models
-demucs download --list-models
-
-# Download all available models
-demucs download --all
-```
-
-This is useful when:
-- You want to prepare for offline use
-- You want to avoid downloading during audio processing
-- You're running batch jobs and want to ensure models are ready
 
 ### GPU Memory Requirements and Optimization
 
@@ -143,14 +90,6 @@ Separated tracks are stored in the `separated/MODEL_NAME/TRACK_NAME` folder. The
 
 All audio formats supported by `torchaudio` can be processed (i.e. wav, mp3, flac, ogg/vorbis on Linux/macOS, etc.). On Windows, `torchaudio` has limited support, so we rely on `ffmpeg`, which should support pretty much anything.
 Audio is resampled on the fly if necessary.
-
-#### Output File Types
-
-- Default: WAV files encoded as int16
-- `--float32`: Save as float32 WAV files
-- `--int24`: Save as 24-bit integer WAV files
-- `--mp3`: Save as MP3 files
-- `--mp3-bitrate`: Set MP3 bitrate in kbps (default is 320)
 
 #### Handling Clipping
 
@@ -176,54 +115,3 @@ Select pre-trained models with the `-n` flag:
 - `--shifts=SHIFTS`: Perform multiple predictions with random shifts and average them. Makes processing `SHIFTS` times slower (GPU recommended).
 - `--overlap`: Control overlap between prediction windows (default: 0.25). Can be reduced to 0.1 for faster processing.
 - `-j N`: Specify number of parallel jobs (e.g., `-j 2`). Multiplies RAM usage by the same amount.
-
-## Demucs API
-
-Demucs provides an API that can be used to separate audio files programmatically.
-
-```python
-from demucs.api import Separator, save_audio
-
-# Initialize the separator with desired model and parameters
-separator = Separator(model="htdemucs", device="cuda")
-
-# Separate an audio file
-original, separated_stems = separator.separate_audio_file("audio_file.mp3")
-
-# Save the separated stems
-for stem_name, stem_audio in separated_stems.items():
-    save_audio(stem_audio, f"{stem_name}.wav", samplerate=separator.samplerate)
-```
-
-View the [API docs](docs/api.md) for more information on the `Separator` class.
-
-## How to cite
-
-```
-@inproceedings{rouard2022hybrid,
-  title={Hybrid Transformers for Music Source Separation},
-  author={Rouard, Simon and Massa, Francisco and D{\'e}fossez, Alexandre},
-  booktitle={ICASSP 23},
-  year={2023}
-}
-
-@inproceedings{defossez2021hybrid,
-  title={Hybrid Spectrogram and Waveform Source Separation},
-  author={D{\'e}fossez, Alexandre},
-  booktitle={Proceedings of the ISMIR 2021 Workshop on Music Source Separation},
-  year={2021}
-}
-```
-
-## License
-
-Demucs is released under the MIT license as found in the [LICENSE](LICENSE) file.
-
-[waveunet]: https://github.com/f90/Wave-U-Net
-[mdx]: https://www.aicrowd.com/challenges/music-demixing-challenge-ismir-2021
-[kuielab]: https://github.com/kuielab/mdx-net-submission
-[decouple]: https://arxiv.org/abs/2109.05418
-[mdx_submission]: https://github.com/adefossez/mdx21_demucs
-[bandsplit]: https://arxiv.org/abs/2209.15174
-[htdemucs]: https://arxiv.org/abs/2211.08553
-[samples]: https://ai.honu.io/papers/htdemucs/index.html

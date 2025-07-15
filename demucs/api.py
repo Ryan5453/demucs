@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from io import BytesIO
 
 import torch
@@ -17,8 +17,10 @@ from .apply import apply_model
 from .audio import ClipMode, convert_audio, save_audio, prevent_clip
 from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
 from .repo import AnyModel, ModelRepository
-from .errors import LoadAudioError, LoadModelError, SegmentValidationError
+from .errors import LoadAudioError, ModelLoadingError, SegmentValidationError
 from . import __version__
+
+PathLike = Path | str
 
 
 class OtherMethod(str, Enum):
@@ -112,7 +114,9 @@ class SeparatedSources:
         """
         return self.sources.values()
 
-    def add_complement_stem(self, name: str, method: OtherMethod = OtherMethod.minus) -> 'SeparatedSources':
+    def add_complement_stem(
+        self, name: str, method: OtherMethod = OtherMethod.minus
+    ) -> "SeparatedSources":
         """
         Add the complement of a stem to this SeparatedSources object.
         This modifies the current object by adding a "no_{name}" stem.
@@ -121,21 +125,25 @@ class SeparatedSources:
         :param method: Method to use for creating the complement ("add" or "minus")
         :return: Self for method chaining
         :raises ValueError: If the requested stem isn't found in the sources or method is invalid
-        
+
         Example:
             # Add complement stem in-place
             separated.add_complement_stem("vocals")  # Adds "no_vocals" to sources
             separated.save_stem("no_vocals", "backing_track.wav")
         """
         if name not in self.sources:
-            raise ValueError(f"Stem '{name}' not found in sources. Available: {list(self.sources.keys())}")
+            raise ValueError(
+                f"Stem '{name}' not found in sources. Available: {list(self.sources.keys())}"
+            )
 
         complement_name = f"no_{name}"
-        
+
         if method == OtherMethod.add:
             complement = torch.zeros_like(self.sources[name])
             for source, audio in self.sources.items():
-                if source != name and not source.startswith("no_"):  # Don't include other "no_" stems
+                if source != name and not source.startswith(
+                    "no_"
+                ):  # Don't include other "no_" stems
                     complement += audio
         elif method == OtherMethod.minus:
             complement = self.original - self.sources[name]
@@ -145,7 +153,9 @@ class SeparatedSources:
         self.sources[complement_name] = complement
         return self
 
-    def isolate_stem(self, name: str, method: OtherMethod = OtherMethod.minus) -> 'SeparatedSources':
+    def isolate_stem(
+        self, name: str, method: OtherMethod = OtherMethod.minus
+    ) -> "SeparatedSources":
         """
         Create a new SeparatedSources object containing only the specified stem and its complement.
 
@@ -153,7 +163,7 @@ class SeparatedSources:
         :param method: Method to use for creating the complement ("add" or "minus")
         :return: New SeparatedSources object with just the stem and its complement
         :raises ValueError: If the requested stem isn't found in the sources or method is invalid
-        
+
         Example:
             # Create isolated version
             vocals_only = separated.isolate_stem("vocals")
@@ -161,30 +171,29 @@ class SeparatedSources:
             vocals_only.save_stem("no_vocals", "backing.wav")
         """
         if name not in self.sources:
-            raise ValueError(f"Stem '{name}' not found in sources. Available: {list(self.sources.keys())}")
+            raise ValueError(
+                f"Stem '{name}' not found in sources. Available: {list(self.sources.keys())}"
+            )
 
         complement_name = f"no_{name}"
-        
+
         if method == OtherMethod.add:
             complement = torch.zeros_like(self.sources[name])
             for source, audio in self.sources.items():
-                if source != name and not source.startswith("no_"):  # Don't include other "no_" stems
+                if source != name and not source.startswith(
+                    "no_"
+                ):  # Don't include other "no_" stems
                     complement += audio
         elif method == OtherMethod.minus:
             complement = self.original - self.sources[name]
         else:
             raise ValueError(f"Invalid method: {method}. Use 'add' or 'minus'.")
 
-        isolated_sources = {
-            name: self.sources[name],
-            complement_name: complement
-        }
+        isolated_sources = {name: self.sources[name], complement_name: complement}
 
         return SeparatedSources(isolated_sources, self.sample_rate, self.original)
 
-    def save_stem(
-        self, stem_name: str, path: Union[str, Path], **kwargs
-    ) -> Path:
+    def save_stem(self, stem_name: str, path: PathLike, **kwargs) -> Path:
         """
         Save a specific stem to disk as 32-bit float WAV format (native model output).
 
@@ -210,12 +219,7 @@ class SeparatedSources:
         # Create parent directories if they don't exist
         file_path.parent.mkdir(exist_ok=True, parents=True)
 
-        save_audio(
-            self.sources[stem_name], 
-            file_path, 
-            self.sample_rate, 
-            **kwargs
-        )
+        save_audio(self.sources[stem_name], file_path, self.sample_rate, **kwargs)
         return file_path
 
     def export_stem(
@@ -229,12 +233,12 @@ class SeparatedSources:
         :param clip: Clipping mode to prevent audio distortion
         :return: Raw audio bytes ready for streaming, web APIs, etc.
         :raises ValueError: If the stem name is not found
-        
+
         Example:
             # For web APIs
             audio_bytes = separated.export_stem("vocals", format="mp3")
             return Response(audio_bytes, mimetype="audio/mpeg")
-            
+
             # For streaming
             wav_data = separated.export_stem("drums", format="wav")
             audio_stream.write(wav_data)
@@ -246,14 +250,14 @@ class SeparatedSources:
 
         # Get the audio tensor and prepare it
         wav = self.sources[stem_name]
-        
+
         # Ensure tensor is on CPU and apply clipping
         if wav.device.type != "cpu":
             wav = wav.cpu()
-        
+
         # Apply clipping prevention
         wav = prevent_clip(wav, mode=clip)
-        
+
         # Export to bytes using BytesIO
         buffer = BytesIO()
         try:
@@ -262,14 +266,16 @@ class SeparatedSources:
                 "sample_rate": self.sample_rate,
                 "format": format,
             }
-            
+
             # WAV supports custom encoding and bits per sample
             if format.lower() == "wav":
-                save_kwargs.update({
-                    "encoding": "PCM_F",
-                    "bits_per_sample": 32,
-                })
-            
+                save_kwargs.update(
+                    {
+                        "encoding": "PCM_F",
+                        "bits_per_sample": 32,
+                    }
+                )
+
             torchaudio.save(buffer, wav, **save_kwargs)
             return buffer.getvalue()
         except Exception as e:
@@ -293,10 +299,7 @@ class SeparatedSources:
         }
 
     def save_all_stems(
-        self, 
-        output_dir: Union[str, Path], 
-        filename_template: str = "{stem_name}", 
-        **kwargs
+        self, output_dir: PathLike, filename_template: str = "{stem_name}", **kwargs
     ) -> Dict[str, Path]:
         """
         Save all stems to disk.
@@ -305,44 +308,50 @@ class SeparatedSources:
         :param filename_template: Template for naming files. Use {stem_name} as placeholder.
         :param kwargs: Additional arguments to pass to save_audio (e.g., clip=ClipMode.clamp)
         :return: Dictionary mapping stem names to absolute file paths
-        
+
         Example:
             # Save all stems with default naming
             paths = separated.save_all_stems("output/")
             # Result: {"vocals": "/full/path/to/output/vocals.wav", "drums": "/full/path/to/output/drums.wav", ...}
-            
+
             # Save with custom naming
             paths = separated.save_all_stems("output/", "{stem_name}_separated")
             # Result: {"vocals": "/full/path/to/output/vocals_separated.wav", ...}
         """
         output_dir = Path(output_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
-        
+
         saved_paths = {}
         for stem_name in self.sources.keys():
             filename = filename_template.format(stem_name=stem_name)
             file_path = output_dir / filename
-            saved_paths[stem_name] = self.save_stem(stem_name, file_path, **kwargs).resolve()
-            
+            saved_paths[stem_name] = self.save_stem(
+                stem_name, file_path, **kwargs
+            ).resolve()
+
         return saved_paths
 
 
 class Separator:
     """
     Audio source separation using Demucs models.
-    
+
     Note: Requires FFmpeg to be installed for audio file loading.
     Install with: conda install -c conda-forge 'ffmpeg<7'
     """
 
     def __init__(
         self,
-        model: Union[str, AnyModel] = DEFAULT_MODEL,
-        device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu",
+        model: str | AnyModel = DEFAULT_MODEL,
+        device: str = "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu",
         shifts: int = 1,
         overlap: float = 0.25,
         split: bool = True,
-        segment: Optional[int] = None, # Default is different for each model
+        segment: Optional[int] = None,  # Default is different for each model
         jobs: int = 0,
         verbose: bool = False,
     ):
@@ -387,13 +396,13 @@ class Separator:
 
     def update_parameter(
         self,
-        device: Union[str, _NotProvided] = NotProvided,
-        shifts: Union[int, _NotProvided] = NotProvided,
-        overlap: Union[float, _NotProvided] = NotProvided,
-        split: Union[bool, _NotProvided] = NotProvided,
-        segment: Optional[Union[int, _NotProvided]] = NotProvided,
-        jobs: Union[int, _NotProvided] = NotProvided,
-        verbose: Union[bool, _NotProvided] = NotProvided,
+        device: str | _NotProvided = NotProvided,
+        shifts: int | _NotProvided = NotProvided,
+        overlap: float | _NotProvided = NotProvided,
+        split: bool | _NotProvided = NotProvided,
+        segment: Optional[int] | _NotProvided = NotProvided,
+        jobs: int | _NotProvided = NotProvided,
+        verbose: bool | _NotProvided = NotProvided,
     ):
         """
         Update separation parameters.
@@ -429,19 +438,19 @@ class Separator:
         """
         self._model = get_model(name=self._name)
         if self._model is None:
-            raise LoadModelError("Failed to load model")
+            raise ModelLoadingError("Failed to load model")
         self._audio_channels = self._model.audio_channels
         self._samplerate = self._model.samplerate
 
     def _get_max_allowed_segment(self) -> float:
         """
         Get the maximum allowed segment length for the current model.
-        
+
         :return: Maximum allowed segment length in seconds
         """
         from .htdemucs import HTDemucs
         from .apply import BagOfModels
-        
+
         if isinstance(self._model, HTDemucs):
             return float(self._model.segment)
         elif isinstance(self._model, BagOfModels):
@@ -453,16 +462,16 @@ class Separator:
     def _validate_segment(self, segment: Optional[int]) -> None:
         """
         Validate that the segment parameter is compatible with the model.
-        
+
         :param segment: Segment length in seconds to validate
         :raises SegmentValidationError: If segment is too large for the model
         """
         if segment is None:
             return
-            
+
         max_allowed = self._get_max_allowed_segment()
         if segment > max_allowed:
-            model_name = getattr(self._model, 'name', self._name)
+            model_name = getattr(self._model, "name", self._name)
             raise SegmentValidationError(
                 f"Cannot use segment={segment} with model '{model_name}'. "
                 f"Maximum allowed segment for this model is {max_allowed} seconds. "
@@ -479,7 +488,7 @@ class Separator:
         """
         try:
             wav, sr = torchaudio.load(str(track), backend="ffmpeg")
-            
+
             # Ensure tensor has correct dimensions
             if wav.dim() == 1:
                 wav = wav[None]
@@ -487,13 +496,13 @@ class Separator:
                 raise LoadAudioError(
                     f"Expected audio tensor with 2 dimensions, got {wav.dim()}"
                 )
-            
+
             # Convert to target sample rate and channels if needed
             if sr != self._samplerate:
                 wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
-                
+
             return wav
-            
+
         except Exception as e:
             raise LoadAudioError(
                 f"Could not load file {track} using FFmpeg backend: {e}. "
@@ -544,7 +553,7 @@ class Separator:
 
         return SeparatedSources(sources, self._samplerate, original=wav)
 
-    def separate_audio_file(self, file: Union[str, Path]) -> SeparatedSources:
+    def separate_audio_file(self, file: PathLike) -> SeparatedSources:
         """
         Separate an audio file into stems.
 
@@ -564,12 +573,12 @@ class Separator:
         :param audio_bytes: Raw audio bytes (e.g., from uploaded file, API request, etc.)
         :return: SeparatedSources object containing the separated stems
         :raises LoadAudioError: If loading fails
-        
+
         Example:
             # For web APIs
             audio_bytes = request.files['audio'].read()
             separated = separator.separate_audio_bytes(audio_bytes)
-            
+
             # For streaming/in-memory processing
             with open('song.mp3', 'rb') as f:
                 audio_bytes = f.read()
@@ -578,10 +587,10 @@ class Separator:
         try:
             # Create a BytesIO object from the bytes
             audio_buffer = BytesIO(audio_bytes)
-            
+
             # Load audio from the buffer using torchaudio with FFmpeg backend
             wav, sr = torchaudio.load(audio_buffer, backend="ffmpeg")
-            
+
             # Ensure tensor has correct dimensions
             if wav.dim() == 1:
                 wav = wav[None]
@@ -589,13 +598,13 @@ class Separator:
                 raise LoadAudioError(
                     f"Expected audio tensor with 2 dimensions, got {wav.dim()}"
                 )
-            
+
             # Convert to target sample rate and channels if needed
             if sr != self._samplerate:
                 wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
-                
+
             return self.separate_tensor(wav)
-            
+
         except Exception as e:
             raise LoadAudioError(
                 f"Could not load audio from bytes using FFmpeg backend: {e}. "
@@ -603,7 +612,7 @@ class Separator:
             )
         finally:
             # Clean up the buffer
-            if 'audio_buffer' in locals():
+            if "audio_buffer" in locals():
                 audio_buffer.close()
 
     @property
@@ -646,7 +655,7 @@ class Separator:
     def max_allowed_segment(self) -> float:
         """
         Get the maximum allowed segment length for the current model.
-        
+
         :return: Maximum allowed segment length in seconds
         """
         return self._get_max_allowed_segment()

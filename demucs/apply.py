@@ -6,9 +6,13 @@
 
 import copy
 import random
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
-from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    Hashable,
+    List,
+    Optional,
+    TypeAlias,
+)
 
 import torch
 import torch.nn as nn
@@ -27,9 +31,10 @@ from torch.nn import functional as F
 from .demucs import Demucs
 from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
-from .utils import DummyPoolExecutor, center_trim
+from .utils import center_trim
 
-Model = Union[Demucs, HDemucs, HTDemucs]
+# Type alias for all model types
+Model: TypeAlias = Demucs | HDemucs | HTDemucs
 
 console = Console()
 
@@ -143,7 +148,7 @@ def tensor_chunk(tensor_or_chunk):
         return TensorChunk(tensor_or_chunk)
 
 
-def _replace_dict(_dict: Optional[dict], *subs: Tuple[Hashable, Any]) -> dict:
+def _replace_dict(_dict: Optional[dict], *subs: tuple[Hashable, Any]) -> dict:
     if _dict is None:
         _dict = {}
     else:
@@ -154,21 +159,19 @@ def _replace_dict(_dict: Optional[dict], *subs: Tuple[Hashable, Any]) -> dict:
 
 
 def apply_model(
-    model: Union[BagOfModels, Model],
-    mix: Union[Tensor, TensorChunk],
-    shifts: int = 1,
-    split: bool = True,
-    overlap: float = 0.25,
-    transition_power: float = 1.0,
-    progress: bool = False,
+    model: BagOfModels | Model,
+    mix: Tensor | TensorChunk,
     device=None,
-    num_workers: int = 0,
-    segment: Optional[float] = None,
-    pool=None,
-    lock=None,
-    callback: Optional[Callable[[dict], None]] = None,
-    callback_arg: Optional[dict] = None,
-) -> Tensor:
+    shifts=0,
+    split=False,
+    overlap=0.25,
+    transition_power=1.0,
+    progress=False,
+    segment=None,
+    num_workers=0,
+    callback=None,
+    callback_arg=None,
+):
     """
     Apply model to a given mixture.
 
@@ -193,35 +196,29 @@ def apply_model(
         device = mix.device
     else:
         device = torch.device(device)
-    if pool is None:
-        if num_workers > 0 and device.type == "cpu":
-            pool = ThreadPoolExecutor(num_workers)
-        else:
-            pool = DummyPoolExecutor()
-    if lock is None:
-        lock = Lock()
-    callback_arg = _replace_dict(
-        callback_arg,
-        *{"model_idx_in_bag": 0, "shift_idx": 0, "segment_offset": 0}.items(),
-    )
-    kwargs: Dict[str, Any] = {
+    if callback_arg is None:
+        callback_arg = {}
+    callback_arg["model_idx_in_bag"] = 0
+    callback_arg["shift_idx"] = 0
+    callback_arg["segment_offset"] = 0
+    kwargs = {
         "shifts": shifts,
         "split": split,
         "overlap": overlap,
         "transition_power": transition_power,
         "progress": progress,
         "device": device,
-        "pool": pool,
         "segment": segment,
-        "lock": lock,
+        "num_workers": num_workers,
+        "callback_arg": callback_arg,
     }
-    out: Union[float, Tensor]
-    res: Union[float, Tensor]
+    out: float | Tensor
+    res: float | Tensor
     if isinstance(model, BagOfModels):
         # Special treatment for bag of model.
         # We explicitely apply multiple times `apply_model` so that the random shifts
         # are different for each model.
-        estimates: Union[float, Tensor] = 0.0
+        estimates: float | Tensor = 0.0
         totals = [0.0] * len(model.sources)
         callback_arg["models"] = len(model.models)
         for sub_model, model_weights in zip(model.models, model.weights):

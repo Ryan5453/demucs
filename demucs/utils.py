@@ -11,12 +11,13 @@ import tempfile
 from collections import defaultdict
 from concurrent.futures import CancelledError
 from contextlib import contextmanager
-from typing import Dict, List, Union
+from typing import Dict, List
 
 import torch
 from torch import Tensor
 from torch.nn import functional as F
 from torch.utils.data import Subset
+
 
 
 def unfold(a, kernel_size, stride):
@@ -37,7 +38,7 @@ def unfold(a, kernel_size, stride):
     return a.as_strided([*shape, n_frames, kernel_size], strides)
 
 
-def center_trim(tensor: Tensor, reference: Union[Tensor, int]):
+def center_trim(tensor: Tensor, reference: Tensor | int):
     """
     Center trim `tensor` with respect to `reference`, along the last dimension.
     `reference` can also be a number, representing the length to trim to.
