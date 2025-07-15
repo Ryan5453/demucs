@@ -1,6 +1,6 @@
 # 🎛️ Demucs
 
-Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Samples are available [online][[samples](https://ai.honu.io/papers/htdemucs/index.html)] for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper][[htdemucs](https://arxiv.org/abs/2211.08553)] for more information.
+Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment. Samples are available [online](https://ai.honu.io/papers/htdemucs/index.html) for both Hybrid Demucs and Hybrid Transformer Demucs. Checkout [the paper](https://arxiv.org/abs/2211.08553) for more information.
 
 ## Installation
 
