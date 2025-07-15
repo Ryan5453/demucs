@@ -31,7 +31,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 With UV, you can use the `uvx` command to run Demucs without installing it permanently on your system. This sets up a temporary virtual enviornment for the duration of the command. Keep in mind Demucs does not come with a CUDA-enabled version of PyTorch which means it will only run on CPU or Apple Silicon GPUs.
 
 ```bash
-uvx --with demucs-inference demucs audio_file.mp3
+uvx --with demucs-inference demucs separate audio_file.mp3
 ```
 
 ### Install using UV
@@ -68,50 +68,6 @@ demucs separate audio_file_1.mp3 audio_file_2.mp3
 # Separate all audio files in the current directory
 demucs separate *.mp3
 ```
+## API Usage
 
-
-### GPU Memory Requirements and Optimization
-
-If you want to use GPU acceleration:
-
-- Minimum requirement: 3GB of GPU RAM (default settings need about 7GB)
-- For devices with limited memory:
-  - Use `--segment SEGMENT` to reduce split length (set to integer seconds)
-  - For 3GB GPU memory, try SEGMENT=8 (quality may be affected by smaller values)
-  - Hybrid Transformer models only support a maximum segment length of 7.8 seconds
-  - Set environment variable `PYTORCH_NO_CUDA_MEMORY_CACHING=1` to further reduce usage
-  - For very limited memory (2GB or less), use `-d cpu` to run on CPU instead
-- Processing time on CPU is roughly 1.5× the duration of the track
-
-### Output Format
-
-Separated tracks are stored in the `separated/MODEL_NAME/TRACK_NAME` folder. There you will find four stereo wav files sampled at 44.1 kHz: `drums.wav`, `bass.wav`,
-`other.wav`, `vocals.wav` (or `.mp3` if you used the `--mp3` option).
-
-All audio formats supported by `torchaudio` can be processed (i.e. wav, mp3, flac, ogg/vorbis on Linux/macOS, etc.). On Windows, `torchaudio` has limited support, so we rely on `ffmpeg`, which should support pretty much anything.
-Audio is resampled on the fly if necessary.
-
-#### Handling Clipping
-
-Demucs will automatically rescale each output stem to avoid clipping, which may affect relative volume between stems. Options:
-- `--clip-mode clamp`: Use hard clipping if you prefer preserving relative volumes
-- Alternatively, try reducing the volume of the input mixture before processing
-
-### Model Selection
-
-Select pre-trained models with the `-n` flag:
-
-- `htdemucs`: First version of Hybrid Transformer Demucs (default). Trained on MusDB + 800 songs.
-- `htdemucs_ft`: Fine-tuned version of `htdemucs`. Better quality but 4× slower.
-- `htdemucs_6s`: 6-source version adding `piano` and `guitar` (piano performance is limited).
-- `hdemucs_mmi`: Hybrid Demucs v3, retrained on MusDB + 800 songs.
-- `mdx`: Trained only on MusDB HQ. Winner on track A at the [MDX][mdx] challenge.
-- `mdx_extra`: Trained with extra data (including MusDB test set). Ranked 2nd on track B.
-- `mdx_q`, `mdx_extra_q`: Quantized versions. Smaller size but slightly lower quality.
-
-### Processing Options
-
-- `--two-stems=vocals`: Separate vocals from accompaniment (karaoke mode). Replace "vocals" with any source.
-- `--shifts=SHIFTS`: Perform multiple predictions with random shifts and average them. Makes processing `SHIFTS` times slower (GPU recommended).
-- `--overlap`: Control overlap between prediction windows (default: 0.25). Can be reduced to 0.1 for faster processing.
-- `-j N`: Specify number of parallel jobs (e.g., `-j 2`). Multiplies RAM usage by the same amount.
+Demucs provides a Python API for separating audio files. Please refer to the [API docs](docs/api.md) for more information.
