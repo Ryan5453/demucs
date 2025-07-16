@@ -6,14 +6,14 @@ Demucs is a state-of-the-art music source separation model, currently capable of
 
 ### Prerequisites
 
-Before installing Demucs, you need to install FFmpeg on your system.
+#### FFmpeg
 
 Use the following commands to install FFmpeg:
   - macOS: `brew install ffmpeg`
   - Ubuntu/Debian: `sudo apt-get install ffmpeg` 
   - Windows: Download from [FFmpeg.org](https://ffmpeg.org/download.html)
 
-### Install UV (optional, but recommended)
+#### Install UV (optional, but recommended)
 
 It is recommended to install Demucs using UV, a fast, modern Python package manager with isolated environments. 
 
@@ -26,13 +26,15 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-### Temporary Installation
+### Temporary Installation using UV
 
-With UV, you can use the `uvx` command to run Demucs without installing it permanently on your system. This sets up a temporary virtual enviornment for the duration of the command. Keep in mind Demucs does not come with a CUDA-enabled version of PyTorch which means it will only run on CPU or Apple Silicon GPUs.
+With UV, you can use the `uvx` command to run Demucs without installing it permanently on your system. This sets up a temporary virtual enviornment for the duration of the command. 
 
 ```bash
 uvx --with demucs-inference demucs separate audio_file.mp3
 ```
+
+**Note**: Demucs does not specify a specific PyTorch wheel for CUDA. This means that GPUs will only work on Apple Silicon or Linux with CUDA 12.6 when using this method.
 
 ### Install using UV
 
@@ -41,6 +43,9 @@ Install Demucs using the following command:
 ```bash
 uv pip install demucs-inference --torch-backend=auto
 ```
+
+The `--torch-backend=auto` flag automatically detects your GPU and installs the appropriate PyTorch version. If you are on Windows and have a Intel GPU (XPU), you will need to use `--torch-backend=xpu` as UV will not automatically detect it.
+
 ### Install without UV
 
 Install Demucs using the following command:
