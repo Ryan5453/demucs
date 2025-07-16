@@ -34,7 +34,7 @@ With UV, you can use the `uvx` command to run Demucs without installing it perma
 uvx --with demucs-inference demucs separate audio_file.mp3
 ```
 
-**Note**: Demucs does not specify a specific PyTorch wheel for CUDA. This means that GPUs will only work on Apple Silicon or Linux with CUDA 12.6 when using this method.
+**Note**: Demucs does not specify a specific PyTorch wheel. This means that GPUs will only work on Apple Silicon or Linux with CUDA 12.6 when using this method.
 
 ### Install using UV
 
@@ -54,7 +54,7 @@ Install Demucs using the following command:
 pip install demucs-inference
 ```
 
-**Note**: For (non-Apple Silicon) GPU support, either use `--extra-index-url`  with a PyTorch wheel or install PyTorch with support for your GPU yourself.
+**Note**: Demucs does not specify a specific PyTorch wheel. You should provide one yourself to ensure GPU support.
 
 ## Usage
 
