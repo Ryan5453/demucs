@@ -2,7 +2,6 @@
 
 Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment.
 This is a fork of the [author](https://github.com/adefossez)'s [fork](https://github.com/adefossez/demucs) of the [original Demucs repository](https://github.com/facebookresearch/demucs).
-
 Checkout the [paper](https://arxiv.org/abs/2211.08553) for more information on the model.
 
 ## Installation
