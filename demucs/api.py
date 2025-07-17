@@ -354,6 +354,7 @@ class Separator:
         segment: Optional[int] = None,  # Default is different for each model
         jobs: int = 0,
         verbose: bool = False,
+        compile_model: bool = True,
     ):
         """
         Initialize a Separator with the specified model and parameters.
@@ -369,6 +370,8 @@ class Separator:
         :param segment: Length (in seconds) of each chunk (only used if split=True)
         :param jobs: Number of parallel jobs (0 means automatic)
         :param verbose: Whether to show progress bars during processing (default False for API usage)
+        :param compile_model: Whether to use torch.compile for optimization (default True, requires PyTorch 2.1+)
+                             First run will be slower due to compilation overhead (~10-60s), but subsequent runs are typically 1.2-2x faster.
         """
         self._verbose = verbose
 
@@ -392,6 +395,7 @@ class Separator:
             split=split,
             segment=segment,
             jobs=jobs,
+            compile_model=compile_model,
         )
 
     def update_parameter(
@@ -403,6 +407,7 @@ class Separator:
         segment: Optional[int] | _NotProvided = NotProvided,
         jobs: int | _NotProvided = NotProvided,
         verbose: bool | _NotProvided = NotProvided,
+        compile_model: bool | _NotProvided = NotProvided,
     ):
         """
         Update separation parameters.
@@ -414,6 +419,7 @@ class Separator:
         :param segment: Length (in seconds) of each chunk
         :param jobs: Number of parallel jobs
         :param verbose: Whether to show progress bars during processing
+        :param compile_model: Whether to use torch.compile for optimization
         """
         if not isinstance(device, _NotProvided):
             self._device = device
@@ -431,6 +437,8 @@ class Separator:
             self._jobs = jobs
         if not isinstance(verbose, _NotProvided):
             self._verbose = verbose
+        if not isinstance(compile_model, _NotProvided):
+            self._compile_model = compile_model
 
     def _load_model(self):
         """
@@ -544,6 +552,7 @@ class Separator:
             segment=self._segment,
             num_workers=self._jobs,
             progress=self._verbose,
+            compile_model=self._compile_model,
         )[0]
 
         # Convert tensor output to dictionary of sources

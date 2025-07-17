@@ -19,7 +19,6 @@ from torch.nn import functional as F
 from torch.utils.data import Subset
 
 
-
 def unfold(a, kernel_size, stride):
     """Given input of size [*OT, T], output Tensor of size [*OT, F, K]
     with K the kernel size, by extracting frames with the given stride.
