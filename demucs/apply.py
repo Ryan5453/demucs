@@ -6,8 +6,6 @@
 
 import copy
 import random
-import threading
-from concurrent.futures import ThreadPoolExecutor
 from typing import (
     Any,
     Hashable,
@@ -33,44 +31,12 @@ from torch.nn import functional as F
 from .demucs import Demucs
 from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
-from .utils import center_trim, DummyPoolExecutor
+from .utils import center_trim
 
 # Type alias for all model types
 Model: TypeAlias = Demucs | HDemucs | HTDemucs
 
 console = Console()
-
-# Global weight tensor cache - this optimization is actually useful
-_weight_cache = {}
-_weight_cache_lock = threading.Lock()
-
-
-def _get_weight_tensor(
-    segment_length: int, transition_power: float, device: torch.device
-):
-    """Get or create a cached weight tensor for segmented processing."""
-    key = (segment_length, transition_power, device.type)
-
-    with _weight_cache_lock:
-        if key not in _weight_cache:
-            # Create triangle shaped weight
-            weight = torch.cat(
-                [
-                    torch.arange(1, segment_length // 2 + 1, device=device),
-                    torch.arange(
-                        segment_length - segment_length // 2, 0, -1, device=device
-                    ),
-                ]
-            )
-            # Normalize and apply transition power
-            weight = (weight / weight.max()) ** transition_power
-            _weight_cache[key] = weight.clone()
-
-    # Return a copy on the correct device
-    cached_weight = _weight_cache[key]
-    if cached_weight.device != device:
-        return cached_weight.to(device)
-    return cached_weight
 
 
 class BagOfModels(nn.Module):
@@ -205,7 +171,6 @@ def apply_model(
     num_workers=0,
     callback=None,
     callback_arg=None,
-    compile_model=False,
 ):
     """
     Apply model to a given mixture.
@@ -226,7 +191,6 @@ def apply_model(
         num_workers (int): if non zero, device is 'cpu', how many threads to
             use in parallel.
         segment (float or None): override the model segment parameter.
-        compile_model (bool): if True, use torch.compile for optimization.
     """
     if device is None:
         device = mix.device
@@ -237,7 +201,17 @@ def apply_model(
     callback_arg["model_idx_in_bag"] = 0
     callback_arg["shift_idx"] = 0
     callback_arg["segment_offset"] = 0
-
+    kwargs = {
+        "shifts": shifts,
+        "split": split,
+        "overlap": overlap,
+        "transition_power": transition_power,
+        "progress": progress,
+        "device": device,
+        "segment": segment,
+        "num_workers": num_workers,
+        "callback_arg": callback_arg,
+    }
     out: float | Tensor
     res: float | Tensor
     if isinstance(model, BagOfModels):
@@ -248,8 +222,7 @@ def apply_model(
         totals = [0.0] * len(model.sources)
         callback_arg["models"] = len(model.models)
         for sub_model, model_weights in zip(model.models, model.weights):
-            # Create callback for this specific model
-            model_callback = (
+            kwargs["callback"] = (
                 lambda d, i=callback_arg["model_idx_in_bag"]: callback(
                     _replace_dict(d, ("model_idx_in_bag", i))
                 )
@@ -259,26 +232,11 @@ def apply_model(
             original_model_device = next(iter(sub_model.parameters())).device
             sub_model.to(device)
 
-            # Simple recursive call - just pass what we need
-            res = apply_model(
-                sub_model,
-                mix,
-                device=device,
-                shifts=shifts,
-                split=split,
-                overlap=overlap,
-                transition_power=transition_power,
-                progress=progress,
-                segment=segment,
-                num_workers=num_workers,
-                callback=model_callback,
-                callback_arg=callback_arg,
-                compile_model=compile_model,
-            )
+            res = apply_model(sub_model, mix, **kwargs, callback_arg=callback_arg)
             out = res
             sub_model.to(original_model_device)
             for k, inst_weight in enumerate(model_weights):
-                out[:, k, :, :] = out[:, k, :, :] * inst_weight  # Non-inplace
+                out[:, k, :, :] *= inst_weight
                 totals[k] += inst_weight
             estimates += out
             del out
@@ -286,30 +244,17 @@ def apply_model(
 
         assert isinstance(estimates, Tensor)
         for k in range(estimates.shape[1]):
-            estimates[:, k, :, :] = estimates[:, k, :, :] / totals[k]  # Non-inplace
+            estimates[:, k, :, :] /= totals[k]
         return estimates
 
     if "models" not in callback_arg:
         callback_arg["models"] = 1
-    # Only move model to device if necessary
-    current_device = next(iter(model.parameters())).device
-    if current_device != device:
-        model.to(device)
+    model.to(device)
     model.eval()
-
-    # Optionally compile the model for better performance
-    if compile_model and hasattr(torch, "compile"):
-        try:
-            # Check if model is already compiled
-            if not hasattr(model, "_is_compiled"):
-                model = torch.compile(model, mode="reduce-overhead")
-                model._is_compiled = True
-        except Exception:
-            # Fall back to uncompiled model if compilation fails
-            pass
     assert transition_power >= 1, "transition_power < 1 leads to weird behavior."
     batch, channels, length = mix.shape
     if shifts:
+        kwargs["shifts"] = 0
         max_shift = int(0.5 * model.samplerate)
         mix = tensor_chunk(mix)
         assert isinstance(mix, TensorChunk)
@@ -318,34 +263,19 @@ def apply_model(
         for shift_idx in range(shifts):
             offset = random.randint(0, max_shift)
             shifted = TensorChunk(padded_mix, offset, length + max_shift - offset)
-            # Create callback for this specific shift
-            shift_callback = (
+            kwargs["callback"] = (
                 lambda d, i=shift_idx: callback(_replace_dict(d, ("shift_idx", i)))
                 if callback
                 else None
             )
-            # Simple recursive call - no shifts this time
-            res = apply_model(
-                model,
-                shifted,
-                device=device,
-                shifts=0,
-                split=split,
-                overlap=overlap,
-                transition_power=transition_power,
-                progress=progress,
-                segment=segment,
-                num_workers=num_workers,
-                callback=shift_callback,
-                callback_arg=callback_arg,
-                compile_model=compile_model,
-            )
+            res = apply_model(model, shifted, **kwargs, callback_arg=callback_arg)
             shifted_out = res
             out += shifted_out[..., max_shift - offset :]
         out /= shifts
         assert isinstance(out, Tensor)
         return out
     elif split:
+        kwargs["split"] = False
         out = torch.zeros(
             batch, len(model.sources), channels, length, device=mix.device
         )
@@ -356,39 +286,37 @@ def apply_model(
         segment_length: int = int(model.samplerate * segment)
         stride = int((1 - overlap) * segment_length)
         offsets = range(0, length, stride)
-        # Get cached weight tensor for efficiency
-        weight = _get_weight_tensor(segment_length, transition_power, device)
+        # We start from a triangle shaped weight, with maximal weight in the middle
+        # of the segment. Then we normalize and take to the power `transition_power`.
+        # Large values of transition power will lead to sharper transitions.
+        weight = torch.cat(
+            [
+                torch.arange(1, segment_length // 2 + 1, device=device),
+                torch.arange(
+                    segment_length - segment_length // 2, 0, -1, device=device
+                ),
+            ]
+        )
         assert len(weight) == segment_length
-        # Create thread pool only when needed
-        if num_workers > 0 and device.type == "cpu":
-            pool = ThreadPoolExecutor(max_workers=num_workers)
-        else:
-            pool = DummyPoolExecutor()
-
+        # If the overlap < 50%, this will translate to linear transition when
+        # transition_power is 1.
+        weight = (weight / weight.max()) ** transition_power
         futures = []
         for offset in offsets:
             chunk = TensorChunk(mix, offset, segment_length)
-            # Create callback for this specific chunk
-            chunk_callback = (
-                lambda d, i=offset: callback(_replace_dict(d, ("segment_offset", i)))
-                if callback
-                else None
-            )
             future = pool.submit(
                 apply_model,
                 model,
                 chunk,
-                device=device,
-                shifts=shifts,
-                split=False,
-                overlap=overlap,
-                transition_power=transition_power,
-                progress=progress,
-                segment=segment,
-                num_workers=num_workers,
-                callback=chunk_callback,
+                **kwargs,
                 callback_arg=callback_arg,
-                compile_model=compile_model,
+                callback=(
+                    lambda d, i=offset: callback(
+                        _replace_dict(d, ("segment_offset", i))
+                    )
+                    if callback
+                    else None
+                ),
             )
             futures.append((future, offset))
             offset += segment_length
@@ -434,10 +362,6 @@ def apply_model(
                     raise
         assert sum_weight.min() > 0
         out /= sum_weight
-
-        # Clean up the thread pool
-        pool.shutdown(wait=True)
-
         assert isinstance(out, Tensor)
         return out
     else:
@@ -450,27 +374,14 @@ def apply_model(
             valid_length = length
         mix = tensor_chunk(mix)
         assert isinstance(mix, TensorChunk)
-        padded_mix = mix.padded(valid_length)
-        # Only transfer to device if necessary
-        if padded_mix.device != device:
-            padded_mix = padded_mix.to(device)
-
-        # Simple callback execution - no locks needed
-        if callback is not None:
-            callback(_replace_dict(callback_arg, ("state", "start")))  # type: ignore
-
-        # Use mixed precision for compatible devices
-        autocast_enabled = device.type in ["cuda", "xpu"]
-        autocast_dtype = torch.float16 if device.type == "cuda" else torch.bfloat16
-
-        with torch.inference_mode():
-            if autocast_enabled:
-                with torch.autocast(device_type=device.type, dtype=autocast_dtype):
-                    out = model(padded_mix)
-            else:
-                out = model(padded_mix)
-
-        if callback is not None:
-            callback(_replace_dict(callback_arg, ("state", "end")))  # type: ignore
+        padded_mix = mix.padded(valid_length).to(device)
+        with lock:
+            if callback is not None:
+                callback(_replace_dict(callback_arg, ("state", "start")))  # type: ignore
+        with torch.no_grad():
+            out = model(padded_mix)
+        with lock:
+            if callback is not None:
+                callback(_replace_dict(callback_arg, ("state", "end")))  # type: ignore
         assert isinstance(out, Tensor)
         return center_trim(out, length)

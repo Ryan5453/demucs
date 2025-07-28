@@ -370,73 +370,6 @@ def get_models() -> Dict[str, Dict]:
         raise RuntimeError("Invalid metadata structure: no models or collections found")
 
 
-def should_compile_model(tracks: List[Path], device: str) -> bool:
-    """
-    Determine whether model compilation would be beneficial based on the number
-    of tracks and estimated processing time.
-
-    :param tracks: List of audio file paths
-    :param device: Processing device (cuda, cpu, etc.)
-    :return: True if compilation is recommended, False otherwise
-    """
-    if not tracks:
-        return False
-
-    # Don't compile for CPU processing - limited benefit and may be slower
-    if device == "cpu":
-        return False
-
-    # Compilation overhead: 10-60 seconds (use conservative 40s estimate)
-    COMPILATION_OVERHEAD = 40.0
-
-    # Speedup factor: 1.2-2x (use conservative 1.3x estimate)
-    SPEEDUP_FACTOR = 1.3
-
-    # Estimate processing time per track based on file size
-    # Rough estimate: 1MB takes about 0.5 seconds on modern GPU
-    PROCESSING_TIME_PER_MB = 0.5
-
-    total_size_mb = 0.0
-    valid_tracks = 0
-
-    for track in tracks:
-        if track.exists():
-            size_mb = track.stat().st_size / (1024 * 1024)
-            total_size_mb += size_mb
-            valid_tracks += 1
-
-    if valid_tracks == 0:
-        return False
-
-    # Estimate total processing time without compilation
-    estimated_processing_time = total_size_mb * PROCESSING_TIME_PER_MB
-
-    # Estimate time with compilation
-    time_with_compilation = COMPILATION_OVERHEAD + (
-        estimated_processing_time / SPEEDUP_FACTOR
-    )
-
-    # Calculate the benefit threshold - compile if we save at least 5 seconds
-    MINIMUM_BENEFIT = 5.0
-    time_saved = estimated_processing_time - time_with_compilation
-
-    # Additional heuristics:
-    # - Always compile for 4+ tracks (batch processing scenario)
-    # - Always compile if estimated processing time > 60 seconds
-    # - Never compile for single small files
-
-    if valid_tracks >= 4:
-        return True
-
-    if estimated_processing_time > 60:
-        return True
-
-    if valid_tracks == 1 and total_size_mb < 10:  # Single file < 10MB
-        return False
-
-    return time_saved >= MINIMUM_BENEFIT
-
-
 def main_command(
     # Input/Output
     tracks: Annotated[
@@ -502,16 +435,6 @@ def main_command(
         float,
         typer.Option(help="Overlap between the splits.", rich_help_panel="Processing"),
     ] = 0.25,
-    compile_model: Annotated[
-        Optional[bool],
-        typer.Option(
-            help="Use torch.compile for faster inference. When not specified, "
-            "automatically determined based on number of tracks and estimated processing time. "
-            "Compilation adds ~10-60s overhead but provides 1.2-2x speedup for subsequent processing. "
-            "Use --compile-model to force enable, --no-compile-model to force disable.",
-            rich_help_panel="Processing",
-        ),
-    ] = None,
     # Stem Selection
     stem: Annotated[
         Optional[str],
@@ -569,25 +492,6 @@ def main_command(
     if name == DEFAULT_MODEL:
         console.print(f"[bold]Using default model: [cyan]{name}[/cyan][/bold]")
 
-    # Determine whether to compile the model
-    if compile_model is None:
-        # Auto-determine based on tracks and device
-        compile_model = should_compile_model(tracks, device)
-        if compile_model:
-            console.print(
-                "[bold cyan]Auto-enabling model compilation[/bold cyan] (beneficial for multiple tracks)"
-            )
-        else:
-            console.print(
-                "[dim]Auto-disabling model compilation[/dim] (not beneficial for current workload)"
-            )
-    elif compile_model:
-        console.print(
-            "[bold yellow]Model compilation forced on[/bold yellow] (first run will be slower)"
-        )
-    else:
-        console.print("[dim]Model compilation disabled[/dim]")
-
     try:
         separator = Separator(
             model=name,
@@ -598,7 +502,6 @@ def main_command(
             jobs=jobs,
             segment=segment,
             verbose=True,
-            compile_model=compile_model,
         )
     except Exception as error:
         console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
