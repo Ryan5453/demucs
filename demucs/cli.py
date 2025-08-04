@@ -116,6 +116,7 @@ def download_models_command(
         Progress,
         SpinnerColumn,
         TaskProgressColumn,
+        TextColumn,
         TimeElapsedColumn,
     )
 
@@ -188,8 +189,8 @@ def download_models_command(
         TaskProgressColumn(),
         TimeElapsedColumn(),
         console=console,
-        transient=False,  # Make sure this is False to keep bars visible
-        refresh_per_second=4,  # Even lower refresh rate to reduce flickering
+        transient=False,  # Keep bars visible after completion
+        refresh_per_second=2,  # Moderate refresh rate for better responsiveness
         expand=True,  # Allow the progress bars to use the full width
     ) as progress_bar:
         for name in to_download:

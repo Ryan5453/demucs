@@ -176,6 +176,9 @@ class ModelRepository:
         expected_checksum: str,
         progress_bar: Optional[Progress] = None,
         task_id: Optional[TaskID] = None,
+        model_name: str = "",
+        layer_index: int = 1,
+        total_layers: int = 1,
     ) -> AnyModel:
         """Download and load a model layer from a URL."""
         # Download the file to memory first
@@ -188,37 +191,57 @@ class ModelRepository:
                 buffer = BytesIO()
                 downloaded_size = 0
 
-                # Update progress bar for download phase (0-90%)
+                # Calculate base progress from previous layers
+                layer_base_progress = ((layer_index - 1) / total_layers) * 100
+                layer_max_progress = (layer_index / total_layers) * 100
+                
+                # Update progress bar for download phase
                 if progress_bar and task_id:
-                    progress_bar.update(task_id, total=100, completed=0)
                     if total_size:
-                        progress_bar.update(
-                            task_id,
-                            description=f"Downloading {os.path.basename(url)} ({format_file_size(total_size)})",
-                        )
+                        desc = f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers} ({format_file_size(total_size)})"
                     else:
-                        progress_bar.update(
-                            task_id, description=f"Downloading {os.path.basename(url)}"
-                        )
+                        desc = f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers}"
+                    
+                    progress_bar.update(
+                        task_id,
+                        description=desc,
+                        completed=layer_base_progress
+                    )
 
+                chunk_counter = 0
                 for chunk in response.iter_bytes(chunk_size=8192):
                     buffer.write(chunk)
                     downloaded_size += len(chunk)
+                    chunk_counter += 1
 
-                    # Update progress to show download progress (0-90%)
-                    if progress_bar and task_id and total_size:
-                        progress = (
-                            downloaded_size / total_size
-                        ) * 90  # Use 90% for download
-                        progress_bar.update(task_id, completed=progress)
+                    # Update progress every few chunks to avoid too frequent updates
+                    if progress_bar and task_id is not None and (chunk_counter % 20 == 0):
+                        if total_size and total_size > 0:
+                            # Calculate progress within this layer (0-90% of layer progress)
+                            layer_download_progress = (downloaded_size / total_size) * 0.9
+                            current_progress = layer_base_progress + (layer_download_progress * (layer_max_progress - layer_base_progress))
+                        else:
+                            # If no total_size, show incremental progress based on downloaded chunks
+                            # Use a simple heuristic: assume each chunk represents some progress
+                            chunk_count = downloaded_size // 8192  # Number of 8KB chunks downloaded
+                            # Estimate progress based on chunks (more chunks = more progress, but cap at 90% of layer)
+                            estimated_progress = min(chunk_count * 0.5, 90)  # 0.5% per chunk, max 90%
+                            current_progress = layer_base_progress + (estimated_progress / 100) * (layer_max_progress - layer_base_progress)
+                        
+                        # Update progress
+                        progress_bar.update(task_id, completed=current_progress)
 
                 buffer.seek(0)
 
                 # Try to load as a PyTorch model directly from memory
                 try:
                     if progress_bar and task_id:
+                        # 90% of this layer's progress for loading
+                        loading_progress = layer_base_progress + (0.9 * (layer_max_progress - layer_base_progress))
                         progress_bar.update(
-                            task_id, description="Loading model...", completed=95
+                            task_id, 
+                            description=f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers} (loading...)",
+                            completed=loading_progress
                         )
 
                     # Save to a temporary file first
@@ -232,10 +255,12 @@ class ModelRepository:
                     model_data = torch.load(tmp_path, map_location="cpu", weights_only=False)
 
                     if progress_bar and task_id:
+                        # 95% of this layer's progress for verification
+                        verify_progress = layer_base_progress + (0.95 * (layer_max_progress - layer_base_progress))
                         progress_bar.update(
                             task_id,
-                            description="Verifying and caching...",
-                            completed=98,
+                            description=f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers} (verifying...)",
+                            completed=verify_progress,
                         )
 
                     # If successful, save to cache
@@ -250,7 +275,12 @@ class ModelRepository:
                         raise
 
                     if progress_bar and task_id:
-                        progress_bar.update(task_id, completed=100)
+                        # This layer is complete
+                        progress_bar.update(
+                            task_id, 
+                            completed=layer_max_progress,
+                            description=f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers} (complete)"
+                        )
 
                     return load_model(model_data)
 
@@ -293,8 +323,9 @@ class ModelRepository:
         # Download each layer
         layers = []
         cache_dir = get_cache_dir()
+        total_layers = len(layer_checksums)
 
-        for layer_checksum in layer_checksums:
+        for i, layer_checksum in enumerate(layer_checksums):
             if layer_checksum not in self._layer_urls:
                 raise ModelLoadingError(f"Layer {layer_checksum} not found in metadata")
 
@@ -313,16 +344,28 @@ class ModelRepository:
                     # Try to load the model
                     layer = load_model(torch.load(cache_path, map_location="cpu", weights_only=False))
                     layers.append(layer)
+                    
+                    # Update progress for cached layer
+                    if progress_bar and task_id:
+                        # Calculate overall progress: (completed_layers / total_layers) * 100
+                        layer_progress = ((i + 1) / total_layers) * 100
+                        progress_bar.update(
+                            task_id, 
+                            completed=layer_progress,
+                            description=f"[cyan]Downloading {name}[/cyan] - Layer {i + 1}/{total_layers} (cached)"
+                        )
                     continue
                 except (ModelLoadingError, Exception):
                     # If validation or loading fails, delete and redownload
                     if cache_path.exists():
                         cache_path.unlink()
 
-            # Update progress bar description
+            # Update progress bar description for download
             if progress_bar and task_id:
-                desc = f"Downloading layer {layer_checksum} ({len(layers) + 1}/{len(layer_checksums)})"
-                progress_bar.update(task_id, description=desc)
+                progress_bar.update(
+                    task_id, 
+                    description=f"[cyan]Downloading {name}[/cyan] - Layer {i + 1}/{total_layers}"
+                )
 
             # Download and load the layer
             layer = self._download_and_load_layer(
@@ -331,8 +374,16 @@ class ModelRepository:
                 expected_checksum=layer_checksum,
                 progress_bar=progress_bar,
                 task_id=task_id,
+                model_name=name,
+                layer_index=i + 1,
+                total_layers=total_layers,
             )
             layers.append(layer)
+            
+            # Update progress after successful layer download
+            if progress_bar and task_id:
+                layer_progress = ((i + 1) / total_layers) * 100
+                progress_bar.update(task_id, completed=layer_progress)
 
         # Create BagOfModels from the layers
         weights = model_info.get("weights")
@@ -371,7 +422,8 @@ class ModelRepository:
         removed_any = False
 
         # Remove all layer files for this model
-        for layer_checksum in self._models[name].get("models", []):
+        for layer_info in self._models[name].get("models", []):
+            layer_checksum = layer_info["checksum"]
             filename = f"{layer_checksum}.th"
             layer_path = cache_dir / filename
             if layer_path.exists():
