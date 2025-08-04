@@ -2,140 +2,80 @@
   "models": {
     "mdx": {
       "models": [
-        "ca8a1789",
-        "df64c5a0",
-        "fbe77f30",
-        "6fad65c8"
+        {"remote": "mdx_final/0d19c1c6-0f06f20e.th", "checksum": "ca8a1789"},
+        {"remote": "mdx_final/5d2d6c55-db83574e.th", "checksum": "df64c5a0"},
+        {"remote": "mdx_final/7d865c68-3d5dd56b.th", "checksum": "fbe77f30"},
+        {"remote": "mdx_final/7ecf8ec1-70f50cc9.th", "checksum": "6fad65c8"}
       ],
       "weights": [
-        [
-          1.0,
-          1.0,
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1.0,
-          0.0,
-          0.0
-        ],
-        [
-          1.0,
-          0.0,
-          1.0,
-          1.0
-        ],
-        [
-          1.0,
-          0.0,
-          1.0,
-          1.0
-        ]
+        [1.0, 1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [1.0, 0.0, 1.0, 1.0],
+        [1.0, 0.0, 1.0, 1.0]
       ],
       "segment": 44
     },
     "mdx_extra": {
       "models": [
-        "73abf175",
-        "cbd4abc5",
-        "d02525ff",
-        "9aef4d64"
+        {"remote": "mdx_final/a1d90b5c-ae9d2452.th", "checksum": "73abf175"},
+        {"remote": "mdx_final/c511e2ab-fe698775.th", "checksum": "cbd4abc5"},
+        {"remote": "mdx_final/cfa93e08-61801ae1.th", "checksum": "d02525ff"},
+        {"remote": "mdx_final/e51eebcc-c1b80bdd.th", "checksum": "9aef4d64"}
       ],
       "segment": 44
     },
     "mdx_q": {
       "models": [
-        "3fd82607",
-        "8778635e",
-        "196e0e1b",
-        "18378783"
+        {"remote": "mdx_final/6b9c2ca1-3fd82607.th", "checksum": "3fd82607"},
+        {"remote": "mdx_final/b72baf4e-8778635e.th", "checksum": "8778635e"},
+        {"remote": "mdx_final/42e558d4-196e0e1b.th", "checksum": "196e0e1b"},
+        {"remote": "mdx_final/305bc58f-18378783.th", "checksum": "18378783"}
       ],
       "weights": [
-        [
-          1.0,
-          1.0,
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1.0,
-          0.0,
-          0.0
-        ],
-        [
-          1.0,
-          0.0,
-          1.0,
-          1.0
-        ],
-        [
-          1.0,
-          0.0,
-          1.0,
-          1.0
-        ]
+        [1.0, 1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [1.0, 0.0, 1.0, 1.0],
+        [1.0, 0.0, 1.0, 1.0]
       ],
       "segment": 44
     },
     "mdx_extra_q": {
       "models": [
-        "4a16d450",
-        "e5a9386e",
-        "a89dd0ee",
-        "a905dd85"
+        {"remote": "mdx_final/83fc094f-4a16d450.th", "checksum": "4a16d450"},
+        {"remote": "mdx_final/464b36d7-e5a9386e.th", "checksum": "e5a9386e"},
+        {"remote": "mdx_final/14fc6a69-a89dd0ee.th", "checksum": "a89dd0ee"},
+        {"remote": "mdx_final/7fd6ef75-a905dd85.th", "checksum": "a905dd85"}
       ],
       "segment": 44
     },
     "hdemucs_mmi": {
       "models": [
-        "ce8f4e35"
+        {"remote": "hybrid_transformer/ce8f4e35.th", "checksum": "ce8f4e35"}
       ],
       "segment": 44
     },
     "htdemucs": {
       "models": [
-        "93158b9f"
+        {"remote": "hybrid_transformer/93158b9f.th", "checksum": "93158b9f"}
       ]
     },
     "htdemucs_ft": {
       "models": [
-        "5b4673ab",
-        "1ad92346",
-        "872bc4b2",
-        "88879611"
+        {"remote": "hybrid_transformer/955717e8-8726e21a.th", "checksum": "5b4673ab"},
+        {"remote": "hybrid_transformer/f7e0c4bc-ba3fe64a.th", "checksum": "1ad92346"},
+        {"remote": "hybrid_transformer/d12395a8-e57c48e6.th", "checksum": "872bc4b2"},
+        {"remote": "hybrid_transformer/92cfc3b6-ef3bcb9c.th", "checksum": "88879611"}
       ],
       "weights": [
-        [
-          1.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          1.0,
-          0.0,
-          0.0
-        ],
-        [
-          0.0,
-          0.0,
-          1.0,
-          0.0
-        ],
-        [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ]
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0]
       ]
     },
     "htdemucs_6s": {
       "models": [
-        "bb10289e"
+        {"remote": "hybrid_transformer/5c90dfd2-34c22ccb.th", "checksum": "bb10289e"}
       ]
     }
   }

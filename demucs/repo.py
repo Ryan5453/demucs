@@ -25,8 +25,7 @@ from .errors import ModelLoadingError
 # Type alias for models
 AnyModel: TypeAlias = Model | BagOfModels
 
-# Base URL for model downloads
-BASE_MODEL_URL = "https://github.com/Ryan5453/demucs/releases/download/v5.0.0-models/"
+BASE_CDN_URL = "https://dl.fbaipublicfiles.com/demucs"
 
 
 def check_checksum(path: Path, checksum: str):
@@ -81,14 +80,7 @@ def get_cache_dir() -> Path:
     return cache_dir
 
 
-def generate_model_url(checksum: str) -> str:
-    """
-    Generate a model download URL from a checksum.
 
-    :param checksum: Model checksum identifier
-    :return: Full download URL for the model
-    """
-    return f"{BASE_MODEL_URL}{checksum}.th"
 
 
 class ModelRepository:
@@ -114,12 +106,14 @@ class ModelRepository:
                 "The expected format is a top-level 'models' dictionary."
             )
 
-        # Generate layer URLs dynamically from model checksums
+        # Generate layer URLs from model remote paths
         self._layer_urls = {}
         for model_name, model_info in self._models.items():
             if "models" in model_info:
-                for checksum in model_info["models"]:
-                    self._layer_urls[checksum] = generate_model_url(checksum)
+                for model_entry in model_info["models"]:
+                    checksum = model_entry["checksum"]
+                    remote_path = model_entry["remote"]
+                    self._layer_urls[checksum] = f"{BASE_CDN_URL}/{remote_path}"
 
     def has_model(self, name: str) -> bool:
         """Check if a model exists."""
@@ -158,9 +152,10 @@ class ModelRepository:
                 components = {}
 
                 for component in component_layers:
-                    if component in cached_layers:
-                        components[component] = cached_layers[component]
-                        total_size += cached_layers[component]["size_bytes"]
+                    checksum = component["checksum"]
+                    if checksum in cached_layers:
+                        components[checksum] = cached_layers[checksum]
+                        total_size += cached_layers[checksum]["size_bytes"]
                     else:
                         all_cached = False
 
@@ -293,7 +288,7 @@ class ModelRepository:
             )
 
         model_info = self._models[name]
-        layer_checksums = model_info["models"]
+        layer_checksums = [entry["checksum"] for entry in model_info["models"]]
 
         # Download each layer
         layers = []
