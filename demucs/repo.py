@@ -229,7 +229,7 @@ class ModelRepository:
                         tmp_file.write(buffer.getvalue())
 
                     # Load the model to verify it's valid
-                    model_data = torch.load(tmp_path, map_location="cpu")
+                    model_data = torch.load(tmp_path, map_location="cpu", weights_only=False)
 
                     if progress_bar and task_id:
                         progress_bar.update(
@@ -311,7 +311,7 @@ class ModelRepository:
                     check_checksum(cache_path, layer_checksum)
 
                     # Try to load the model
-                    layer = load_model(torch.load(cache_path, map_location="cpu"))
+                    layer = load_model(torch.load(cache_path, map_location="cpu", weights_only=False))
                     layers.append(layer)
                     continue
                 except (ModelLoadingError, Exception):
