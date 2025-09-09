@@ -39,3 +39,19 @@ class SegmentValidationError(DemucsError):
     """
 
     pass
+
+
+class InvalidStemError(DemucsError):
+    """
+    Exception raised when a stem name is invalid.
+    """
+
+    pass
+
+
+class InvalidComplementMethodError(DemucsError):
+    """
+    Exception raised when a complement method is invalid.
+    """
+
+    pass
