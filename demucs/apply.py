@@ -67,8 +67,8 @@ class BagOfModels(nn.Module):
             assert other.samplerate == first.samplerate
             assert other.audio_channels == first.audio_channels
             if segment is not None:
-                if not isinstance(other, HTDemucs) or segment <= other.segment:
-                    other.segment = segment
+                if not isinstance(other, HTDemucs) or segment <= other.max_allowed_segment:
+                    other.max_allowed_segment = segment
 
         self.audio_channels = first.audio_channels
         self.samplerate = first.samplerate
@@ -88,7 +88,7 @@ class BagOfModels(nn.Module):
         max_allowed_segment = float("inf")
         for model in self.models:
             if isinstance(model, HTDemucs):
-                max_allowed_segment = min(max_allowed_segment, float(model.segment))
+                max_allowed_segment = min(max_allowed_segment, float(model.max_allowed_segment))
         return max_allowed_segment
 
     def forward(self, x):
@@ -281,7 +281,7 @@ def apply_model(
         )
         sum_weight = torch.zeros(length, device=mix.device)
         if segment is None:
-            segment = model.segment
+            segment = model.max_allowed_segment
         assert segment is not None and segment > 0.0
         segment_length: int = int(model.samplerate * segment)
         stride = int((1 - overlap) * segment_length)

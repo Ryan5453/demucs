@@ -229,7 +229,7 @@ class HTDemucs(nn.Module):
         self.bottom_channels = bottom_channels
         self.channels = channels
         self.samplerate = samplerate
-        self.segment = segment
+        self.max_allowed_segment = segment
         self.use_train_segment = use_train_segment
         self.nfft = nfft
         self.hop_length = nfft // 4
@@ -514,7 +514,7 @@ class HTDemucs(nn.Module):
         """
         if not self.use_train_segment:
             return length
-        training_length = int(self.segment * self.samplerate)
+        training_length = int(self.max_allowed_segment * self.samplerate)
         if training_length < length:
             raise ValueError(
                 f"Given length {length} is longer than "
@@ -527,9 +527,9 @@ class HTDemucs(nn.Module):
         length_pre_pad = None
         if self.use_train_segment:
             if self.training:
-                self.segment = Fraction(mix.shape[-1], self.samplerate)
+                self.max_allowed_segment = Fraction(mix.shape[-1], self.samplerate)
             else:
-                training_length = int(self.segment * self.samplerate)
+                training_length = int(self.max_allowed_segment * self.samplerate)
                 if mix.shape[-1] < training_length:
                     length_pre_pad = mix.shape[-1]
                     mix = F.pad(mix, (0, training_length - length_pre_pad))

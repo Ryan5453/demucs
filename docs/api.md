@@ -1,3 +1,3 @@
 # Demucs API
 
-TODO
+The Demucs Python API is primarily 

@@ -117,7 +117,7 @@ class Predictor(BasePredictor):
 
         # Validate segment parameter against model limits
         if segment is not None:
-            max_segment = separator.max_allowed_segment
+            max_segment = separator.model.max_allowed_segment
             if segment > max_segment:
                 print(
                     f"⚠️  Warning: Segment {segment}s exceeds model limit {max_segment}s, using model maximum"

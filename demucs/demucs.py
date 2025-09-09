@@ -273,7 +273,7 @@ class Demucs(nn.Module):
         rescale=0.1,
         # Metadata
         samplerate=44100,
-        segment=4 * 10,
+        max_allowed_segment=4 * 10,
     ):
         """
         Args:
@@ -326,7 +326,7 @@ class Demucs(nn.Module):
         self.channels = channels
         self.normalize = normalize
         self.samplerate = samplerate
-        self.segment = segment
+        self.max_allowed_segment = max_allowed_segment
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
         self.skip_scales = nn.ModuleList()

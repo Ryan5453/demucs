@@ -245,22 +245,6 @@ class Separator:
         self.audio_channels = self.model.audio_channels
         self.sample_rate = self.model.samplerate
 
-    def _get_max_allowed_segment(self) -> float:
-        """
-        Get the maximum allowed segment length for the current model.
-
-        :return: Maximum allowed segment length in seconds
-        """
-        from .htdemucs import HTDemucs
-        from .apply import BagOfModels
-
-        if isinstance(self._model, HTDemucs):
-            return float(self._model.segment)
-        elif isinstance(self._model, BagOfModels):
-            return self._model.max_allowed_segment
-        else:
-            # For other model types, no segment restriction
-            return float("inf")
 
     def _validate_segment(self, segment: Optional[int]) -> None:
         """
@@ -272,7 +256,7 @@ class Separator:
         if segment is None:
             return
 
-        max_allowed = self._get_max_allowed_segment()
+        max_allowed = self.model.max_allowed_segment
         if segment > max_allowed:
             model_name = getattr(self._model, "name", self._name)
             raise SegmentValidationError(

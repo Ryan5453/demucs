@@ -504,7 +504,7 @@ class HDemucs(nn.Module):
         self.depth = depth
         self.channels = channels
         self.samplerate = samplerate
-        self.segment = segment
+        self.max_allowed_segment = segment
 
         self.nfft = nfft
         self.hop_length = nfft // 4
