@@ -14,7 +14,7 @@ from openunmix.filtering import wiener
 from torch import nn
 from torch.nn import functional as F
 
-from .demucs import rescale_module
+from .blocks import rescale_module
 from .hdemucs import HDecLayer, HEncLayer, MultiWrap, ScaledEmbedding, pad1d
 from .states import capture_init
 from .transformer import CrossTransformerEncoder

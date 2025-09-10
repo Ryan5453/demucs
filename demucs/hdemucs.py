@@ -14,7 +14,7 @@ from openunmix.filtering import wiener
 from torch import Tensor, nn
 from torch.nn import functional as F
 
-from .demucs import DConv, rescale_module
+from .blocks import DConv, rescale_module
 from .states import capture_init
 from .utils import ispectro, spectro
 

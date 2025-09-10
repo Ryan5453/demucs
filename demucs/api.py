@@ -15,7 +15,7 @@ from torch import Tensor
 from enum import Enum
 from .apply import apply_model
 from .audio import ClipMode, convert_audio, save_audio, prevent_clip
-from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
+from .pretrained import METADATA_PATH, get_model
 from .repo import AnyModel, ModelRepository
 from .errors import (
     LoadAudioError,
@@ -225,7 +225,7 @@ class Separator:
 
     def __init__(
         self,
-        model: str | AnyModel = DEFAULT_MODEL,
+        model: str | AnyModel = "htdemucs",
         device: str = "cuda"
         if torch.cuda.is_available()
         else "mps"

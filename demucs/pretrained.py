@@ -20,7 +20,6 @@ METADATA_PATH = Path(__file__).parent / "metadata.json"
 console = Console()
 
 SOURCES = ["drums", "bass", "other", "vocals"]
-DEFAULT_MODEL = "htdemucs"
 
 
 def get_model(

@@ -94,12 +94,3 @@ def set_state(model, state, quantizer=None):
     else:
         model.load_state_dict(state)
     return state
-
-
-def capture_init(init):
-    @functools.wraps(init)
-    def __init__(self, *args, **kwargs):
-        self._init_args_kwargs = (args, kwargs)
-        init(self, *args, **kwargs)
-
-    return __init__

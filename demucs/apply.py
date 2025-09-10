@@ -28,13 +28,11 @@ from rich.progress import (
 from torch import Tensor
 from torch.nn import functional as F
 
-from .demucs import Demucs
 from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
 from .utils import center_trim
 
-# Type alias for all model types
-Model: TypeAlias = Demucs | HDemucs | HTDemucs
+Model: TypeAlias = HDemucs | HTDemucs
 
 console = Console()
 
