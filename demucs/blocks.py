@@ -231,5 +231,3 @@ class LocalState(nn.Module):
             result = torch.cat([result, time_sig], 2)
         result = result.reshape(B, -1, T)
         return x + self.proj(result)
-
-

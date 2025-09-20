@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 from io import BytesIO
 
 import torch
@@ -167,6 +167,7 @@ class SeparatedSources:
             finally:
                 buffer.close()
 
+
 class Separator:
     """
     Audio source separation using Demucs models.
@@ -194,7 +195,6 @@ class Separator:
         self.audio_channels = self.model.audio_channels
         self.sample_rate = self.model.samplerate
 
-
     def _to_tensor(
         self, audio: Union[Tensor, PathLike, bytes], sample_rate: Optional[int] = None
     ) -> Tensor:
@@ -211,21 +211,21 @@ class Separator:
             input_sr = sample_rate
         elif isinstance(audio, (str, Path)):
             try:
-                wav, sr = torchaudio.load(str(Path(audio)), backend="ffmpeg")
+                wav, sr = torchaudio.load(str(Path(audio)), backend="soundfile")
                 input_sr = sr
             except Exception as e:
                 raise LoadAudioError(
-                    f"Could not load file {audio} using FFmpeg backend: {e}. "
-                    "Make sure FFmpeg is installed and the file format is supported."
+                    f"Could not load file {audio} using soundfile backend: {e}. "
+                    "Make sure soundfile is installed and the file format is supported."
                 )
         elif isinstance(audio, bytes):
             audio_buffer = BytesIO(audio)
             try:
-                wav, sr = torchaudio.load(audio_buffer, backend="ffmpeg")
+                wav, sr = torchaudio.load(audio_buffer, backend="soundfile")
                 input_sr = sr
             except Exception as e:
                 raise LoadAudioError(
-                    f"Could not load audio from bytes using FFmpeg backend: {e}. "
+                    f"Could not load audio from bytes using soundfile backend: {e}. "
                     "Make sure the audio format is supported."
                 )
             finally:
@@ -261,8 +261,8 @@ class Separator:
         split: bool = True,
         segment: Optional[int] = None,
         jobs: int = 0,
-        verbose: bool = False,
         sample_rate: Optional[int] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ) -> SeparatedSources:
         """
         Separate audio into stems. Accepts tensor, file path, or raw bytes.
@@ -277,8 +277,8 @@ class Separator:
         :param split: Whether to split the input into chunks for processing
         :param segment: Length (in seconds) of each chunk (only used if split=True)
         :param jobs: Number of parallel jobs (0 means automatic)
-        :param verbose: Whether to show progress bars during processing
         :param sample_rate: Sample rate of input audio (only used with tensor input)
+        :param progress_callback: Optional callback for progress updates during audio processing
         :return: SeparatedSources object containing the separated stems
         """
         # Validate segment parameter inline to reduce helpers
@@ -310,7 +310,7 @@ class Separator:
             overlap=overlap,
             segment=segment,
             num_workers=jobs,
-            progress=verbose,
+            progress_callback=progress_callback,
         )[0]
 
         sources = {}

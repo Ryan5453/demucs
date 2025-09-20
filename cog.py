@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) 2025-present Ryan Fahey
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 from cog import BasePredictor, Input, Path
 from typing import Dict, Optional
 import tempfile
@@ -139,7 +145,7 @@ class Predictor(BasePredictor):
             split=split,
             segment=segment,
             jobs=jobs,
-            verbose=verbose,
+            progress_callback=None,
         )
 
         # Parse stems parameter

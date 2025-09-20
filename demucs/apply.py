@@ -6,35 +6,28 @@
 
 import copy
 import random
+import threading
 from typing import (
     Any,
+    Callable,
+    Dict,
     Hashable,
     List,
     Optional,
     TypeAlias,
 )
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import torch.nn as nn
-from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
 from torch import Tensor
 from torch.nn import functional as F
 
 from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
-from .utils import center_trim
+from .utils import center_trim, DummyPoolExecutor
 
 Model: TypeAlias = HDemucs | HTDemucs
-
-console = Console()
 
 
 class BagOfModels(nn.Module):
@@ -65,7 +58,10 @@ class BagOfModels(nn.Module):
             assert other.samplerate == first.samplerate
             assert other.audio_channels == first.audio_channels
             if segment is not None:
-                if not isinstance(other, HTDemucs) or segment <= other.max_allowed_segment:
+                if (
+                    not isinstance(other, HTDemucs)
+                    or segment <= other.max_allowed_segment
+                ):
                     other.max_allowed_segment = segment
 
         self.audio_channels = first.audio_channels
@@ -86,7 +82,9 @@ class BagOfModels(nn.Module):
         max_allowed_segment = float("inf")
         for model in self.models:
             if isinstance(model, HTDemucs):
-                max_allowed_segment = min(max_allowed_segment, float(model.max_allowed_segment))
+                max_allowed_segment = min(
+                    max_allowed_segment, float(model.max_allowed_segment)
+                )
         return max_allowed_segment
 
     def forward(self, x):
@@ -164,7 +162,7 @@ def apply_model(
     split=False,
     overlap=0.25,
     transition_power=1.0,
-    progress=False,
+    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     segment=None,
     num_workers=0,
     callback=None,
@@ -181,7 +179,11 @@ def apply_model(
         split (bool): if True, the input will be broken down in 8 seconds extracts
             and predictions will be performed individually on each and concatenated.
             Useful for model with large memory footprint like Tasnet.
-        progress (bool): if True, show a progress bar (requires split=True)
+        progress_callback: Optional callback function for progress updates during split processing.
+                          Called with (event_type, data) where event_type is one of:
+                          - "processing_start": data = {"total_chunks": int}
+                          - "chunk_complete": data = {"completed_chunks": int, "total_chunks": int}
+                          - "processing_complete": data = {"total_chunks": int}
         device (torch.device, str, or None): if provided, device on which to
             execute the computation, otherwise `mix.device` is assumed.
             When `device` is different from `mix.device`, only local computations will
@@ -204,7 +206,7 @@ def apply_model(
         "split": split,
         "overlap": overlap,
         "transition_power": transition_power,
-        "progress": progress,
+        "progress_callback": progress_callback,
         "device": device,
         "segment": segment,
         "num_workers": num_workers,
@@ -230,7 +232,7 @@ def apply_model(
             original_model_device = next(iter(sub_model.parameters())).device
             sub_model.to(device)
 
-            res = apply_model(sub_model, mix, **kwargs, callback_arg=callback_arg)
+            res = apply_model(sub_model, mix, **kwargs)
             out = res
             sub_model.to(original_model_device)
             for k, inst_weight in enumerate(model_weights):
@@ -249,6 +251,9 @@ def apply_model(
         callback_arg["models"] = 1
     model.to(device)
     model.eval()
+
+    # Initialize lock for callback synchronization
+    lock = threading.Lock()
     assert transition_power >= 1, "transition_power < 1 leads to weird behavior."
     batch, channels, length = mix.shape
     if shifts:
@@ -266,7 +271,7 @@ def apply_model(
                 if callback
                 else None
             )
-            res = apply_model(model, shifted, **kwargs, callback_arg=callback_arg)
+            res = apply_model(model, shifted, **kwargs)
             shifted_out = res
             out += shifted_out[..., max_shift - offset :]
         out /= shifts
@@ -299,67 +304,66 @@ def apply_model(
         # If the overlap < 50%, this will translate to linear transition when
         # transition_power is 1.
         weight = (weight / weight.max()) ** transition_power
+
+        # Initialize thread pool based on num_workers
+        if num_workers == 0 or device.type != "cpu":
+            pool = DummyPoolExecutor()
+        else:
+            pool = ThreadPoolExecutor(max_workers=num_workers)
+
         futures = []
         for offset in offsets:
             chunk = TensorChunk(mix, offset, segment_length)
+            # Create a copy of kwargs without callback_arg to avoid duplication
+            chunk_kwargs = kwargs.copy()
+            chunk_kwargs["callback"] = (
+                lambda d, i=offset: callback(_replace_dict(d, ("segment_offset", i)))
+                if callback
+                else None
+            )
             future = pool.submit(
                 apply_model,
                 model,
                 chunk,
-                **kwargs,
-                callback_arg=callback_arg,
-                callback=(
-                    lambda d, i=offset: callback(
-                        _replace_dict(d, ("segment_offset", i))
-                    )
-                    if callback
-                    else None
-                ),
+                **chunk_kwargs,
             )
             futures.append((future, offset))
             offset += segment_length
-        if progress:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[bold blue]{task.description}"),
-                BarColumn(complete_style="green"),
-                TaskProgressColumn(),
-                TimeElapsedColumn(),
-                console=console,
-                transient=True,
-                refresh_per_second=10,
-            ) as progress_bar:
-                task = progress_bar.add_task("Processing audio", total=len(futures))
-                for future, offset in futures:
-                    try:
-                        chunk_out = future.result()  # type: Tensor
-                        chunk_length = chunk_out.shape[-1]
-                        out[..., offset : offset + segment_length] += (
-                            weight[:chunk_length] * chunk_out
-                        ).to(mix.device)
-                        sum_weight[offset : offset + segment_length] += weight[
-                            :chunk_length
-                        ].to(mix.device)
-                        progress_bar.update(task, advance=1)
-                    except Exception:
-                        pool.shutdown(wait=True, cancel_futures=True)
-                        raise
-        else:
-            for future, offset in futures:
-                try:
-                    chunk_out = future.result()  # type: Tensor
-                    chunk_length = chunk_out.shape[-1]
-                    out[..., offset : offset + segment_length] += (
-                        weight[:chunk_length] * chunk_out
-                    ).to(mix.device)
-                    sum_weight[offset : offset + segment_length] += weight[
-                        :chunk_length
-                    ].to(mix.device)
-                except Exception:
-                    pool.shutdown(wait=True, cancel_futures=True)
-                    raise
+        # Notify callback about processing start
+        if progress_callback:
+            progress_callback("processing_start", {"total_chunks": len(futures)})
+
+        completed_chunks = 0
+        for future, offset in futures:
+            try:
+                chunk_out = future.result()  # type: Tensor
+                chunk_length = chunk_out.shape[-1]
+                out[..., offset : offset + segment_length] += (
+                    weight[:chunk_length] * chunk_out
+                ).to(mix.device)
+                sum_weight[offset : offset + segment_length] += weight[
+                    :chunk_length
+                ].to(mix.device)
+
+                completed_chunks += 1
+                if progress_callback:
+                    progress_callback(
+                        "chunk_complete",
+                        {
+                            "completed_chunks": completed_chunks,
+                            "total_chunks": len(futures),
+                        },
+                    )
+            except Exception:
+                pool.shutdown(wait=True, cancel_futures=True)
+                raise
+
+        # Notify callback about processing completion
+        if progress_callback:
+            progress_callback("processing_complete", {"total_chunks": len(futures)})
         assert sum_weight.min() > 0
         out /= sum_weight
+        pool.shutdown(wait=True)
         assert isinstance(out, Tensor)
         return out
     else:

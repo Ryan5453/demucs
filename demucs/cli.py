@@ -27,6 +27,308 @@ from .errors import ModelLoadingError
 console = Console()
 
 
+# Progress bar helper functions
+def _create_model_progress_bar():
+    """Create a standardized progress bar for model operations."""
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TaskProgressColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(complete_style="green"),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        transient=False,
+        refresh_per_second=2,
+        expand=True,
+    )
+
+
+def _create_progress_callback(progress_bar, task):
+    """Create a progress callback that updates a Rich progress bar for model downloads."""
+
+    def callback(event_type: str, data: dict):
+        if event_type == "layer_start":
+            progress_bar.update(
+                task,
+                description=f"[cyan]Downloading {data['model_name']}[/cyan] - Layer {data['layer_index']}/{data['total_layers']}",
+            )
+        elif event_type == "layer_progress":
+            # Calculate overall progress: (completed_layers + current_layer_progress) / total_layers
+            layer_base = (data["layer_index"] - 1) / data["total_layers"] * 100
+            layer_progress = data["progress_percent"] / data["total_layers"]
+            overall_progress = layer_base + layer_progress
+
+            phase_text = ""
+            if "phase" in data:
+                phase_text = f" ({data['phase']})"
+
+            progress_bar.update(
+                task,
+                completed=overall_progress,
+                description=f"[cyan]Downloading {data['model_name']}[/cyan] - Layer {data['layer_index']}/{data['total_layers']}{phase_text}",
+            )
+        elif event_type == "layer_complete":
+            if data.get("cached"):
+                progress_bar.update(
+                    task,
+                    completed=(data["layer_index"] / data["total_layers"]) * 100,
+                    description=f"[cyan]Downloading {data['model_name']}[/cyan] - Layer {data['layer_index']}/{data['total_layers']} (cached)",
+                )
+            else:
+                progress_bar.update(
+                    task,
+                    completed=(data["layer_index"] / data["total_layers"]) * 100,
+                    description=f"[cyan]Downloading {data['model_name']}[/cyan] - Layer {data['layer_index']}/{data['total_layers']} (complete)",
+                )
+        elif event_type == "download_complete":
+            progress_bar.update(
+                task,
+                completed=100,
+                description=f"[green]Downloaded {data['model_name']}[/green] - All {data['total_layers']} layers complete",
+            )
+
+    return callback
+
+
+def _create_audio_progress_callback(progress_bar, task):
+    """Create a progress callback that updates a Rich progress bar for audio processing."""
+
+    def callback(event_type: str, data: dict):
+        if event_type == "processing_start":
+            progress_bar.update(
+                task,
+                description=f"Processing audio ({data['total_chunks']} chunks)",
+                total=data['total_chunks'],
+                completed=0,
+            )
+        elif event_type == "chunk_complete":
+            progress_bar.update(
+                task,
+                completed=data['completed_chunks'],
+                description=f"Processing audio ({data['completed_chunks']}/{data['total_chunks']} chunks)",
+            )
+        elif event_type == "processing_complete":
+            progress_bar.update(
+                task,
+                completed=data['total_chunks'],
+                description="Audio processing complete",
+            )
+
+    return callback
+
+
+def _download_model_with_progress(name: str) -> bool:
+    """
+    Download a single model with progress display.
+    Returns True if successful, False otherwise.
+    """
+    import time
+
+    models = get_models()
+
+    # Show initial message
+    if name in models:
+        layer_count = len(models[name]["models"])
+        layer_word = "layer" if layer_count == 1 else "layers"
+        console.print(
+            f"[bold]Downloading {name} ({layer_count} {layer_word})...[/bold]"
+        )
+
+    with _create_model_progress_bar() as progress_bar:
+        try:
+            start_time = time.time()
+
+            # Create progress task
+            if name in models:
+                layer_count = len(models[name]["models"])
+                layer_word = "layer" if layer_count == 1 else "layers"
+                task = progress_bar.add_task(
+                    f"[cyan]Downloading {name} ({layer_count} {layer_word})[/cyan]",
+                    total=100,
+                    completed=0,
+                )
+            else:
+                task = progress_bar.add_task(
+                    f"[cyan]Downloading {name}[/cyan]",
+                    total=100,
+                    completed=0,
+                )
+
+            # Download the model using callback
+            callback = _create_progress_callback(progress_bar, task)
+            model = get_model(name=name, progress_callback=callback)
+
+            progress_bar.remove_task(task)
+
+            # Show success message
+            download_time = time.time() - start_time
+            model_repo = ModelRepository()
+            cache_info = model_repo.get_cache_info()
+
+            num_sources = len(model.sources)
+            if name in models:
+                layer_count = len(models[name]["models"])
+                layer_word = "layer" if layer_count == 1 else "layers"
+                model_type = f"{layer_count} {layer_word}"
+            else:
+                model_type = "Model"
+
+            size_str = ""
+            speed_str = ""
+            if name in cache_info:
+                size_bytes = cache_info[name]["size_bytes"]
+                size_str = f" ({format_file_size(size_bytes)})"
+
+                if download_time > 0.1:
+                    speed = size_bytes / download_time
+                    speed_str = f" at {format_file_size(speed)}/s"
+
+            console.print(
+                f"[green]✓[/green] [bold]{name}[/bold]: {model_type} with {num_sources} sources{size_str}{speed_str}"
+            )
+            return True
+
+        except Exception as error:
+            console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
+            return False
+
+
+def _ensure_model_available(name: str) -> bool:
+    """
+    Ensure a model is available, downloading if necessary.
+    Returns True if model is available, False otherwise.
+    """
+    model_repo = ModelRepository()
+    cache_info = model_repo.get_cache_info()
+
+    if name in cache_info:
+        return True
+
+    # Model needs to be downloaded
+    return _download_model_with_progress(name)
+
+
+def _download_models_batch(model_names: List[str]) -> None:
+    """
+    Download multiple models, showing progress for each.
+    This is the unified download logic used by both download and separate commands.
+    """
+    # Create a ModelRepository to check if models are already downloaded
+    model_repo = ModelRepository()
+    cache_info = model_repo.get_cache_info()
+
+    # Get models info
+    models = get_models()
+
+    # Filter out already downloaded models
+    to_download = []
+    for name in model_names:
+        if name in cache_info:
+            # Show already downloaded message
+            if name in models:
+                layer_count = len(models[name]["models"])
+                layer_word = "layer" if layer_count == 1 else "layers"
+                size_str = ""
+                if name in cache_info:
+                    size_bytes = cache_info[name]["size_bytes"]
+                    size_str = f" ({format_file_size(size_bytes)})"
+                console.print(
+                    f"[green]✓[/green] [bold]{name}[/bold]: Already downloaded ({layer_count} {layer_word}{size_str})"
+                )
+        else:
+            to_download.append(name)
+
+    if not to_download:
+        console.print("[green]All specified models are already downloaded.[/green]")
+        return
+
+    # Show download summary for multiple models
+    if len(to_download) > 1:
+        total_layers = sum(
+            len(models[name]["models"]) for name in to_download if name in models
+        )
+        console.print(
+            f"[bold]Downloading {len(to_download)} models ({total_layers} total layers)...[/bold]"
+        )
+
+    # Download each model using the shared progress logic
+    with _create_model_progress_bar() as progress_bar:
+        for name in to_download:
+            _download_single_model_in_batch(name, models, progress_bar)
+
+    console.print("[bold green]Download complete![/bold green]")
+
+
+def _download_single_model_in_batch(name: str, models: Dict, progress_bar) -> None:
+    """Download a single model within an existing progress bar context."""
+    import time
+
+    try:
+        start_time = time.time()
+
+        if name in models:
+            layer_count = len(models[name]["models"])
+            layer_word = "layer" if layer_count == 1 else "layers"
+            task = progress_bar.add_task(
+                f"[cyan]Downloading {name} ({layer_count} {layer_word})[/cyan]",
+                total=100,
+                completed=0,
+            )
+        else:
+            task = progress_bar.add_task(
+                f"[cyan]Downloading {name}[/cyan]",
+                total=100,
+                completed=0,
+            )
+
+        # Download the model using callback
+        callback = _create_progress_callback(progress_bar, task)
+        model = get_model(name=name, progress_callback=callback)
+
+        progress_bar.remove_task(task)
+
+        # Show success message with timing info
+        download_time = time.time() - start_time
+        model_repo = ModelRepository()
+        cache_info = model_repo.get_cache_info()
+
+        num_sources = len(model.sources)
+        if name in models:
+            layer_count = len(models[name]["models"])
+            layer_word = "layer" if layer_count == 1 else "layers"
+            model_type = f"{layer_count} {layer_word}"
+        else:
+            model_type = "Model"
+
+        size_str = ""
+        speed_str = ""
+        if name in cache_info:
+            size_bytes = cache_info[name]["size_bytes"]
+            size_str = f" ({format_file_size(size_bytes)})"
+
+            if download_time > 0.1:
+                speed = size_bytes / download_time
+                speed_str = f" at {format_file_size(speed)}/s"
+
+        console.print(
+            f"[green]✓[/green] [bold]{name}[/bold]: {model_type} with {num_sources} sources{size_str}{speed_str}"
+        )
+
+    except ModelLoadingError as error:
+        console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
+    except Exception as e:
+        console.print(f"[red]✗[/red] [bold]{name}[/bold]: Unexpected error: {str(e)}")
+
+
 def version_command():
     """
     Show the installed version of Demucs.
@@ -109,17 +411,6 @@ def download_models_command(
     """
     Download and cache the specified models for offline use.
     """
-    import time
-
-    from rich.progress import (
-        BarColumn,
-        Progress,
-        SpinnerColumn,
-        TaskProgressColumn,
-        TextColumn,
-        TimeElapsedColumn,
-    )
-
     # Require either model names or --all flag
     if not all_models and (names is None or not names):
         console.print("[red]Error:[/red] No models specified for download.")
@@ -131,157 +422,13 @@ def download_models_command(
 
     # Get model names to download
     if all_models:
-        # Get all model names
         models = get_models()
         model_names = list(models.keys())
     else:
         model_names = names
 
-    # Create a ModelRepository to check if models are already downloaded
-    model_repo = ModelRepository()
-    cache_info = model_repo.get_cache_info()
-
-    # Get models info
-    models = get_models()
-
-    # Filter out already downloaded models and count total layers to download
-    to_download = []
-    total_layers = 0  # Count of actual layer files to download
-
-    for name in model_names:
-        if name in cache_info:
-            # Show already downloaded message
-            layer_count = len(models[name]["models"])
-            layer_word = "layer" if layer_count == 1 else "layers"
-            console.print(
-                f"[green]✓[/green] [bold]{name}[/bold]: Already downloaded ({layer_count} {layer_word}, {format_file_size(cache_info[name]['size_bytes'])})"
-            )
-        else:
-            to_download.append(name)
-            if name in models:
-                total_layers += len(models[name]["models"])
-
-    if not to_download:
-        console.print("[green]All specified models are already downloaded.[/green]")
-        return
-
-    # Show appropriate message based on what we're downloading
-    if len(to_download) > 1:
-        console.print(
-            f"[bold]Downloading {len(to_download)} models ({total_layers} total layers)...[/bold]"
-        )
-    else:
-        # For a single item, show a simpler message
-        name = to_download[0]
-        if name in models:
-            layer_count = len(models[name]["models"])
-            layer_word = "layer" if layer_count == 1 else "layers"
-            console.print(
-                f"[bold]Downloading model {name} ({layer_count} {layer_word})...[/bold]"
-            )
-        else:
-            console.print(f"[bold]Downloading model {name}...[/bold]")
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]{task.description}"),
-        BarColumn(complete_style="green"),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        console=console,
-        transient=False,  # Keep bars visible after completion
-        refresh_per_second=2,  # Moderate refresh rate for better responsiveness
-        expand=True,  # Allow the progress bars to use the full width
-    ) as progress_bar:
-        for name in to_download:
-            try:
-                # Record start time for speed calculation
-                start_time = time.time()
-
-                if name in models:
-                    # Create a progress task for this model
-                    layer_count = len(models[name]["models"])
-                    layer_word = "layer" if layer_count == 1 else "layers"
-                    task = progress_bar.add_task(
-                        f"[cyan]Downloading {name} ({layer_count} {layer_word})[/cyan]",
-                        total=100,
-                        completed=0,
-                    )
-
-                    # Download the model
-                    model = get_model(
-                        name=name,
-                        progress_bar=progress_bar,
-                        task_id=task,
-                    )
-
-                    # Remove the task once complete
-                    progress_bar.remove_task(task)
-                else:
-                    console.print(f"[bold]Downloading model {name}...[/bold]")
-
-                    # Create a new progress bar just for this model
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[bold blue]Downloading..."),
-                        BarColumn(complete_style="green"),
-                        TaskProgressColumn(),
-                        TimeElapsedColumn(),
-                        console=console,
-                        transient=True,  # Use transient for clean display
-                        refresh_per_second=10,
-                    ) as download_progress:
-                        # Create a single progress task for this model
-                        task = download_progress.add_task("Downloading...", total=100)
-
-                        # Download the model
-                        model = get_model(
-                            name=name,
-                            progress_bar=download_progress,
-                            task_id=task,
-                        )
-
-                # Calculate download time
-                download_time = time.time() - start_time
-
-                # Update cache info to get the size of the downloaded model
-                new_cache_info = model_repo.get_cache_info()
-
-                # Show success message with size and speed info
-                num_sources = len(model.sources)
-
-                # Determine model info
-                if name in models:
-                    layer_count = len(models[name]["models"])
-                    layer_word = "layer" if layer_count == 1 else "layers"
-                    model_type = f"{layer_count} {layer_word}"
-                else:
-                    model_type = "Model"
-
-                size_str = ""
-                speed_str = ""
-                if name in new_cache_info:
-                    size_bytes = new_cache_info[name]["size_bytes"]
-                    size_str = f" ({format_file_size(size_bytes)})"
-
-                    # Calculate download speed if download time is significant
-                    if download_time > 0.1:
-                        speed = size_bytes / download_time
-                        speed_str = f" at {format_file_size(speed)}/s"
-
-                console.print(
-                    f"[green]✓[/green] [bold]{name}[/bold]: {model_type} with {num_sources} sources{size_str}{speed_str}"
-                )
-
-            except ModelLoadingError as error:
-                console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
-
-            except Exception as e:
-                console.print(
-                    f"[red]✗[/red] [bold]{name}[/bold]: Unexpected error: {str(e)}"
-                )
-
-    console.print("[bold green]Download complete![/bold green]")
+    # Use the shared download logic
+    _download_models_batch(model_names)
 
 
 def remove_models_command(
@@ -493,16 +640,14 @@ def main_command(
     if name == "htdemucs":
         console.print(f"[bold]Using default model: [cyan]{name}[/cyan][/bold]")
 
+    # Ensure model is available (download if necessary)
+    if not _ensure_model_available(name):
+        return
+
     try:
         separator = Separator(
             model=name,
             device=device,
-            shifts=shifts,
-            split=split,
-            overlap=overlap,
-            jobs=jobs,
-            segment=segment,
-            verbose=True,
         )
     except Exception as error:
         console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
@@ -514,9 +659,9 @@ def main_command(
             "You will see that many progress bars per track."
         )
 
-    if stem is not None and stem not in separator.sources:
+    if stem is not None and stem not in separator.model.sources:
         console.print(
-            f'[red]✗[/red] [bold]{name}[/bold]: error: stem "{stem}" is not in selected model. STEM must be one of {", ".join(separator.sources)}.'
+            f'[red]✗[/red] [bold]{name}[/bold]: error: stem "{stem}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
         )
         return
 
@@ -535,14 +680,39 @@ def main_command(
         console.print(f"Separating track {track}")
 
         try:
-            # Use the new API with SeparatedSources
+            # Create progress bar for audio processing
+            with _create_model_progress_bar() as audio_progress:
+                audio_task = audio_progress.add_task(
+                    "Processing audio...",
+                    total=100,
+                    completed=0,
+                )
+                
+                # Create callback for audio processing progress
+                audio_callback = _create_audio_progress_callback(audio_progress, audio_task)
+                
+                # Use the new API with SeparatedSources and progress callback
+                separated = separator.separate(
+                    audio=track,
+                    shifts=shifts,
+                    overlap=overlap,
+                    split=split,
+                    segment=segment,
+                    jobs=jobs,
+                    progress_callback=audio_callback,
+                )
+
             if stem is None:
                 # Separate all stems
-                separated = separator.separate_audio_file(track)
                 sources_to_save = separated.sources
             else:
-                # First separate all stems, then isolate the requested stem
-                separated = separator.separate_audio_file(track)
+                # Create two stems: the requested stem and its complement
+                sources_to_save = {stem: separated.sources[stem]}
+
+                # Add the complement based on the other_method
+                if other_method != OtherMethod.none:
+                    separated.get_stem(f"no_{stem}", other_method.value)
+                    sources_to_save[f"no_{stem}"] = separated.sources[f"no_{stem}"]
 
             # Save each stem
             for stem_name, source in sources_to_save.items():
@@ -556,7 +726,7 @@ def main_command(
                 save_audio(
                     source,
                     str(stem_path),
-                    samplerate=separator.samplerate,
+                    samplerate=separator.sample_rate,
                     clip=clip_mode,
                 )
 

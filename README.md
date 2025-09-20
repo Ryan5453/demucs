@@ -23,7 +23,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 With UV, you can use the `uvx` command to run Demucs without installing it permanently on your system. This sets up a temporary virtual enviornment for the duration of the command. 
 
 ```bash
-uvx --with demucs-inference demucs separate audio_file.mp3
+uvx demucs-inference separate audio_file.mp3
 ```
 
 **Note**: Demucs does not specify a specific PyTorch wheel. This means that GPUs will only work on Apple Silicon or the current version of CUDA (currently 12.8) on Linux. Demucs will fall back to CPU if one of the above conditions are not met.
@@ -75,3 +75,7 @@ Demucs provides a [Cog](https://github.com/replicate/cog), which allows you to e
 ## API Usage
 
 Demucs provides a Python API for separating audio files. Please refer to the [API docs](docs/api.md) for more information.
+
+## Changelog
+
+The [changelog](docs/changelog.md) contains information about the changes between versions of demucs-inference, including a migration guide from upstream demucs.

@@ -18,13 +18,13 @@ dependencies = [
     "torch>=2.6.0",
     "torchaudio>=2.6.0",
     "soundfile>=0.10.3",
-    "rich>=13.0.0",
-    "typer>=0.9.0",
     "einops",
     "julius>=0.2.3",
-    "lameenc>=1.2",
     "openunmix",
     "diffq>=0.2.1",
+
+    "rich>=13.0.0",
+    "typer>=0.9.0",
     "httpx>=0.28.1",
 ]
 

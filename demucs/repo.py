@@ -12,11 +12,10 @@ import tempfile
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Optional, TypeAlias
+from typing import Dict, Optional, TypeAlias, Callable, Any
 
 import httpx
 import torch
-from rich.progress import Progress, TaskID
 
 from .apply import BagOfModels, Model
 from .states import load_model
@@ -171,8 +170,7 @@ class ModelRepository:
         url: str,
         cache_path: Path,
         expected_checksum: str,
-        progress_bar: Optional[Progress] = None,
-        task_id: Optional[TaskID] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
         model_name: str = "",
         layer_index: int = 1,
         total_layers: int = 1,
@@ -188,19 +186,16 @@ class ModelRepository:
                 buffer = BytesIO()
                 downloaded_size = 0
 
-                # Calculate base progress from previous layers
-                layer_base_progress = ((layer_index - 1) / total_layers) * 100
-                layer_max_progress = (layer_index / total_layers) * 100
-
-                # Update progress bar for download phase
-                if progress_bar and task_id:
-                    if total_size:
-                        desc = f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers} ({format_file_size(total_size)})"
-                    else:
-                        desc = f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers}"
-
-                    progress_bar.update(
-                        task_id, description=desc, completed=layer_base_progress
+                # Notify callback about layer start
+                if progress_callback:
+                    progress_callback(
+                        "layer_start",
+                        {
+                            "model_name": model_name,
+                            "layer_index": layer_index,
+                            "total_layers": total_layers,
+                            "layer_size_bytes": total_size,
+                        },
                     )
 
                 chunk_counter = 0
@@ -210,50 +205,43 @@ class ModelRepository:
                     chunk_counter += 1
 
                     # Update progress every few chunks to avoid too frequent updates
-                    if (
-                        progress_bar
-                        and task_id is not None
-                        and (chunk_counter % 20 == 0)
-                    ):
+                    if progress_callback and (chunk_counter % 20 == 0):
                         if total_size and total_size > 0:
-                            # Calculate progress within this layer (0-90% of layer progress)
-                            layer_download_progress = (
-                                downloaded_size / total_size
-                            ) * 0.9
-                            current_progress = layer_base_progress + (
-                                layer_download_progress
-                                * (layer_max_progress - layer_base_progress)
-                            )
+                            progress_percent = (downloaded_size / total_size) * 100
                         else:
-                            # If no total_size, show incremental progress based on downloaded chunks
-                            # Use a simple heuristic: assume each chunk represents some progress
-                            chunk_count = (
-                                downloaded_size // 8192
-                            )  # Number of 8KB chunks downloaded
-                            # Estimate progress based on chunks (more chunks = more progress, but cap at 90% of layer)
-                            estimated_progress = min(
-                                chunk_count * 0.5, 90
-                            )  # 0.5% per chunk, max 90%
-                            current_progress = layer_base_progress + (
-                                estimated_progress / 100
-                            ) * (layer_max_progress - layer_base_progress)
+                            # Estimate progress based on chunks downloaded
+                            chunk_count = downloaded_size // 8192
+                            progress_percent = min(chunk_count * 0.5, 95)  # Cap at 95%
 
-                        # Update progress
-                        progress_bar.update(task_id, completed=current_progress)
+                        progress_callback(
+                            "layer_progress",
+                            {
+                                "model_name": model_name,
+                                "layer_index": layer_index,
+                                "total_layers": total_layers,
+                                "progress_percent": progress_percent,
+                                "downloaded_bytes": downloaded_size,
+                                "total_bytes": total_size,
+                            },
+                        )
 
                 buffer.seek(0)
 
                 # Try to load as a PyTorch model directly from memory
                 try:
-                    if progress_bar and task_id:
-                        # 90% of this layer's progress for loading
-                        loading_progress = layer_base_progress + (
-                            0.9 * (layer_max_progress - layer_base_progress)
-                        )
-                        progress_bar.update(
-                            task_id,
-                            description=f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers} (loading...)",
-                            completed=loading_progress,
+                    # Notify callback about loading phase
+                    if progress_callback:
+                        progress_callback(
+                            "layer_progress",
+                            {
+                                "model_name": model_name,
+                                "layer_index": layer_index,
+                                "total_layers": total_layers,
+                                "progress_percent": 90,
+                                "downloaded_bytes": downloaded_size,
+                                "total_bytes": total_size,
+                                "phase": "loading",
+                            },
                         )
 
                     # Save to a temporary file first
@@ -268,15 +256,19 @@ class ModelRepository:
                         tmp_path, map_location="cpu", weights_only=False
                     )
 
-                    if progress_bar and task_id:
-                        # 95% of this layer's progress for verification
-                        verify_progress = layer_base_progress + (
-                            0.95 * (layer_max_progress - layer_base_progress)
-                        )
-                        progress_bar.update(
-                            task_id,
-                            description=f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers} (verifying...)",
-                            completed=verify_progress,
+                    # Notify callback about verification phase
+                    if progress_callback:
+                        progress_callback(
+                            "layer_progress",
+                            {
+                                "model_name": model_name,
+                                "layer_index": layer_index,
+                                "total_layers": total_layers,
+                                "progress_percent": 95,
+                                "downloaded_bytes": downloaded_size,
+                                "total_bytes": total_size,
+                                "phase": "verifying",
+                            },
                         )
 
                     # If successful, save to cache
@@ -290,12 +282,15 @@ class ModelRepository:
                         cache_path.unlink()
                         raise
 
-                    if progress_bar and task_id:
-                        # This layer is complete
-                        progress_bar.update(
-                            task_id,
-                            completed=layer_max_progress,
-                            description=f"[cyan]Downloading {model_name}[/cyan] - Layer {layer_index}/{total_layers} (complete)",
+                    # Notify callback about layer completion
+                    if progress_callback:
+                        progress_callback(
+                            "layer_complete",
+                            {
+                                "model_name": model_name,
+                                "layer_index": layer_index,
+                                "total_layers": total_layers,
+                            },
                         )
 
                     return load_model(model_data)
@@ -312,16 +307,20 @@ class ModelRepository:
     def get_model(
         self,
         name: str,
-        progress_bar: Optional[Progress] = None,
-        task_id: Optional[TaskID] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ) -> AnyModel:
         """
         Get a model by name.
 
         Args:
             name: Model name
-            progress_bar: Optional rich.progress.Progress instance for download progress
-            task_id: Optional TaskID for the progress bar
+            progress_callback: Optional callback function for progress updates.
+                              Called with (event_type, data) where event_type is one of:
+                              - "download_start": data = {"model_name": str, "total_layers": int}
+                              - "layer_start": data = {"model_name": str, "layer_index": int, "total_layers": int, "layer_size_bytes": int}
+                              - "layer_progress": data = {"model_name": str, "layer_index": int, "total_layers": int, "progress_percent": float, "downloaded_bytes": int, "total_bytes": int, "phase": str}
+                              - "layer_complete": data = {"model_name": str, "layer_index": int, "total_layers": int}
+                              - "download_complete": data = {"model_name": str, "total_layers": int}
 
         Returns:
             The requested model
@@ -340,6 +339,16 @@ class ModelRepository:
         layers = []
         cache_dir = get_cache_dir()
         total_layers = len(layer_checksums)
+
+        # Notify callback about download start
+        if progress_callback:
+            progress_callback(
+                "download_start",
+                {
+                    "model_name": name,
+                    "total_layers": total_layers,
+                },
+            )
 
         for i, layer_checksum in enumerate(layer_checksums):
             if layer_checksum not in self._layer_urls:
@@ -363,14 +372,16 @@ class ModelRepository:
                     )
                     layers.append(layer)
 
-                    # Update progress for cached layer
-                    if progress_bar and task_id:
-                        # Calculate overall progress: (completed_layers / total_layers) * 100
-                        layer_progress = ((i + 1) / total_layers) * 100
-                        progress_bar.update(
-                            task_id,
-                            completed=layer_progress,
-                            description=f"[cyan]Downloading {name}[/cyan] - Layer {i + 1}/{total_layers} (cached)",
+                    # Notify callback about cached layer
+                    if progress_callback:
+                        progress_callback(
+                            "layer_complete",
+                            {
+                                "model_name": name,
+                                "layer_index": i + 1,
+                                "total_layers": total_layers,
+                                "cached": True,
+                            },
                         )
                     continue
                 except (ModelLoadingError, Exception):
@@ -378,39 +389,25 @@ class ModelRepository:
                     if cache_path.exists():
                         cache_path.unlink()
 
-            # Update progress bar description for download
-            if progress_bar and task_id is not None:
-                progress_bar.update(
-                    task_id,
-                    description=f"[cyan]Downloading {name}[/cyan] - Layer {i + 1}/{total_layers}",
-                )
-
             # Download and load the layer
             layer = self._download_and_load_layer(
                 url=url,
                 cache_path=cache_path,
                 expected_checksum=layer_checksum,
-                progress_bar=progress_bar,
-                task_id=task_id,
+                progress_callback=progress_callback,
                 model_name=name,
                 layer_index=i + 1,
                 total_layers=total_layers,
             )
             layers.append(layer)
-
-            # Update progress after successful layer download
-            if progress_bar and task_id:
-                layer_progress = ((i + 1) / total_layers) * 100
-                progress_bar.update(
-                    task_id,
-                    completed=layer_progress,
-                    description=f"[cyan]Downloading {name}[/cyan] - Layer {i + 1}/{total_layers} (complete)",
-                )
-        if progress_bar and task_id:
-            progress_bar.update(
-                task_id,
-                completed=100,
-                description=f"[green]Downloaded {name}[/green] - All {total_layers} layers complete",
+        # Notify callback about download completion
+        if progress_callback:
+            progress_callback(
+                "download_complete",
+                {
+                    "model_name": name,
+                    "total_layers": total_layers,
+                },
             )
 
         # Create BagOfModels from the layers
