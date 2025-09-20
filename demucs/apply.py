@@ -8,9 +8,6 @@ import random
 from typing import (
     Any,
     Callable,
-    Dict,
-    List,
-    Optional,
     TypeAlias,
 )
 from concurrent.futures import ThreadPoolExecutor
@@ -30,9 +27,9 @@ Model: TypeAlias = HDemucs | HTDemucs
 class BagOfModels(nn.Module):
     def __init__(
         self,
-        models: List[Model],
-        weights: Optional[List[List[float]]] = None,
-        segment: Optional[float] = None,
+        models: list[Model],
+        weights: list[list[float]] | None = None,
+        segment: float | None = None,
     ):
         """
         Represents a bag of models with specific weights.
@@ -149,7 +146,7 @@ def apply_model(
     split=False,
     overlap=0.25,
     transition_power=1.0,
-    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     segment=None,
     num_workers=0,
 ):

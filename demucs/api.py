@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable
 from io import BytesIO
 
 import torch
@@ -26,7 +26,6 @@ from .errors import (
 )
 from . import __version__
 
-PathLike = Path | str
 
 
 class OtherMethod(str, Enum):
@@ -41,7 +40,7 @@ class SeparatedSources:
 
     def __init__(
         self,
-        sources: Dict[str, Tensor],
+        sources: dict[str, Tensor],
         sample_rate: int,
         original: Tensor,
     ):
@@ -95,12 +94,12 @@ class SeparatedSources:
     def export_stem(
         self,
         stem_name: str,
-        path: Optional[PathLike] = None,
+        path: Path | str | None = None,
         format: str = "wav",
         clip: ClipMode = ClipMode.rescale,
-        encoding: Optional[str] = None,
-        bits_per_sample: Optional[int] = None,
-    ) -> Union[Path, bytes]:
+        encoding: str | None = None,
+        bits_per_sample: int | None = None,
+    ) -> Path | bytes:
         """
         Exports a stem to either a file path or a bytes object.
 
@@ -196,7 +195,7 @@ class Separator:
         self.sample_rate = self.model.samplerate
 
     def _to_tensor(
-        self, audio: Union[Tensor, PathLike, bytes], sample_rate: Optional[int] = None
+        self, audio: Tensor | Path | str | bytes, sample_rate: int | None = None
     ) -> Tensor:
         """
         Convert various input types (Tensor, path, bytes) to a 2D float32 tensor
@@ -204,7 +203,7 @@ class Separator:
         when possible.
         """
         wav: Tensor
-        input_sr: Optional[int] = None
+        input_sr: int | None = None
 
         if isinstance(audio, Tensor):
             wav = audio
@@ -255,14 +254,14 @@ class Separator:
 
     def separate(
         self,
-        audio: Union[Tensor, PathLike, bytes],
+        audio: Tensor | Path | str | bytes,
         shifts: int = 1,
         overlap: float = 0.25,
         split: bool = True,
-        segment: Optional[int] = None,
+        segment: int | None = None,
         jobs: int = 0,
-        sample_rate: Optional[int] = None,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        sample_rate: int | None = None,
+        progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> SeparatedSources:
         """
         Separate audio into stems. Accepts tensor, file path, or raw bytes.
@@ -320,7 +319,7 @@ class Separator:
         return SeparatedSources(sources, self.sample_rate, original=wav)
 
 
-def list_models() -> Dict[str, Dict[str, Any]]:
+def list_models() -> dict[str, dict[str, Any]]:
     """
     List all available models.
 

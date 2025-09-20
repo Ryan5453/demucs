@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Callable, Type
+from typing import Callable
 
 import torch
 from torch import nn
@@ -138,7 +138,7 @@ class DConv(nn.Module):
 
         hidden = int(channels / compress)
 
-        act: Type[nn.Module]
+        act: type[nn.Module]
         if gelu:
             act = nn.GELU
         else:

@@ -12,7 +12,7 @@ import tempfile
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Optional, TypeAlias, Callable, Any
+from typing import TypeAlias, Callable, Any
 
 import httpx
 import torch
@@ -115,7 +115,7 @@ class ModelRepository:
         """Check if a model exists."""
         return name in self._models
 
-    def get_cache_info(self) -> Dict[str, Dict]:
+    def get_cache_info(self) -> dict[str, dict]:
         """
         Get information about cached models.
 
@@ -170,7 +170,7 @@ class ModelRepository:
         url: str,
         cache_path: Path,
         expected_checksum: str,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
         model_name: str = "",
         layer_index: int = 1,
         total_layers: int = 1,
@@ -307,7 +307,7 @@ class ModelRepository:
     def get_model(
         self,
         name: str,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> AnyModel:
         """
         Get a model by name.
@@ -415,7 +415,7 @@ class ModelRepository:
         segment = model_info.get("segment")
         return BagOfModels(layers, weights, segment)
 
-    def list_models(self) -> Dict[str, Dict]:
+    def list_models(self) -> dict[str, dict]:
         """
         List all available models.
 

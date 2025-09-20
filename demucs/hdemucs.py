@@ -7,7 +7,6 @@
 
 import math
 from copy import deepcopy
-from typing import Tuple
 
 import torch
 from openunmix.filtering import wiener
@@ -21,7 +20,7 @@ from .utils import ispectro, spectro
 
 def pad1d(
     x: Tensor,
-    paddings: Tuple[int, int],
+    paddings: tuple[int, int],
     mode: str = "constant",
     value: float = 0.0,
 ):

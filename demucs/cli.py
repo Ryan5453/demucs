@@ -6,7 +6,6 @@
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import torch
 import typer
@@ -217,7 +216,7 @@ def _ensure_model_available(name: str) -> bool:
     return _download_model_with_progress(name)
 
 
-def _download_models_batch(model_names: List[str]) -> None:
+def _download_models_batch(model_names: list[str]) -> None:
     """
     Download multiple models, showing progress for each.
     This is the unified download logic used by both download and separate commands.
@@ -268,7 +267,7 @@ def _download_models_batch(model_names: List[str]) -> None:
     console.print("[bold green]Download complete![/bold green]")
 
 
-def _download_single_model_in_batch(name: str, models: Dict, progress_bar) -> None:
+def _download_single_model_in_batch(name: str, models: dict, progress_bar) -> None:
     """Download a single model within an existing progress bar context."""
     import time
 
@@ -398,7 +397,7 @@ def format_file_size(size_bytes):
 
 def download_models_command(
     names: Annotated[
-        List[str],
+        list[str],
         typer.Argument(help="Model names to download."),
     ] = None,
     all_models: Annotated[
@@ -433,7 +432,7 @@ def download_models_command(
 
 def remove_models_command(
     names: Annotated[
-        List[str],
+        list[str],
         typer.Argument(help="Model names to remove."),
     ] = None,
     all_models: Annotated[
@@ -504,7 +503,7 @@ def remove_models_command(
 
 
 # Add a function to get models directly from metadata.json
-def get_models() -> Dict[str, Dict]:
+def get_models() -> dict[str, dict]:
     """Get models from metadata.json"""
     with open(METADATA_PATH, "r") as f:
         metadata = json.load(f)
@@ -521,7 +520,7 @@ def get_models() -> Dict[str, Dict]:
 def main_command(
     # Input/Output
     tracks: Annotated[
-        Optional[List[Path]], typer.Argument(help="Path to tracks", show_default=False)
+        list[Path] | None, typer.Argument(help="Path to tracks", show_default=False)
     ] = None,
     # Model Selection
     name: Annotated[
@@ -573,7 +572,7 @@ def main_command(
         ),
     ] = True,
     segment: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             help="Set split size of each chunk. This can help save memory of graphic card.",
             rich_help_panel="Processing",
@@ -585,7 +584,7 @@ def main_command(
     ] = 0.25,
     # Stem Selection
     stem: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--two-stems",
             metavar="STEM",
@@ -637,9 +636,6 @@ def main_command(
         typer.echo("Usage: demucs separate [options] tracks... \nHelp: demucs --help")
         return
 
-    if name == "htdemucs":
-        console.print(f"[bold]Using default model: [cyan]{name}[/cyan][/bold]")
-
     # Ensure model is available (download if necessary)
     if not _ensure_model_available(name):
         return
@@ -652,12 +648,6 @@ def main_command(
     except Exception as error:
         console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
         return
-
-    if isinstance(separator.model, BagOfModels):
-        console.print(
-            f"Selected model is a bag of {len(separator.model.models)} models. "
-            "You will see that many progress bars per track."
-        )
 
     if stem is not None and stem not in separator.model.sources:
         console.print(

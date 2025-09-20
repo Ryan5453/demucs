@@ -23,14 +23,14 @@ Once you have a `Separator` instance, you can use the `separate` method to separ
 
 ```python
 def separate(
-    audio: Union[Tensor, PathLike, bytes],
+    audio: Tensor | Path | str | bytes,
     shifts: int = 1,
     overlap: float = 0.25,
     split: bool = True,
-    segment: Optional[int] = None,
+    segment: int | None = None,
     jobs: int = 0,
-    sample_rate: Optional[int] = None,
-    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    sample_rate: int | None = None,
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> SeparatedSources:
 ```
 
@@ -47,12 +47,12 @@ If you're happy with the pure audio stems, you have the ability to export them t
 ```python
 def export_stem(
     stem_name: str,
-    path: Optional[PathLike] = None, # Format extension will be added if not provided
+    path: Path | str | None = None, # Format extension will be added if not provided
     format: str = "wav",
     clip: ClipMode = ClipMode.rescale,
-    encoding: Optional[str] = None, # Only used for WAV and FLAC
-    bits_per_sample: Optional[int] = None, # Only used for WAV and FLAC
-) -> Union[Path, bytes]:
+    encoding: str | None = None, # Only used for WAV and FLAC
+    bits_per_sample: int | None = None, # Only used for WAV and FLAC
+) -> Path | bytes:
 ```
 
 ## Progress Callbacks

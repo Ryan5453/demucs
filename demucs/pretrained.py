@@ -7,7 +7,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Callable, Any, Dict
+from typing import Callable, Any
 
 from .repo import ModelRepository
 from .states import _check_diffq
@@ -20,7 +20,7 @@ SOURCES = ["drums", "bass", "other", "vocals"]
 
 def get_model(
     name: str,
-    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
 ):
     """
     Load a model by name from the model repository.

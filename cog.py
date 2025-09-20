@@ -5,7 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from cog import BasePredictor, Input, Path
-from typing import Dict, Optional
 import tempfile
 import torch
 from pathlib import Path as PathlibPath
@@ -15,7 +14,7 @@ from demucs.audio import ClipMode
 
 
 class Predictor(BasePredictor):
-    separators: Dict[str, Separator] = {}
+    separators: dict[str, Separator] = {}
 
     def setup(self) -> None:
         available_models = list_models()
@@ -70,7 +69,7 @@ class Predictor(BasePredictor):
             description="Whether to split the input into chunks for processing. Helps with memory usage for long files",
             default=True,
         ),
-        segment: Optional[int] = Input(
+        segment: int | None = Input(
             description="Length (in seconds) of each chunk when split=True. Leave empty for model default. Some models have max limits",
             default=None,
             ge=1,
@@ -97,7 +96,7 @@ class Predictor(BasePredictor):
             description="Show detailed processing information and progress",
             default=False,
         ),
-    ) -> Dict[str, PathlibPath]:
+    ) -> dict[str, PathlibPath]:
         """
         Separate audio into stems using the selected Demucs model.
 

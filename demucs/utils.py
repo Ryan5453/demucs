@@ -11,7 +11,6 @@ import tempfile
 from collections import defaultdict
 from concurrent.futures import CancelledError
 from contextlib import contextmanager
-from typing import Dict, List
 
 import torch
 from torch import Tensor
@@ -56,7 +55,7 @@ def center_trim(tensor: Tensor, reference: Tensor | int):
     return tensor
 
 
-def pull_metric(history: List[dict], name: str):
+def pull_metric(history: list[dict], name: str):
     out = []
     for metrics in history:
         metric = metrics
@@ -75,8 +74,8 @@ def EMA(beta: float = 1):
 
     Note that for `beta=1`, this is just plain averaging.
     """
-    fix: Dict[str, float] = defaultdict(float)
-    total: Dict[str, float] = defaultdict(float)
+    fix: dict[str, float] = defaultdict(float)
+    total: dict[str, float] = defaultdict(float)
 
     def _update(metrics: dict, weight: float = 1) -> dict:
         nonlocal total, fix

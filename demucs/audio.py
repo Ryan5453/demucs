@@ -5,7 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from pathlib import Path
-from typing import TypeAlias
 from enum import Enum
 
 import julius
@@ -13,8 +12,6 @@ import torch
 import torchaudio
 from torch import Tensor
 
-# Type alias for path-like objects
-PathLike: TypeAlias = str | Path
 
 
 class ClipMode(str, Enum):
@@ -78,7 +75,7 @@ def prevent_clip(wav, mode: ClipMode = ClipMode.rescale):
 
 def save_audio(
     wav: Tensor,
-    path: PathLike,
+    path: Path | str,
     samplerate: int,
     clip: ClipMode = ClipMode.rescale,
 ):
