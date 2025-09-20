@@ -4,14 +4,11 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import copy
 import random
-import threading
 from typing import (
     Any,
     Callable,
     Dict,
-    Hashable,
     List,
     Optional,
     TypeAlias,
@@ -144,16 +141,6 @@ def tensor_chunk(tensor_or_chunk):
         return TensorChunk(tensor_or_chunk)
 
 
-def _replace_dict(_dict: Optional[dict], *subs: tuple[Hashable, Any]) -> dict:
-    if _dict is None:
-        _dict = {}
-    else:
-        _dict = copy.copy(_dict)
-    for key, value in subs:
-        _dict[key] = value
-    return _dict
-
-
 def apply_model(
     model: BagOfModels | Model,
     mix: Tensor | TensorChunk,
@@ -165,8 +152,6 @@ def apply_model(
     progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     segment=None,
     num_workers=0,
-    callback=None,
-    callback_arg=None,
 ):
     """
     Apply model to a given mixture.
@@ -196,11 +181,6 @@ def apply_model(
         device = mix.device
     else:
         device = torch.device(device)
-    if callback_arg is None:
-        callback_arg = {}
-    callback_arg["model_idx_in_bag"] = 0
-    callback_arg["shift_idx"] = 0
-    callback_arg["segment_offset"] = 0
     kwargs = {
         "shifts": shifts,
         "split": split,
@@ -210,7 +190,6 @@ def apply_model(
         "device": device,
         "segment": segment,
         "num_workers": num_workers,
-        "callback_arg": callback_arg,
     }
     out: float | Tensor
     res: float | Tensor
@@ -220,15 +199,7 @@ def apply_model(
         # are different for each model.
         estimates: float | Tensor = 0.0
         totals = [0.0] * len(model.sources)
-        callback_arg["models"] = len(model.models)
         for sub_model, model_weights in zip(model.models, model.weights):
-            kwargs["callback"] = (
-                lambda d, i=callback_arg["model_idx_in_bag"]: callback(
-                    _replace_dict(d, ("model_idx_in_bag", i))
-                )
-                if callback
-                else None
-            )
             original_model_device = next(iter(sub_model.parameters())).device
             sub_model.to(device)
 
@@ -240,20 +211,14 @@ def apply_model(
                 totals[k] += inst_weight
             estimates += out
             del out
-            callback_arg["model_idx_in_bag"] += 1
 
         assert isinstance(estimates, Tensor)
         for k in range(estimates.shape[1]):
             estimates[:, k, :, :] /= totals[k]
         return estimates
 
-    if "models" not in callback_arg:
-        callback_arg["models"] = 1
     model.to(device)
     model.eval()
-
-    # Initialize lock for callback synchronization
-    lock = threading.Lock()
     assert transition_power >= 1, "transition_power < 1 leads to weird behavior."
     batch, channels, length = mix.shape
     if shifts:
@@ -266,11 +231,6 @@ def apply_model(
         for shift_idx in range(shifts):
             offset = random.randint(0, max_shift)
             shifted = TensorChunk(padded_mix, offset, length + max_shift - offset)
-            kwargs["callback"] = (
-                lambda d, i=shift_idx: callback(_replace_dict(d, ("shift_idx", i)))
-                if callback
-                else None
-            )
             res = apply_model(model, shifted, **kwargs)
             shifted_out = res
             out += shifted_out[..., max_shift - offset :]
@@ -314,18 +274,11 @@ def apply_model(
         futures = []
         for offset in offsets:
             chunk = TensorChunk(mix, offset, segment_length)
-            # Create a copy of kwargs without callback_arg to avoid duplication
-            chunk_kwargs = kwargs.copy()
-            chunk_kwargs["callback"] = (
-                lambda d, i=offset: callback(_replace_dict(d, ("segment_offset", i)))
-                if callback
-                else None
-            )
             future = pool.submit(
                 apply_model,
                 model,
                 chunk,
-                **chunk_kwargs,
+                **kwargs,
             )
             futures.append((future, offset))
             offset += segment_length
@@ -377,13 +330,7 @@ def apply_model(
         mix = tensor_chunk(mix)
         assert isinstance(mix, TensorChunk)
         padded_mix = mix.padded(valid_length).to(device)
-        with lock:
-            if callback is not None:
-                callback(_replace_dict(callback_arg, ("state", "start")))  # type: ignore
         with torch.no_grad():
             out = model(padded_mix)
-        with lock:
-            if callback is not None:
-                callback(_replace_dict(callback_arg, ("state", "end")))  # type: ignore
         assert isinstance(out, Tensor)
         return center_trim(out, length)
