@@ -167,57 +167,6 @@ class SeparatedSources:
             finally:
                 buffer.close()
 
-    def get_all_stems(
-        self,
-        output_dir: Optional[PathLike] = None,
-        filename_template: str = "{stem_name}",
-        format: str = "wav",
-        clip: ClipMode = ClipMode.rescale,
-        encoding: Optional[str] = None,
-        bits_per_sample: Optional[int] = None,
-    ) -> Union[Dict[str, Path], Dict[str, bytes]]:
-        """
-        Save all stems to disk or export all as bytes in memory.
-
-        :param output_dir: Optional directory to save stems. If None, exports to memory as bytes
-        :param filename_template: Template for naming files. Use {stem_name} as placeholder
-        :param format: Audio format ("wav", "flac", etc.) - used for both save and export
-        :param clip: Clipping mode to prevent audio distortion
-        :param encoding: Audio encoding (e.g., "PCM_F", "PCM_S"). Defaults to "PCM_F" for WAV
-        :param bits_per_sample: Bits per sample for audio encoding. Defaults to 32 for WAV
-        :return: Dict mapping stem names to file Paths if output_dir provided, otherwise to bytes
-        """
-        if output_dir is not None:
-            output_dir = Path(output_dir)
-            output_dir.mkdir(exist_ok=True, parents=True)
-
-            saved_paths = {}
-            for stem_name in self.sources.keys():
-                filename = filename_template.format(stem_name=stem_name)
-                file_path = output_dir / filename
-                saved_paths[stem_name] = self.export_stem(
-                    stem_name,
-                    file_path,
-                    format=format,
-                    clip=clip,
-                    encoding=encoding,
-                    bits_per_sample=bits_per_sample,
-                ).resolve()
-
-            return saved_paths
-        else:
-            return {
-                stem_name: self.export_stem(
-                    stem_name,
-                    format=format,
-                    clip=clip,
-                    encoding=encoding,
-                    bits_per_sample=bits_per_sample,
-                )
-                for stem_name in self.sources.keys()
-            }
-
-
 class Separator:
     """
     Audio source separation using Demucs models.
@@ -246,55 +195,63 @@ class Separator:
         self.sample_rate = self.model.samplerate
 
 
-    def _validate_segment(self, segment: Optional[int]) -> None:
+    def _to_tensor(
+        self, audio: Union[Tensor, PathLike, bytes], sample_rate: Optional[int] = None
+    ) -> Tensor:
         """
-        Validate that the segment parameter is compatible with the model.
-
-        :param segment: Segment length in seconds to validate
-        :raises SegmentValidationError: If segment is too large for the model
+        Convert various input types (Tensor, path, bytes) to a 2D float32 tensor
+        on the configured device, matching the model's sample rate and channels
+        when possible.
         """
-        if segment is None:
-            return
+        wav: Tensor
+        input_sr: Optional[int] = None
 
-        max_allowed = self.model.max_allowed_segment
-        if segment > max_allowed:
-            model_name = getattr(self._model, "name", self._name)
-            raise SegmentValidationError(
-                f"Cannot use segment={segment} with model '{model_name}'. "
-                f"Maximum allowed segment for this model is {max_allowed} seconds. "
-                f"Transformer models cannot process segments longer than they were trained for."
-            )
-
-    def _load_audio(self, track: Path):
-        """
-        Load audio file using torchaudio with FFmpeg backend.
-
-        :param track: Path to the audio file to load
-        :return: Audio tensor
-        :raises LoadAudioError: If loading fails
-        """
-        try:
-            wav, sr = torchaudio.load(str(track), backend="ffmpeg")
-
-            # Ensure tensor has correct dimensions
-            if wav.dim() == 1:
-                wav = wav[None]
-            if wav.dim() != 2:
+        if isinstance(audio, Tensor):
+            wav = audio
+            input_sr = sample_rate
+        elif isinstance(audio, (str, Path)):
+            try:
+                wav, sr = torchaudio.load(str(Path(audio)), backend="ffmpeg")
+                input_sr = sr
+            except Exception as e:
                 raise LoadAudioError(
-                    f"Expected audio tensor with 2 dimensions, got {wav.dim()}"
+                    f"Could not load file {audio} using FFmpeg backend: {e}. "
+                    "Make sure FFmpeg is installed and the file format is supported."
                 )
-
-            # Convert to target sample rate and channels if needed
-            if sr != self._samplerate:
-                wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
-
-            return wav
-
-        except Exception as e:
-            raise LoadAudioError(
-                f"Could not load file {track} using FFmpeg backend: {e}. "
-                "Make sure FFmpeg is installed and the file format is supported."
+        elif isinstance(audio, bytes):
+            audio_buffer = BytesIO(audio)
+            try:
+                wav, sr = torchaudio.load(audio_buffer, backend="ffmpeg")
+                input_sr = sr
+            except Exception as e:
+                raise LoadAudioError(
+                    f"Could not load audio from bytes using FFmpeg backend: {e}. "
+                    "Make sure the audio format is supported."
+                )
+            finally:
+                audio_buffer.close()
+        else:
+            raise ValueError(
+                f"Unsupported audio input type: {type(audio)}. "
+                "Expected Tensor, file path (str/Path), or bytes."
             )
+
+        # Minimal shape/dtype normalization
+        if wav.dim() == 1:
+            wav = wav[None]
+        if wav.dtype != torch.float32:
+            wav = wav.float()
+
+        # Try to match expected sample rate/channels when we know input_sr, or channels mismatch
+        if input_sr is not None and input_sr != self.sample_rate:
+            wav = convert_audio(wav, input_sr, self.sample_rate, self.audio_channels)
+        elif wav.shape[0] != self.audio_channels:
+            # Adjust channels without resampling
+            wav = convert_audio(
+                wav, self.sample_rate, self.sample_rate, self.audio_channels
+            )
+
+        return wav.to(self.device)
 
     def separate(
         self,
@@ -305,7 +262,7 @@ class Separator:
         segment: Optional[int] = None,
         jobs: int = 0,
         verbose: bool = False,
-        sr: Optional[int] = None,
+        sample_rate: Optional[int] = None,
     ) -> SeparatedSources:
         """
         Separate audio into stems. Accepts tensor, file path, or raw bytes.
@@ -321,107 +278,33 @@ class Separator:
         :param segment: Length (in seconds) of each chunk (only used if split=True)
         :param jobs: Number of parallel jobs (0 means automatic)
         :param verbose: Whether to show progress bars during processing
-        :param sr: Sample rate of input audio (only used with tensor input)
+        :param sample_rate: Sample rate of input audio (only used with tensor input)
         :return: SeparatedSources object containing the separated stems
         """
-        # Validate segment parameter
-        self._validate_segment(segment)
-
-        # Load audio based on input type
-        if isinstance(audio, Tensor):
-            wav = self._prepare_tensor(audio, sr)
-        elif isinstance(audio, (str, Path)):
-            wav = self._load_audio(Path(audio))
-        elif isinstance(audio, bytes):
-            wav = self._load_audio_from_bytes(audio)
-        else:
-            raise ValueError(
-                f"Unsupported audio input type: {type(audio)}. "
-                "Expected Tensor, file path (str/Path), or bytes."
-            )
-
-        return self._separate_tensor(
-            wav=wav,
-            shifts=shifts,
-            overlap=overlap,
-            split=split,
-            segment=segment,
-            jobs=jobs,
-            verbose=verbose,
-        )
-
-    def _prepare_tensor(self, wav: Tensor, sr: Optional[int] = None) -> Tensor:
-        """
-        Prepare a tensor for separation.
-        """
-        if wav.ndim == 1:
-            wav = wav.unsqueeze(0)
-        wav = wav.to(self._device)
-
-        if sr is not None and sr != self._samplerate:
-            raise ValueError(
-                f"Input sample rate ({sr}) doesn't match model's expected rate ({self._samplerate})"
-            )
-
-        return wav
-
-    def _load_audio_from_bytes(self, audio_bytes: bytes) -> Tensor:
-        """
-        Load audio from raw bytes.
-        """
-        try:
-            # Create a BytesIO object from the bytes
-            audio_buffer = BytesIO(audio_bytes)
-
-            # Load audio from the buffer using torchaudio with FFmpeg backend
-            wav, sr = torchaudio.load(audio_buffer, backend="ffmpeg")
-
-            # Ensure tensor has correct dimensions
-            if wav.dim() == 1:
-                wav = wav[None]
-            if wav.dim() != 2:
-                raise LoadAudioError(
-                    f"Expected audio tensor with 2 dimensions, got {wav.dim()}"
+        # Validate segment parameter inline to reduce helpers
+        if segment is not None:
+            max_allowed = self.model.max_allowed_segment
+            if segment > max_allowed:
+                model_name = getattr(self.model, "name", type(self.model).__name__)
+                raise SegmentValidationError(
+                    f"Cannot use segment={segment} with model '{model_name}'. "
+                    f"Maximum allowed segment for this model is {max_allowed} seconds. "
+                    f"Transformer models cannot process segments longer than they were trained for."
                 )
 
-            # Convert to target sample rate and channels if needed
-            if sr != self._samplerate:
-                wav = convert_audio(wav, sr, self._samplerate, self._audio_channels)
+        # Normalize input to tensor
+        wav = self._to_tensor(audio, sample_rate)
 
-            return wav
-
-        except Exception as e:
-            raise LoadAudioError(
-                f"Could not load audio from bytes using FFmpeg backend: {e}. "
-                "Make sure the audio format is supported."
-            )
-        finally:
-            # Clean up the buffer
-            if "audio_buffer" in locals():
-                audio_buffer.close()
-
-    def _separate_tensor(
-        self,
-        wav: Tensor,
-        shifts: int,
-        overlap: float,
-        split: bool,
-        segment: Optional[int],
-        jobs: int,
-        verbose: bool,
-    ) -> SeparatedSources:
-        """
-        Internal method to perform the actual separation on a prepared tensor.
-        """
+        # Separation logic (inlined)
         ref = wav.mean(0)
         mean = ref.mean()
         std = ref.std()
         ref = (ref - mean) / (1e-5 + std)
 
         sources_tensor = apply_model(
-            self._model,
+            self.model,
             wav[None],
-            device=self._device,
+            device=self.device,
             shifts=shifts,
             split=split,
             overlap=overlap,
@@ -430,12 +313,11 @@ class Separator:
             progress=verbose,
         )[0]
 
-        # Convert tensor output to dictionary of sources
         sources = {}
-        for source_idx, source_name in enumerate(self._model.sources):
+        for source_idx, source_name in enumerate(self.model.sources):
             sources[source_name] = sources_tensor[source_idx] * std + mean
 
-        return SeparatedSources(sources, self._samplerate, original=wav)
+        return SeparatedSources(sources, self.sample_rate, original=wav)
 
 
 def list_models() -> Dict[str, Dict[str, Any]]:

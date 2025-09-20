@@ -1,23 +1,13 @@
-# 🎛️ Demucs
+# 🎛️ demucs-inference
 
-Demucs is a state-of-the-art music source separation model, currently capable of separating drums, bass, and vocals from the rest of the accompaniment.
-This is a fork of the [author](https://github.com/adefossez)'s [fork](https://github.com/adefossez/demucs) of the [original Demucs repository](https://github.com/facebookresearch/demucs).
-Checkout the [paper](https://arxiv.org/abs/2211.08553) for more information on the model.
+Demucs is a state-of-the-art music source separation model capable of separating drums, bass, and vocals from the rest of the accompaniment.
+This is a fork of the [author](https://github.com/adefossez)'s [fork](https://github.com/adefossez/demucs) of the [original Demucs repository](https://github.com/facebookresearch/demucs). This fork is a infrence-only version, updated to use the latest versions of PyTorch and TorchAudio.
 
 ## Installation
 
-### Prerequisites
+The reccomended way to install demucs-inference is to use UV, an alternative Python package manager.
 
-#### FFmpeg
-
-Use the following commands to install FFmpeg:
-  - macOS: `brew install ffmpeg`
-  - Ubuntu/Debian: `sudo apt-get install ffmpeg` 
-  - Windows: Download from [FFmpeg.org](https://ffmpeg.org/download.html)
-
-#### Install UV (optional, but recommended)
-
-It is recommended to install Demucs using UV, a fast, modern Python package manager with isolated environments. 
+### Installing UV
 
 Use the following commands to install UV:
 ```bash
@@ -36,7 +26,7 @@ With UV, you can use the `uvx` command to run Demucs without installing it perma
 uvx --with demucs-inference demucs separate audio_file.mp3
 ```
 
-**Note**: Demucs does not specify a specific PyTorch wheel. This means that GPUs will only work on Apple Silicon or Linux with CUDA 12.6 when using this method.
+**Note**: Demucs does not specify a specific PyTorch wheel. This means that GPUs will only work on Apple Silicon or the current version of CUDA (currently 12.8) on Linux. Demucs will fall back to CPU if one of the above conditions are not met.
 
 ### Install using UV
 
@@ -56,7 +46,7 @@ Install Demucs using the following command:
 pip install demucs-inference
 ```
 
-**Note**: Demucs does not specify a specific PyTorch wheel. You should provide one yourself to ensure GPU support.
+**Note**: Demucs does not specify a specific PyTorch wheel. If you want to use a GPU, view the [PyTorch installation guide](https://pytorch.org/get-started/locally/) and append the correct index URL.
 
 ## Usage
 
@@ -75,6 +65,13 @@ demucs separate audio_file_1.mp3 audio_file_2.mp3
 # Separate all audio files in the current directory
 demucs separate *.mp3
 ```
+
+**Note:** Demucs also provides a `demucs-inference` command in your enviornment. This is identical to the `demucs` command, but is provided for compatibility with uvx.
+
+## Cog Usage
+
+Demucs provides a [Cog](https://github.com/replicate/cog), which allows you to easily deploy a Demucs model as a REST API. You can alternatively use the hosted version at [Replicate](https://replicate.com/ryan5453/demucs).
+
 ## API Usage
 
 Demucs provides a Python API for separating audio files. Please refer to the [API docs](docs/api.md) for more information.

@@ -1,7 +1,5 @@
 build:
   gpu: true
-  system_packages:
-    - "ffmpeg"
   python_version: "3.12"
   run:
     - "curl -LsSf https://astral.sh/uv/install.sh | sh"

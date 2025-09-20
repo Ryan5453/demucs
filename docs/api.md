@@ -1,6 +1,6 @@
 # Demucs API
 
-The Demucs Python API is primarily comprised of two classes `Separator` and `SeparatedSources`.
+The Demucs Python API is primarily comprised of two classes: `Separator` and `SeparatedSources`.
 
 ## Separator
 
@@ -30,14 +30,25 @@ def separate(
     segment: Optional[int] = None,
     jobs: int = 0,
     verbose: bool = False,
-    sr: Optional[int] = None,
+    sample_rate: Optional[int] = None,
 ) -> SeparatedSources:
 ```
 
-The `separate` method takes in the audio file to separate, and returns a `SeparatedSources` instance.
+When separating audio, you primarily only need to care about the `audio` parameter. The `audio` parameter can be a `Tensor` matching the model expectations, a file path, or raw audio bytes.
 
-The `audio` parameter can be a `Tensor`, a file path, or raw audio bytes.
+## SeparatedSources
 
-The `shifts` parameter is the number of random shifts for equivariant stabilization. Higher values improve quality but increase processing time.
+After running the `Separator`'s `separate` method, you will be returned a `SeparatedSources` instance. This instance contains the separated audio sources, the sample rate of the audio, and the original audio.
 
-The `overlap` parameter is the overlap between processing chunks.
+If you're happy with the pure audio stems, you have the ability to export them to an audio container (rather than the Tensors that are stored in the `SeparatedSources` instance). 
+
+```python
+def export_stem(
+    stem_name: str,
+    path: Optional[PathLike] = None, # Format extension will be added if not provided
+    format: str = "wav",
+    clip: ClipMode = ClipMode.rescale,
+    encoding: Optional[str] = None, # Only used for WAV and FLAC
+    bits_per_sample: Optional[int] = None, # Only used for WAV and FLAC
+) -> Union[Path, bytes]:
+```

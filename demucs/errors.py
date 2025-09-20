@@ -55,3 +55,10 @@ class InvalidComplementMethodError(DemucsError):
     """
 
     pass
+
+class InvalidClipModeError(DemucsError):
+    """
+    Exception raised when a clip mode is invalid.
+    """
+
+    pass

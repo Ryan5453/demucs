@@ -72,7 +72,7 @@ def prevent_clip(wav, mode: ClipMode = ClipMode.rescale):
     elif mode == ClipMode.tanh:
         wav = torch.tanh(wav)
     else:
-        raise ValueError(f"Invalid mode {mode}")
+        raise InvalidClipModeError(f"Invalid mode {mode}")
     return wav
 
 

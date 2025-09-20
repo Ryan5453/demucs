@@ -48,10 +48,3 @@ def get_model(
     return model
 
 
-def get_model_from_args(args):
-    """
-    Load pre-trained model.
-    """
-    if args.name is None:
-        args.name = DEFAULT_MODEL
-    return get_model(name=args.name)

@@ -20,7 +20,7 @@ from typing_extensions import Annotated
 from . import __version__
 from .api import Separator, save_audio, OtherMethod, ClipMode
 from .apply import BagOfModels
-from .pretrained import DEFAULT_MODEL, METADATA_PATH, get_model
+from .pretrained import METADATA_PATH, get_model
 from .repo import ModelRepository
 from .errors import ModelLoadingError
 
@@ -385,7 +385,7 @@ def main_command(
             help="Model name. Use 'demucs models list' to see available models.",
             rich_help_panel="Model Selection",
         ),
-    ] = DEFAULT_MODEL,
+    ] = "htdemucs",
     # Processing Options
     device: Annotated[
         str,
@@ -490,7 +490,7 @@ def main_command(
         typer.echo("Usage: demucs separate [options] tracks... \nHelp: demucs --help")
         return
 
-    if name == DEFAULT_MODEL:
+    if name == "htdemucs":
         console.print(f"[bold]Using default model: [cyan]{name}[/cyan][/bold]")
 
     try:
