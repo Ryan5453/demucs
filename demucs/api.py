@@ -9,8 +9,9 @@ from typing import Any, Callable
 from io import BytesIO
 
 import torch
-import torchaudio
 from torch import Tensor
+from torchcodec.decoders import AudioDecoder
+from torchcodec.encoders import AudioEncoder
 
 from enum import Enum
 from .apply import apply_model
@@ -137,34 +138,15 @@ class SeparatedSources:
             save_audio(tensor, file_path, self.sample_rate)
             return file_path
         else:
-            buffer = BytesIO()
             try:
-                # For WAV format, use consistent high-quality settings
-                if format.lower() == "wav":
-                    torchaudio.save(
-                        buffer,
-                        tensor,
-                        sample_rate=self.sample_rate,
-                        format=format,
-                        encoding="PCM_F",
-                        bits_per_sample=32,
-                    )
-                # For other formats, use provided settings or let torchaudio use defaults
-                else:
-                    args = [buffer, tensor, self.sample_rate, format]
-                    if encoding is not None:
-                        args.append(encoding)
-                    if bits_per_sample is not None:
-                        args.append(bits_per_sample)
-                    torchaudio.save(*args)
-
-                return buffer.getvalue()
+                # Use native torchcodec AudioEncoder for BytesIO exports
+                encoder = AudioEncoder(samples=tensor, sample_rate=self.sample_rate)
+                encoded_tensor = encoder.to_tensor(format=format)
+                return encoded_tensor.numpy().tobytes()
             except Exception as e:
                 raise RuntimeError(
                     f"Failed to export stem '{stem_name}' as {format}: {e}"
                 )
-            finally:
-                buffer.close()
 
 
 class Separator:
@@ -210,21 +192,27 @@ class Separator:
             input_sr = sample_rate
         elif isinstance(audio, (str, Path)):
             try:
-                wav, sr = torchaudio.load(str(Path(audio)), backend="soundfile")
-                input_sr = sr
+                # Use native torchcodec AudioDecoder for better performance
+                decoder = AudioDecoder(str(Path(audio)))
+                audio_samples = decoder.get_all_samples()
+                wav = audio_samples.data
+                input_sr = audio_samples.sample_rate
             except Exception as e:
                 raise LoadAudioError(
-                    f"Could not load file {audio} using soundfile backend: {e}. "
-                    "Make sure soundfile is installed and the file format is supported."
+                    f"Could not load file {audio} using torchcodec: {e}. "
+                    "Make sure the file format is supported."
                 )
         elif isinstance(audio, bytes):
             audio_buffer = BytesIO(audio)
             try:
-                wav, sr = torchaudio.load(audio_buffer, backend="soundfile")
-                input_sr = sr
+                # Use native torchcodec AudioDecoder for better performance
+                decoder = AudioDecoder(audio_buffer)
+                audio_samples = decoder.get_all_samples()
+                wav = audio_samples.data
+                input_sr = audio_samples.sample_rate
             except Exception as e:
                 raise LoadAudioError(
-                    f"Could not load audio from bytes using soundfile backend: {e}. "
+                    f"Could not load audio from bytes using torchcodec: {e}. "
                     "Make sure the audio format is supported."
                 )
             finally:

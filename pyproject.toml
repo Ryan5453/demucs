@@ -15,9 +15,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "torch>=2.6.0",
-    "torchaudio>=2.6.0",
-    "soundfile>=0.10.3",
+    "torch>=2.8.0",
+    "torchcodec>=0.7.0",
     "einops",
     "julius>=0.2.3",
     "openunmix",

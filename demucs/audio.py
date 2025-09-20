@@ -9,8 +9,8 @@ from enum import Enum
 
 import julius
 import torch
-import torchaudio
 from torch import Tensor
+from torchcodec.encoders import AudioEncoder
 
 
 
@@ -91,10 +91,6 @@ def save_audio(
     wav = prevent_clip(wav, mode=clip)
 
     # Always save as 32-bit float (native model format)
-    torchaudio.save(
-        path,
-        wav,
-        sample_rate=samplerate,
-        encoding="PCM_F",
-        bits_per_sample=32,
-    )
+    # Use native torchcodec AudioEncoder for best performance
+    encoder = AudioEncoder(samples=wav, sample_rate=samplerate)
+    encoder.to_file(path)
