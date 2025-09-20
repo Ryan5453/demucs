@@ -261,6 +261,7 @@ def apply_model(
         # If the overlap < 50%, this will translate to linear transition when
         # transition_power is 1.
         weight = (weight / weight.max()) ** transition_power
+        weight_on_device = weight.to(mix.device)
 
         # Initialize thread pool based on num_workers
         if num_workers == 0 or device.type != "cpu":
@@ -289,11 +290,11 @@ def apply_model(
                 chunk_out = future.result()  # type: Tensor
                 chunk_length = chunk_out.shape[-1]
                 out[..., offset : offset + segment_length] += (
-                    weight[:chunk_length] * chunk_out
-                ).to(mix.device)
-                sum_weight[offset : offset + segment_length] += weight[
+                    weight_on_device[:chunk_length] * chunk_out.to(mix.device)
+                )
+                sum_weight[offset : offset + segment_length] += weight_on_device[
                     :chunk_length
-                ].to(mix.device)
+                ]
 
                 completed_chunks += 1
                 if progress_callback:
