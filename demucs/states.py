@@ -14,21 +14,6 @@ from pathlib import Path
 import torch
 
 
-# Quantization support has been removed from this version of Demucs
-# These functions are kept as stubs to maintain API compatibility
-
-def _check_diffq():
-    """Legacy function - quantization support has been removed."""
-    raise ImportError(
-        "Quantization support has been removed from this version of Demucs. "
-        "Please use non-quantized models instead."
-    )
-
-
-def get_quantizer(model, args, optimizer=None):
-    """Legacy function - quantization support has been removed."""
-    return None
-
 
 def load_model(path_or_package, strict=False):
     """Load a model from the given serialized model, either given as a dict (already loaded)
@@ -65,13 +50,7 @@ def load_model(path_or_package, strict=False):
 
 def set_state(model, state, quantizer=None):
     """Set the state on a given model."""
-    if state.get("__quantized"):
-        raise ImportError(
-            "Quantized model detected but quantization support has been removed. "
-            "Please use non-quantized models instead."
-        )
-    else:
-        model.load_state_dict(state)
+    model.load_state_dict(state)
     return state
 
 
