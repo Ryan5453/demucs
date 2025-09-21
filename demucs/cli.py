@@ -531,19 +531,20 @@ def get_models() -> dict[str, dict]:
     else:
         raise RuntimeError("Invalid metadata structure: no models or collections found")
 
-
 def main_command(
     # Input/Output
     tracks: Annotated[
-        list[Path] | None, typer.Argument(help="Path to tracks", show_default=False)
+        list[Path] | None, 
+        typer.Argument(help="Path to tracks", show_default=False)
     ] = None,
     # Model Selection
-    name: Annotated[
+    model: Annotated[
         ModelName,
         typer.Option(
             "-m",
             "--model",
-            help="Model name. Use 'demucs models list' to see available models.",
+            help="Model to use for separation",
+            rich_help_panel="Model Selection",
         ),
     ] = ModelName.htdemucs,
     # Processing Options
@@ -552,7 +553,8 @@ def main_command(
         typer.Option(
             "-d",
             "--device",
-            help="Device to process on, default is cuda if available, mps if available, else cpu",
+            help="Device to process separation on",
+            rich_help_panel="Processing",
         ),
     ] = (
         DeviceType.cuda
@@ -565,37 +567,44 @@ def main_command(
         int,
         typer.Option(
             help="Number of random shifts for equivariant stabilization. Increase separation time but improves quality.",
+            rich_help_panel="Processing",
         ),
     ] = 1,
     split: Annotated[
         bool,
         typer.Option(
             help="Split audio in chunks to save memory.",
+            rich_help_panel="Processing",
         ),
     ] = True,
     segment: Annotated[
         int | None,
         typer.Option(
             help="Set split size of each chunk. This can help save memory of graphic card.",
+            rich_help_panel="Processing",
         ),
     ] = None,
     overlap: Annotated[
         float,
-        typer.Option(help="Overlap between the splits.", rich_help_panel="Processing"),
+        typer.Option(
+            help="Overlap between the splits.", 
+            rich_help_panel="Processing"
+        ),
     ] = 0.25,
     # Stem Selection
-    stem: Annotated[
+    isolate_stem: Annotated[
         str | None,
         typer.Option(
-            "--two-stems",
             help="Only separate audio into {STEM} and no_{STEM}.",
+            rich_help_panel="Stem Selection",
         ),
     ] = None,
-    other_method: Annotated[
+    isolation_method: Annotated[
         OtherMethod,
         typer.Option(
             help='Decide how to get "no_{STEM}". "none" will not save "no_{STEM}". '
             '"add" will add all the other stems. "minus" will use the original track minus the selected stem.',
+            rich_help_panel="Stem Selection",
         ),
     ] = OtherMethod.add,
     # Output Format
@@ -605,14 +614,14 @@ def main_command(
             "-o",
             "--output",
             help="Folder where to put extracted tracks. A subfolder with the model name will be created.",
+            rich_help_panel="Output",
         ),
     ] = Path("separated"),
     filename: Annotated[
         str,
         typer.Option(
-            help="Set the name of output file. Use {track}, {trackext}, {stem}, {ext} "
-            "to use variables of track name without extension, track extension, "
-            "stem name and default output file extension.",
+            help="File name format. Variables: {track}, {trackext}, {stem}, {ext}",
+            rich_help_panel="Output",
         ),
     ] = "{track}/{stem}.{ext}",
     clip_mode: Annotated[
@@ -620,6 +629,7 @@ def main_command(
         typer.Option(
             help="Strategy for avoiding clipping: rescaling entire signal "
             "if necessary (rescale) or hard clipping (clamp).",
+            rich_help_panel="Output",
         ),
     ] = ClipMode.rescale,
 ):
@@ -632,25 +642,25 @@ def main_command(
         return
 
     # Ensure model is available (download if necessary)
-    if not _ensure_model_available(name.value):
+    if not _ensure_model_available(model.value):
         return
 
     try:
         separator = Separator(
-            model=name.value,
+            model=model.value,
             device=device.value,
         )
     except Exception as error:
-        console.print(f"[red]✗[/red] [bold]{name.value}[/bold]: {error}")
+        console.print(f"[red]✗[/red] [bold]{model.value}[/bold]: {error}")
         return
 
-    if stem is not None and stem not in separator.model.sources:
+    if isolate_stem is not None and isolate_stem not in separator.model.sources:
         console.print(
-            f'[red]✗[/red] [bold]{name.value}[/bold]: error: stem "{stem}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
+            f'[red]✗[/red] [bold]{model.value}[/bold]: error: stem "{isolate_stem}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
         )
         return
 
-    out_dir = out / name.value
+    out_dir = out / model.value
     out_dir.mkdir(parents=True, exist_ok=True)
     console.print(f"Separated tracks will be stored in {out_dir.resolve()}")
 
@@ -686,17 +696,17 @@ def main_command(
                     progress_callback=audio_callback,
                 )
 
-            if stem is None:
+            if isolate_stem is None:
                 # Separate all stems
                 sources_to_save = separated.sources
             else:
                 # Create two stems: the requested stem and its complement
-                sources_to_save = {stem: separated.sources[stem]}
+                sources_to_save = {isolate_stem: separated.sources[isolate_stem]}
 
                 # Add the complement based on the other_method
-                if other_method != OtherMethod.none:
-                    separated.get_stem(f"no_{stem}", other_method.value)
-                    sources_to_save[f"no_{stem}"] = separated.sources[f"no_{stem}"]
+                if isolation_method != OtherMethod.none:
+                    separated.get_stem(f"no_{isolate_stem}", isolation_method.value)
+                    sources_to_save[f"no_{isolate_stem}"] = separated.sources[f"no_{isolate_stem}"]
 
             # Save each stem
             for stem_name, source in sources_to_save.items():
