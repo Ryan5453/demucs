@@ -9,6 +9,7 @@ import math
 from fractions import Fraction
 
 import torch
+from einops import rearrange
 from openunmix.filtering import wiener
 from torch import nn
 from torch.nn import functional as F
@@ -582,17 +583,17 @@ class HTDemucs(nn.Module):
         if self.crosstransformer:
             if self.bottom_channels:
                 b, c, f, t = x.shape
-                x = x.flatten(2)  # "b c f t-> b c (f t)"
+                x = rearrange(x, "b c f t-> b c (f t)")
                 x = self.channel_upsampler(x)
-                x = x.view(b, -1, f, t)  # "b c (f t)-> b c f t"
+                x = rearrange(x, "b c (f t)-> b c f t", f=f)
                 xt = self.channel_upsampler_t(xt)
 
             x, xt = self.crosstransformer(x, xt)
 
             if self.bottom_channels:
-                x = x.flatten(2)  # "b c f t-> b c (f t)"
+                x = rearrange(x, "b c f t-> b c (f t)")
                 x = self.channel_downsampler(x)
-                x = x.view(b, -1, f, t)  # "b c (f t)-> b c f t"
+                x = rearrange(x, "b c (f t)-> b c f t", f=f)
                 xt = self.channel_downsampler_t(xt)
 
         for idx, decode in enumerate(self.decoder):

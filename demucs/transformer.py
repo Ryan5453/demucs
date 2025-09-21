@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange
 
 
 def create_sin_embedding(
@@ -670,15 +671,15 @@ class CrossTransformerEncoder(nn.Module):
         pos_emb_2d = create_2d_sin_embedding(
             C, Fr, T1, x.device, self.max_period
         )  # (1, C, Fr, T1)
-        pos_emb_2d = pos_emb_2d.permute(0, 2, 3, 1).reshape(B, T1 * Fr, C)  # "b c fr t1 -> b (t1 fr) c"
-        x = x.permute(0, 2, 3, 1).reshape(B, T1 * Fr, C)  # "b c fr t1 -> b (t1 fr) c"
+        pos_emb_2d = rearrange(pos_emb_2d, "b c fr t1 -> b (t1 fr) c")
+        x = rearrange(x, "b c fr t1 -> b (t1 fr) c")
         x = self.norm_in(x)
         x = x + self.weight_pos_embed * pos_emb_2d
 
         B, C, T2 = xt.shape
-        xt = xt.permute(0, 2, 1)  # "b c t2 -> b t2 c"
+        xt = rearrange(xt, "b c t2 -> b t2 c")  # now T2, B, C
         pos_emb = self._get_pos_embedding(T2, B, C, x.device)
-        pos_emb = pos_emb.permute(1, 0, 2)  # "t2 b c -> b t2 c"
+        pos_emb = rearrange(pos_emb, "t2 b c -> b t2 c")
         xt = self.norm_in_t(xt)
         xt = xt + self.weight_pos_embed * pos_emb
 
@@ -691,8 +692,8 @@ class CrossTransformerEncoder(nn.Module):
                 x = self.layers[idx](x, xt)
                 xt = self.layers_t[idx](xt, old_x)
 
-        x = x.reshape(B, T1, Fr, C).permute(0, 3, 2, 1)  # "b (t1 fr) c -> b c fr t1"
-        xt = xt.permute(0, 2, 1)  # "b t2 c -> b c t2"
+        x = rearrange(x, "b (t1 fr) c -> b c fr t1", t1=T1)
+        xt = rearrange(xt, "b t2 c -> b c t2")
         return x, xt
 
     def _get_pos_embedding(self, T, B, C, device):

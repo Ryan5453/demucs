@@ -16,7 +16,6 @@ from .api import (
 )
 from .pretrained import get_model
 
-
 __all__ = [
     "__version__",
     "Separator",
