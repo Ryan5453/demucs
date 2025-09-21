@@ -529,7 +529,6 @@ def main_command(
             "-n",
             "--name",
             help="Model name. Use 'demucs models list' to see available models.",
-            rich_help_panel="Model Selection",
         ),
     ] = "htdemucs",
     # Processing Options
@@ -539,7 +538,6 @@ def main_command(
             "-d",
             "--device",
             help="Device to process on, default is cuda if available, mps if available, else cpu",
-            rich_help_panel="Processing",
         ),
     ] = (
         "cuda"
@@ -552,7 +550,6 @@ def main_command(
         int,
         typer.Option(
             help="Number of random shifts for equivariant stabilization. Increase separation time but improves quality.",
-            rich_help_panel="Processing",
         ),
     ] = 1,
     jobs: Annotated[
@@ -561,21 +558,18 @@ def main_command(
             "-j",
             "--jobs",
             help="Number of jobs. Increases memory usage but will be much faster when multiple cores are available.",
-            rich_help_panel="Processing",
         ),
     ] = 0,
     split: Annotated[
         bool,
         typer.Option(
             help="Split audio in chunks to save memory.",
-            rich_help_panel="Processing",
         ),
     ] = True,
     segment: Annotated[
         int | None,
         typer.Option(
             help="Set split size of each chunk. This can help save memory of graphic card.",
-            rich_help_panel="Processing",
         ),
     ] = None,
     overlap: Annotated[
@@ -587,9 +581,7 @@ def main_command(
         str | None,
         typer.Option(
             "--two-stems",
-            metavar="STEM",
             help="Only separate audio into {STEM} and no_{STEM}.",
-            rich_help_panel="Stem Selection",
         ),
     ] = None,
     other_method: Annotated[
@@ -597,7 +589,6 @@ def main_command(
         typer.Option(
             help='Decide how to get "no_{STEM}". "none" will not save "no_{STEM}". '
             '"add" will add all the other stems. "minus" will use the original track minus the selected stem.',
-            rich_help_panel="Stem Selection",
         ),
     ] = OtherMethod.add,
     # Output Format
@@ -607,7 +598,6 @@ def main_command(
             "-o",
             "--output",
             help="Folder where to put extracted tracks. A subfolder with the model name will be created.",
-            rich_help_panel="Output",
         ),
     ] = Path("separated"),
     filename: Annotated[
@@ -616,7 +606,6 @@ def main_command(
             help="Set the name of output file. Use {track}, {trackext}, {stem}, {ext} "
             "to use variables of track name without extension, track extension, "
             "stem name and default output file extension.",
-            rich_help_panel="Output",
         ),
     ] = "{track}/{stem}.{ext}",
     clip_mode: Annotated[
@@ -624,7 +613,6 @@ def main_command(
         typer.Option(
             help="Strategy for avoiding clipping: rescaling entire signal "
             "if necessary (rescale) or hard clipping (clamp).",
-            rich_help_panel="Output",
         ),
     ] = ClipMode.rescale,
 ):
@@ -732,6 +720,8 @@ def main():
         help="Demucs: Audio Source Separation",
         add_completion=False,
         no_args_is_help=True,
+        rich_markup_mode="legacy",
+        pretty_exceptions_show_locals=False,
     )
 
     models_app = typer.Typer(

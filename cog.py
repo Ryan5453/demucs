@@ -37,8 +37,6 @@ class Predictor(BasePredictor):
             description="Model to use for separation",
             default="htdemucs",
             choices=[
-                "mdx",
-                "mdx_extra",
                 "hdemucs_mmi",
                 "htdemucs",
                 "htdemucs_ft",
