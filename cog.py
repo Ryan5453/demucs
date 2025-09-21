@@ -39,8 +39,6 @@ class Predictor(BasePredictor):
             choices=[
                 "mdx",
                 "mdx_extra",
-                "mdx_q",
-                "mdx_extra_q",
                 "hdemucs_mmi",
                 "htdemucs",
                 "htdemucs_ft",

@@ -16,7 +16,7 @@ from torchcodec.encoders import AudioEncoder
 from enum import Enum
 from .apply import apply_model
 from .audio import ClipMode, convert_audio, save_audio, prevent_clip
-from .pretrained import METADATA_PATH, get_model
+from .pretrained import get_model
 from .repo import AnyModel, ModelRepository
 from .errors import (
     LoadAudioError,
@@ -313,7 +313,7 @@ def list_models() -> dict[str, dict[str, Any]]:
 
     :return: Dictionary with model names as keys and metadata as values
     """
-    model_repo = ModelRepository(METADATA_PATH)
+    model_repo = ModelRepository()
     return model_repo.list_models()
 
 

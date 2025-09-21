@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Callable, Any
 
 from .repo import ModelRepository
-from .states import _check_diffq
 
 logger = logging.getLogger(__name__)
 METADATA_PATH = Path(__file__).parent / "metadata.json"
@@ -37,12 +36,7 @@ def get_model(
     """
     model_repo = ModelRepository()
 
-    try:
-        model = model_repo.get_model(name, progress_callback=progress_callback)
-    except ImportError as exc:
-        if "diffq" in exc.args[0]:
-            _check_diffq()
-        raise
+    model = model_repo.get_model(name, progress_callback=progress_callback)
 
     model.eval()
     return model
