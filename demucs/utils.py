@@ -121,34 +121,6 @@ def random_subset(dataset, max_samples: int, seed: int = 42):
     return Subset(dataset, perm[:max_samples].tolist())
 
 
-class DummyPoolExecutor:
-    class DummyResult:
-        def __init__(self, func, _dict, *args, **kwargs):
-            self.func = func
-            self._dict = _dict
-            self.args = args
-            self.kwargs = kwargs
-
-        def result(self):
-            if self._dict["run"]:
-                return self.func(*self.args, **self.kwargs)
-            else:
-                raise CancelledError()
-
-    def __init__(self, workers=0):
-        self._dict = {"run": True}
-
-    def submit(self, func, *args, **kwargs):
-        return DummyPoolExecutor.DummyResult(func, self._dict, *args, **kwargs)
-
-    def shutdown(self, *_, **__):
-        self._dict["run"] = False
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        return
 
 
 def spectro(x, n_fft=512, hop_length=None, pad=0):

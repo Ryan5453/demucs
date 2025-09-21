@@ -247,7 +247,6 @@ class Separator:
         overlap: float = 0.25,
         split: bool = True,
         segment: int | None = None,
-        jobs: int = 0,
         sample_rate: int | None = None,
         progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> SeparatedSources:
@@ -263,7 +262,6 @@ class Separator:
         :param overlap: Overlap between processing chunks (0.0 to 1.0)
         :param split: Whether to split the input into chunks for processing
         :param segment: Length (in seconds) of each chunk (only used if split=True)
-        :param jobs: Number of parallel jobs (0 means automatic)
         :param sample_rate: Sample rate of input audio (only used with tensor input)
         :param progress_callback: Optional callback for progress updates during audio processing
         :return: SeparatedSources object containing the separated stems
@@ -296,7 +294,6 @@ class Separator:
             split=split,
             overlap=overlap,
             segment=segment,
-            num_workers=jobs,
             progress_callback=progress_callback,
         )[0]
 

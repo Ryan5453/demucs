@@ -28,7 +28,6 @@ def separate(
     overlap: float = 0.25,
     split: bool = True,
     segment: int | None = None,
-    jobs: int = 0,
     sample_rate: int | None = None,
     progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> SeparatedSources:

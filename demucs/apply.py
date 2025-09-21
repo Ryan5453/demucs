@@ -10,7 +10,6 @@ from typing import (
     Callable,
     TypeAlias,
 )
-from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import torch.nn as nn
@@ -19,7 +18,7 @@ from torch.nn import functional as F
 
 from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
-from .utils import center_trim, DummyPoolExecutor
+from .utils import center_trim
 
 Model: TypeAlias = HDemucs | HTDemucs
 
@@ -148,7 +147,6 @@ def apply_model(
     transition_power=1.0,
     progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     segment=None,
-    num_workers=0,
 ):
     """
     Apply model to a given mixture.
@@ -170,8 +168,6 @@ def apply_model(
             execute the computation, otherwise `mix.device` is assumed.
             When `device` is different from `mix.device`, only local computations will
             be on `device`, while the entire tracks will be stored on `mix.device`.
-        num_workers (int): if non zero, device is 'cpu', how many threads to
-            use in parallel.
         segment (float or None): override the model segment parameter.
     """
     if device is None:
@@ -186,7 +182,6 @@ def apply_model(
         "progress_callback": progress_callback,
         "device": device,
         "segment": segment,
-        "num_workers": num_workers,
     }
     out: float | Tensor
     res: float | Tensor
@@ -263,58 +258,44 @@ def apply_model(
         weight = (weight / weight.max()) ** transition_power
         weight_on_device = weight.to(mix.device)
 
-        # Initialize thread pool based on num_workers
-        if num_workers == 0 or device.type != "cpu":
-            pool = DummyPoolExecutor()
-        else:
-            pool = ThreadPoolExecutor(max_workers=num_workers)
+        # Process chunks sequentially (PyTorch handles internal threading)
+        total_chunks = len(offsets)
+        
+        # Notify callback about processing start
+        if progress_callback:
+            progress_callback("processing_start", {"total_chunks": total_chunks})
 
-        futures = []
+        completed_chunks = 0
         for offset in offsets:
             chunk = TensorChunk(mix, offset, segment_length)
-            future = pool.submit(
-                apply_model,
+            chunk_out = apply_model(
                 model,
                 chunk,
                 **kwargs,
             )
-            futures.append((future, offset))
-            offset += segment_length
-        # Notify callback about processing start
-        if progress_callback:
-            progress_callback("processing_start", {"total_chunks": len(futures)})
+            chunk_length = chunk_out.shape[-1]
+            out[..., offset : offset + segment_length] += (
+                weight_on_device[:chunk_length] * chunk_out.to(mix.device)
+            )
+            sum_weight[offset : offset + segment_length] += weight_on_device[
+                :chunk_length
+            ]
 
-        completed_chunks = 0
-        for future, offset in futures:
-            try:
-                chunk_out = future.result()  # type: Tensor
-                chunk_length = chunk_out.shape[-1]
-                out[..., offset : offset + segment_length] += (
-                    weight_on_device[:chunk_length] * chunk_out.to(mix.device)
+            completed_chunks += 1
+            if progress_callback:
+                progress_callback(
+                    "chunk_complete",
+                    {
+                        "completed_chunks": completed_chunks,
+                        "total_chunks": total_chunks,
+                    },
                 )
-                sum_weight[offset : offset + segment_length] += weight_on_device[
-                    :chunk_length
-                ]
-
-                completed_chunks += 1
-                if progress_callback:
-                    progress_callback(
-                        "chunk_complete",
-                        {
-                            "completed_chunks": completed_chunks,
-                            "total_chunks": len(futures),
-                        },
-                    )
-            except Exception:
-                pool.shutdown(wait=True, cancel_futures=True)
-                raise
 
         # Notify callback about processing completion
         if progress_callback:
-            progress_callback("processing_complete", {"total_chunks": len(futures)})
+            progress_callback("processing_complete", {"total_chunks": total_chunks})
         assert sum_weight.min() > 0
         out /= sum_weight
-        pool.shutdown(wait=True)
         assert isinstance(out, Tensor)
         return out
     else:

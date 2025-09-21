@@ -6,6 +6,7 @@
 
 import json
 from pathlib import Path
+from enum import Enum
 
 import torch
 import typer
@@ -22,6 +23,20 @@ from .apply import BagOfModels
 from .pretrained import METADATA_PATH, get_model
 from .repo import ModelRepository
 from .errors import ModelLoadingError
+
+
+class DeviceType(str, Enum):
+    cpu = "cpu"
+    cuda = "cuda"
+    mps = "mps"
+
+
+class ModelName(str, Enum):
+    hdemucs_mmi = "hdemucs_mmi"
+    htdemucs = "htdemucs"
+    htdemucs_ft = "htdemucs_ft"
+    htdemucs_6s = "htdemucs_6s"
+
 
 console = Console()
 
@@ -524,27 +539,27 @@ def main_command(
     ] = None,
     # Model Selection
     name: Annotated[
-        str,
+        ModelName,
         typer.Option(
-            "-n",
-            "--name",
+            "-m",
+            "--model",
             help="Model name. Use 'demucs models list' to see available models.",
         ),
-    ] = "htdemucs",
+    ] = ModelName.htdemucs,
     # Processing Options
     device: Annotated[
-        str,
+        DeviceType,
         typer.Option(
             "-d",
             "--device",
             help="Device to process on, default is cuda if available, mps if available, else cpu",
         ),
     ] = (
-        "cuda"
+        DeviceType.cuda
         if torch.cuda.is_available()
-        else "mps"
+        else DeviceType.mps
         if torch.backends.mps.is_available()
-        else "cpu"
+        else DeviceType.cpu
     ),
     shifts: Annotated[
         int,
@@ -552,14 +567,6 @@ def main_command(
             help="Number of random shifts for equivariant stabilization. Increase separation time but improves quality.",
         ),
     ] = 1,
-    jobs: Annotated[
-        int,
-        typer.Option(
-            "-j",
-            "--jobs",
-            help="Number of jobs. Increases memory usage but will be much faster when multiple cores are available.",
-        ),
-    ] = 0,
     split: Annotated[
         bool,
         typer.Option(
@@ -625,25 +632,25 @@ def main_command(
         return
 
     # Ensure model is available (download if necessary)
-    if not _ensure_model_available(name):
+    if not _ensure_model_available(name.value):
         return
 
     try:
         separator = Separator(
-            model=name,
-            device=device,
+            model=name.value,
+            device=device.value,
         )
     except Exception as error:
-        console.print(f"[red]✗[/red] [bold]{name}[/bold]: {error}")
+        console.print(f"[red]✗[/red] [bold]{name.value}[/bold]: {error}")
         return
 
     if stem is not None and stem not in separator.model.sources:
         console.print(
-            f'[red]✗[/red] [bold]{name}[/bold]: error: stem "{stem}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
+            f'[red]✗[/red] [bold]{name.value}[/bold]: error: stem "{stem}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
         )
         return
 
-    out_dir = out / name
+    out_dir = out / name.value
     out_dir.mkdir(parents=True, exist_ok=True)
     console.print(f"Separated tracks will be stored in {out_dir.resolve()}")
 
@@ -676,7 +683,6 @@ def main_command(
                     overlap=overlap,
                     split=split,
                     segment=segment,
-                    jobs=jobs,
                     progress_callback=audio_callback,
                 )
 
