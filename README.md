@@ -1,11 +1,11 @@
 # 🎛️ demucs-inference
 
 Demucs is a state-of-the-art music source separation model capable of separating drums, bass, and vocals from the rest of the accompaniment.
-This is a fork of the [author](https://github.com/adefossez)'s [fork](https://github.com/adefossez/demucs) of the [original Demucs repository](https://github.com/facebookresearch/demucs). This fork is a infrence-only version, updated to use the latest versions of PyTorch and TorchAudio.
+This is a fork of the [author](https://github.com/adefossez)'s [fork](https://github.com/adefossez/demucs) of the [original Demucs repository](https://github.com/facebookresearch/demucs). It has been updated to use modern versions of Python, PyTorch, and TorchCodec.
 
 ## Installation
 
-The reccomended way to install demucs-inference is to use UV, an alternative Python package manager.
+The recommended way to install demucs-inference is to use UV, an alternative Python package manager.
 
 ### Installing UV
 
@@ -36,7 +36,7 @@ Install Demucs using the following command:
 uv pip install demucs-inference --torch-backend=auto
 ```
 
-The `--torch-backend=auto` flag automatically detects your GPU and installs the appropriate PyTorch version. If you are on Windows and have a Intel GPU (XPU), you will need to use `--torch-backend=xpu` as UV will not automatically detect it.
+The `--torch-backend=auto` flag automatically detects your GPU and installs the appropriate PyTorch version.
 
 ### Install without UV
 

@@ -7,6 +7,7 @@
 import json
 from pathlib import Path
 from enum import Enum
+from datetime import datetime
 
 import torch
 import typer
@@ -36,6 +37,15 @@ class ModelName(str, Enum):
     htdemucs = "htdemucs"
     htdemucs_ft = "htdemucs_ft"
     htdemucs_6s = "htdemucs_6s"
+
+
+class StemName(str, Enum):
+    drums = "drums"
+    bass = "bass"
+    other = "other"
+    vocals = "vocals"
+    guitar = "guitar"
+    piano = "piano"
 
 
 console = Console()
@@ -410,6 +420,34 @@ def format_file_size(size_bytes):
         return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 
+def format_output_path(template: str, model: str, track: Path, stem: str, ext: str = "wav") -> Path:
+    """Format output path template with variables"""
+    now = datetime.now()
+    
+    # Extract track name and extension
+    track_name = track.name.rsplit(".", 1)[0]
+    track_ext = track.name.rsplit(".", 1)[-1] if "." in track.name else ""
+    
+    # Template variables
+    variables = {
+        "model": model,
+        "track": track_name,
+        "trackext": track_ext,
+        "stem": stem,
+        "ext": ext,
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H-%M-%S"),
+        "timestamp": str(int(now.timestamp())),
+    }
+    
+    # Replace all variables in the template
+    formatted_path = template
+    for var, value in variables.items():
+        formatted_path = formatted_path.replace(f"{{{var}}}", value)
+    
+    return Path(formatted_path)
+
+
 def download_models_command(
     names: Annotated[
         list[str],
@@ -592,38 +630,23 @@ def main_command(
         ),
     ] = 0.25,
     # Stem Selection
-    isolate_stem: Annotated[
-        str | None,
+    add_complement: Annotated[
+        StemName | None,
         typer.Option(
-            help="Only separate audio into {STEM} and no_{STEM}.",
+            help='Additionally create a "no_{STEM}" file (e.g., no_vocals.wav) containing all other stems combined.',
             rich_help_panel="Stem Selection",
         ),
     ] = None,
-    isolation_method: Annotated[
-        OtherMethod,
-        typer.Option(
-            help='Decide how to get "no_{STEM}". "none" will not save "no_{STEM}". '
-            '"add" will add all the other stems. "minus" will use the original track minus the selected stem.',
-            rich_help_panel="Stem Selection",
-        ),
-    ] = OtherMethod.add,
     # Output Format
-    out: Annotated[
-        Path,
+    output: Annotated[
+        str,
         typer.Option(
             "-o",
             "--output",
-            help="Folder where to put extracted tracks. A subfolder with the model name will be created.",
+            help="Output path template. Variables: {model}, {track}, {trackext}, {stem}, {ext}, {date}, {time}, {timestamp}",
             rich_help_panel="Output",
         ),
-    ] = Path("separated"),
-    filename: Annotated[
-        str,
-        typer.Option(
-            help="File name format. Variables: {track}, {trackext}, {stem}, {ext}",
-            rich_help_panel="Output",
-        ),
-    ] = "{track}/{stem}.{ext}",
+    ] = "separated/{model}/{track}/{stem}.{ext}",
     clip_mode: Annotated[
         ClipMode,
         typer.Option(
@@ -654,15 +677,16 @@ def main_command(
         console.print(f"[red]✗[/red] [bold]{model.value}[/bold]: {error}")
         return
 
-    if isolate_stem is not None and isolate_stem not in separator.model.sources:
+    if add_complement is not None and add_complement.value not in separator.model.sources:
         console.print(
-            f'[red]✗[/red] [bold]{model.value}[/bold]: error: stem "{isolate_stem}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
+            f'[red]✗[/red] [bold]{model.value}[/bold]: error: stem "{add_complement.value}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
         )
         return
 
-    out_dir = out / model.value
-    out_dir.mkdir(parents=True, exist_ok=True)
-    console.print(f"Separated tracks will be stored in {out_dir.resolve()}")
+    # Show where tracks will be stored (using first track as example)
+    if tracks:
+        example_path = format_output_path(output, model.value, tracks[0], "vocals")
+        console.print(f"Separated tracks will be stored in {example_path.parent.resolve()}/")
 
     for track in tracks:
         if not track.exists():
@@ -696,26 +720,18 @@ def main_command(
                     progress_callback=audio_callback,
                 )
 
-            if isolate_stem is None:
-                # Separate all stems
-                sources_to_save = separated.sources
-            else:
-                # Create two stems: the requested stem and its complement
-                sources_to_save = {isolate_stem: separated.sources[isolate_stem]}
-
-                # Add the complement based on the other_method
-                if isolation_method != OtherMethod.none:
-                    separated.get_stem(f"no_{isolate_stem}", isolation_method.value)
-                    sources_to_save[f"no_{isolate_stem}"] = separated.sources[f"no_{isolate_stem}"]
+            # Always save all stems
+            sources_to_save = separated.sources.copy()
+            
+            # If adding complement, also create the "no_{stem}" file
+            if add_complement is not None:
+                stem_name = add_complement.value
+                separated.add_complement_stem(stem_name, OtherMethod.add)
+                sources_to_save[f"no_{stem_name}"] = separated.sources[f"no_{stem_name}"]
 
             # Save each stem
             for stem_name, source in sources_to_save.items():
-                stem_path = out_dir / filename.format(
-                    track=track.name.rsplit(".", 1)[0],
-                    trackext=track.name.rsplit(".", 1)[-1],
-                    stem=stem_name,
-                    ext="wav",
-                )
+                stem_path = format_output_path(output, model.value, track, stem_name, "wav")
                 stem_path.parent.mkdir(parents=True, exist_ok=True)
                 save_audio(
                     source,

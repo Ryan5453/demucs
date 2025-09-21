@@ -31,7 +31,7 @@ from . import __version__
 
 class OtherMethod(str, Enum):
     add = "add"
-    minus = "minus"
+    none = "none"
 
 
 class SeparatedSources:
@@ -57,7 +57,7 @@ class SeparatedSources:
         self.original = original
 
     def add_complement_stem(
-        self, name: str, method: OtherMethod = OtherMethod.minus
+        self, name: str, method: OtherMethod = OtherMethod.add
     ) -> "SeparatedSources":
         """
         Add the complement of a stem to this SeparatedSources object.
@@ -82,11 +82,12 @@ class SeparatedSources:
                     "no_"
                 ):  # Don't include other "no_" stems
                     complement += audio
-        elif method == OtherMethod.minus:
-            complement = self.original - self.sources[name]
+        elif method == OtherMethod.none:
+            # Don't create complement stem
+            return self
         else:
             raise InvalidComplementMethodError(
-                f"Invalid method: {method}. Use 'add' or 'minus'."
+                f"Invalid method: {method}. Use 'add' or 'none'."
             )
 
         self.sources[complement_name] = complement
