@@ -26,7 +26,7 @@ With UV, you can use the `uvx` command to run Demucs without installing it perma
 uvx demucs-inference separate audio_file.mp3
 ```
 
-**Note**: Demucs does not specify a specific PyTorch wheel. This means that GPUs will only work on Apple Silicon or the current version of CUDA (currently 12.8) on Linux. Demucs will fall back to CPU if one of the above conditions are not met.
+**Note**: Demucs does not specify a specific PyTorch wheel. This means that GPUs will only work on Apple Silicon or PyTorch's default CUDA version(currently 12.8) on Linux. Demucs will fall back to CPU if one of the above conditions are not met.
 
 ### Install using UV
 
@@ -36,7 +36,7 @@ Install Demucs using the following command:
 uv pip install demucs-inference --torch-backend=auto
 ```
 
-The `--torch-backend=auto` flag automatically detects your GPU and installs the appropriate PyTorch version.
+The `--torch-backend=auto` flag automatically detects your GPU and installs the appropriate version of PyTorch compatible with your system.
 
 ### Install without UV
 
@@ -53,9 +53,6 @@ pip install demucs-inference
 After installing Demucs, you can use it like the following:
 
 ```bash
-# View all options
-demucs --help
-
 # Separate one audio file
 demucs separate audio_file.mp3
 

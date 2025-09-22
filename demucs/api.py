@@ -14,7 +14,7 @@ from torchcodec.decoders import AudioDecoder
 from torchcodec.encoders import AudioEncoder
 
 from .apply import apply_model
-from .audio import ClipMode, convert_audio, prevent_clip
+from .audio import convert_audio, prevent_clip
 from .repo import AnyModel, ModelRepository
 from .exceptions import (
     LoadAudioError,
@@ -76,7 +76,7 @@ class SeparatedSources:
         stem_name: str,
         path: Path | str | None = None,
         format: str = "wav",
-        clip: ClipMode = ClipMode.rescale,
+        clip: str | None = "rescale",
     ) -> Path | bytes:
         """
         Export a stem to either a file path or return as bytes.
@@ -84,7 +84,7 @@ class SeparatedSources:
         :param stem_name: Name of the stem to export
         :param path: Path to save the stem to. If None, returns raw audio bytes
         :param format: Format to export the stem to, anything supported by FFmpeg
-        :param clip: Clipping mode to prevent audio distortion (rescale or clamp)
+        :param clip: Clipping mode to prevent audio distortion ("rescale", "clamp", "tanh", or None)
         :return: Path to saved file if path provided, otherwise raw audio bytes
         :raises InvalidStemError: If the stem name is not found
         """

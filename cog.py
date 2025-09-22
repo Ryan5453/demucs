@@ -54,17 +54,16 @@ class Predictor(BasePredictor):
             description="Number of random shifts for equivariant stabilization, more increases quality but increases processing time linearly",
             default=1,
             ge=1,
-            le=10,
+            le=20,
         ),
         split: bool = Input(
             description="Split audio into chunks to save memory",
             default=True,
         ),
         split_size: int | None = Input(
-            description="Size of each chunk when split=True (in seconds), smaller values use less GPU memory but process slower",
+            description="Size of each chunk in seconds, smaller values use less GPU memory but process slower",
             default=None,
             ge=1,
-            le=3600,
         ),
         split_overlap: float = Input(
             description="Overlap between split chunks, higher values improve quality at chunk boundaries",
@@ -72,10 +71,10 @@ class Predictor(BasePredictor):
             ge=0.0,
             le=1.0,
         ),
-        clip_mode: str = Input(
-            description="Method to prevent audio clipping in output",
+        clip_mode: str | None = Input(
+            description="Method to prevent audio clipping in output, or None for no clipping prevention",
             default="rescale",
-            choices=["rescale", "clamp", "tanh", "none"],
+            choices=["rescale", "clamp", "tanh"],
         ),
     ) -> dict[str, File]:
         separator = self.separators[model]

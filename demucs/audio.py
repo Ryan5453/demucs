@@ -4,20 +4,11 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from enum import Enum
-
 import torch
 import torch.nn.functional as F
 from torch import Tensor
 
 from .exceptions import InvalidClipModeError
-
-
-class ClipMode(str, Enum):
-    rescale = "rescale"
-    clamp = "clamp"
-    tanh = "tanh"
-    none = "none"
 
 
 def convert_audio_channels(wav, channels=2):
@@ -74,22 +65,22 @@ def convert_audio(wav, from_samplerate, to_samplerate, channels) -> Tensor:
     return resampled.view(*original_shape[:-1], new_length)
 
 
-def prevent_clip(audio: Tensor, mode: ClipMode = ClipMode.rescale) -> Tensor:
+def prevent_clip(audio: Tensor, mode: str | None = "rescale") -> Tensor:
     """
     Different strategies for avoiding raw clipping.
 
     :param audio: The audio tensor to prevent clipping from
-    :param mode: The mode to use for preventing clipping
+    :param mode: The mode to use for preventing clipping ("rescale", "clamp", "tanh", or None)
     :return: The audio tensor with clipping prevented
     :raises InvalidClipModeError: If the clippingmode is invalid
     """
-    if mode == ClipMode.none:
-        return audio
-    elif mode == ClipMode.rescale:
+    if mode == "rescale":
         return audio / max(1.01 * audio.abs().max(), 1)
-    elif mode == ClipMode.clamp:
+    elif mode == "clamp":
         return audio.clamp(-0.99, 0.99)
-    elif mode == ClipMode.tanh:
+    elif mode == "tanh":
         return torch.tanh(audio)
+    elif not mode:
+        return audio
     else:
         raise InvalidClipModeError(f"Invalid mode {mode}")

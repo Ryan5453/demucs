@@ -27,7 +27,6 @@ from typing_extensions import Annotated
 
 from . import __version__
 from .api import Separator
-from .audio import ClipMode
 from .repo import ModelRepository
 from .exceptions import ModelLoadingError
 
@@ -54,6 +53,12 @@ class StemName(str, Enum):
     vocals = "vocals"
     guitar = "guitar"
     piano = "piano"
+
+
+class ClipMode(str, Enum):
+    rescale = "rescale"
+    clamp = "clamp"
+    tanh = "tanh"
 
 
 console = Console()
@@ -618,7 +623,7 @@ def main_command(
         typer.Option(
             "--split-size",
             min=1,
-            help="Size of each chunk when split=True (in seconds), smaller values use less GPU memory but process slower",
+            help="Size of each chunk in seconds, smaller values use less GPU memory but process slower",
             rich_help_panel="Processing",
         ),
     ] = None,
@@ -650,7 +655,7 @@ def main_command(
         ),
     ] = None,
     clip_mode: Annotated[
-        ClipMode,
+        ClipMode | None,
         typer.Option(
             help="Strategy for avoiding clipping",
             rich_help_panel="Output",
@@ -750,7 +755,7 @@ def main_command(
                     output, model.value, track, stem_name, format
                 )
                 separated.export_stem(
-                    stem_name, stem_path, format=format, clip=clip_mode
+                    stem_name, stem_path, format=format, clip=clip_mode.value
                 )
 
         except Exception as e:
