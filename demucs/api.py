@@ -245,9 +245,9 @@ class Separator:
         self,
         audio: Tensor | Path | str | bytes,
         shifts: int = 1,
-        overlap: float = 0.25,
+        split_overlap: float = 0.25,
         split: bool = True,
-        segment: int | None = None,
+        split_size: int | None = None,
         sample_rate: int | None = None,
         progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> SeparatedSources:
@@ -260,21 +260,22 @@ class Separator:
                      - Raw audio bytes
         :param shifts: Number of random shifts for equivariant stabilization
                       Higher values improve quality but increase processing time
-        :param overlap: Overlap between processing chunks (0.0 to 1.0)
+        :param split_overlap: Overlap between split chunks (0.0 to 1.0)
+                             Higher values improve quality at chunk boundaries
         :param split: Whether to split the input into chunks for processing
-        :param segment: Length (in seconds) of each chunk (only used if split=True)
+        :param split_size: Length (in seconds) of each chunk (only used if split=True)
         :param sample_rate: Sample rate of input audio (only used with tensor input)
         :param progress_callback: Optional callback for progress updates during audio processing
         :return: SeparatedSources object containing the separated stems
         """
-        # Validate segment parameter inline to reduce helpers
-        if segment is not None:
+        # Validate split_size parameter inline to reduce helpers
+        if split_size is not None:
             max_allowed = self.model.max_allowed_segment
-            if segment > max_allowed:
+            if split_size > max_allowed:
                 model_name = getattr(self.model, "name", type(self.model).__name__)
                 raise SegmentValidationError(
-                    f"Cannot use segment={segment} with model '{model_name}'. "
-                    f"Maximum allowed segment for this model is {max_allowed} seconds. "
+                    f"Cannot use split_size={split_size} with model '{model_name}'. "
+                    f"Maximum allowed split size for this model is {max_allowed} seconds. "
                     f"Transformer models cannot process segments longer than they were trained for."
                 )
 
@@ -293,8 +294,8 @@ class Separator:
             device=self.device,
             shifts=shifts,
             split=split,
-            overlap=overlap,
-            segment=segment,
+            overlap=split_overlap,
+            segment=split_size,
             progress_callback=progress_callback,
         )[0]
 

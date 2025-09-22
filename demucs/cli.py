@@ -604,40 +604,34 @@ def main_command(
     shifts: Annotated[
         int,
         typer.Option(
-            help="Number of random shifts for equivariant stabilization. Increase separation time but improves quality.",
+            help="Number of random shifts for equivariant stabilization, this increases separation time but improves quality",
             rich_help_panel="Processing",
         ),
     ] = 1,
     split: Annotated[
         bool,
         typer.Option(
-            help="Split audio in chunks to save memory.",
+            help="Split audio in chunks to save memory",
             rich_help_panel="Processing",
         ),
     ] = True,
-    segment: Annotated[
+    split_size: Annotated[
         int | None,
         typer.Option(
-            help="Set split size of each chunk. This can help save memory of graphic card.",
+            "--split-size",
+            help="Size of each chunk when split=True (in seconds), smaller values use less GPU memory but process slower",
             rich_help_panel="Processing",
         ),
     ] = None,
-    overlap: Annotated[
+    split_overlap: Annotated[
         float,
         typer.Option(
-            help="Overlap between the splits.", 
+            "--split-overlap",
+            help="Overlap between split chunks (0.0 to 1.0). Higher values improve quality at chunk boundaries", 
             rich_help_panel="Processing"
         ),
     ] = 0.25,
-    # Stem Selection
-    add_complement: Annotated[
-        StemName | None,
-        typer.Option(
-            help='Additionally create a "no_{STEM}" file (e.g., no_vocals.wav) containing all other stems combined.',
-            rich_help_panel="Stem Selection",
-        ),
-    ] = None,
-    # Output Format
+    # Output
     output: Annotated[
         str,
         typer.Option(
@@ -647,11 +641,17 @@ def main_command(
             rich_help_panel="Output",
         ),
     ] = "separated/{model}/{track}/{stem}.{ext}",
+    add_complement: Annotated[
+        StemName | None,
+        typer.Option(
+            help='Add a "no_{STEM}" stem/file containing all other stems combined',
+            rich_help_panel="Output",
+        ),
+    ] = None,
     clip_mode: Annotated[
         ClipMode,
         typer.Option(
-            help="Strategy for avoiding clipping: rescaling entire signal "
-            "if necessary (rescale) or hard clipping (clamp).",
+            help="Strategy for avoiding clipping",
             rich_help_panel="Output",
         ),
     ] = ClipMode.rescale,
@@ -714,9 +714,9 @@ def main_command(
                 separated = separator.separate(
                     audio=track,
                     shifts=shifts,
-                    overlap=overlap,
+                    overlap=split_overlap,
                     split=split,
-                    segment=segment,
+                    segment=split_size,
                     progress_callback=audio_callback,
                 )
 

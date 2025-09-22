@@ -55,8 +55,8 @@ class Predictor(BasePredictor):
             ge=1,
             le=10,
         ),
-        overlap: float = Input(
-            description="Overlap between processing chunks (0.0 to 1.0). Higher values improve quality but increase processing time",
+        split_overlap: float = Input(
+            description="Overlap between split chunks (0.0 to 1.0). Higher values improve quality at chunk boundaries but increase processing time",
             default=0.25,
             ge=0.0,
             le=1.0,
@@ -65,8 +65,8 @@ class Predictor(BasePredictor):
             description="Whether to split the input into chunks for processing. Helps with memory usage for long files",
             default=True,
         ),
-        segment: int | None = Input(
-            description="Length (in seconds) of each chunk when split=True. Leave empty for model default. Some models have max limits",
+        split_size: int | None = Input(
+            description="Size of each chunk when split=True (in seconds). Smaller values use less GPU memory but process slower. Leave empty for model default.",
             default=None,
             ge=1,
             le=3600,  # Max 1 hour per segment
@@ -128,7 +128,7 @@ class Predictor(BasePredictor):
         print(f"🎵 Separating audio using {model}...")
         if verbose:
             print(
-                f"Parameters: shifts={shifts}, overlap={overlap}, split={split}, segment={segment}, jobs={jobs}"
+                f"Parameters: shifts={shifts}, split_overlap={split_overlap}, split={split}, split_size={split_size}, jobs={jobs}"
             )
             print(f"🖥️  {self._get_gpu_memory_info()}")
 
@@ -136,10 +136,9 @@ class Predictor(BasePredictor):
         separated = separator.separate(
             audio=audio,
             shifts=shifts,
-            overlap=overlap,
+            split_overlap=split_overlap,
             split=split,
-            segment=segment,
-            jobs=jobs,
+            split_size=split_size,
             progress_callback=None,
         )
 
