@@ -10,9 +10,19 @@ from enum import Enum
 from datetime import datetime
 
 import torch
+import time
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
+
 from typing_extensions import Annotated
 
 from . import __version__
@@ -52,14 +62,6 @@ console = Console()
 # Progress bar helper functions
 def _create_model_progress_bar():
     """Create a standardized progress bar for model operations."""
-    from rich.progress import (
-        BarColumn,
-        Progress,
-        SpinnerColumn,
-        TaskProgressColumn,
-        TextColumn,
-        TimeElapsedColumn,
-    )
 
     return Progress(
         SpinnerColumn(),
@@ -153,7 +155,6 @@ def _download_model_with_progress(name: str) -> bool:
     Download a single model with progress display.
     Returns True if successful, False otherwise.
     """
-    import time
 
     models = get_models()
 
@@ -294,7 +295,6 @@ def _download_models_batch(model_names: list[str]) -> None:
 
 def _download_single_model_in_batch(name: str, models: dict, progress_bar) -> None:
     """Download a single model within an existing progress bar context."""
-    import time
 
     try:
         start_time = time.time()
@@ -500,14 +500,6 @@ def remove_models_command(
     """
     Remove models from the cache to free up space.
     """
-    from rich.progress import (
-        BarColumn,
-        Progress,
-        SpinnerColumn,
-        TaskProgressColumn,
-        TextColumn,
-        TimeElapsedColumn,
-    )
 
     # Create a ModelRepository to manage models
     model_repo = ModelRepository()
