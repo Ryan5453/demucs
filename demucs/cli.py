@@ -357,7 +357,7 @@ def _download_single_model_in_batch(name: str, models: dict, progress_bar) -> No
 
 def version_command():
     """
-    Show the installed version of Demucs.
+    Show the installed version of Demucs
     """
     typer.echo(f"Demucs version: {__version__}")
 
@@ -623,7 +623,7 @@ def main_command(
         float,
         typer.Option(
             "--split-overlap",
-            help="Overlap between split chunks (0.0 to 1.0). Higher values improve quality at chunk boundaries",
+            help="Overlap between split chunks (0.0 to 1.0), higher values improve quality at chunk boundaries",
             rich_help_panel="Processing",
         ),
     ] = 0.25,
@@ -662,11 +662,14 @@ def main_command(
     ] = "wav",
 ):
     """
-    Separate the sources for the given tracks.
+    Separate the sources for the given tracks
     """
     if tracks is None or not tracks:
-        typer.echo("No tracks provided.")
-        typer.echo("Usage: demucs separate [options] tracks... \nHelp: demucs --help")
+        # Just show the help for the separate command using the current context
+        import click
+        ctx = click.get_current_context()
+        click.echo(ctx.get_help())
+        ctx.exit()
         return
 
     # Ensure model is available (download if necessary)
@@ -754,23 +757,23 @@ def main():
     Load the checkpoints file and run the command.
     """
     app = typer.Typer(
-        help="Demucs: Audio Source Separation",
         add_completion=False,
         no_args_is_help=True,
         rich_markup_mode="legacy",
         pretty_exceptions_show_locals=False,
+        add_help_option=False,
     )
 
     models_app = typer.Typer(
         help="Download, list and manage models", no_args_is_help=True
     )
-    models_app.command(name="list")(list_models_command)
-    models_app.command(name="download")(download_models_command)
-    models_app.command(name="remove")(remove_models_command)
+    models_app.command(name="list", add_help_option=False)(list_models_command)
+    models_app.command(name="download", add_help_option=False)(download_models_command)
+    models_app.command(name="remove", add_help_option=False)(remove_models_command)
 
     # Main commands
-    app.command(name="separate")(main_command)
-    app.add_typer(models_app, name="models")
+    app.command(name="separate", add_help_option=False)(main_command)
+    app.add_typer(models_app, name="models", add_help_option=False)
     app.command(name="version")(version_command)
 
     # Run the app
