@@ -19,7 +19,7 @@ import torch
 
 from .apply import BagOfModels, Model
 from .states import load_model
-from .errors import ModelLoadingError
+from .exceptions import ModelLoadingError
 
 # Type alias for models
 AnyModel: TypeAlias = Model | BagOfModels

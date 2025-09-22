@@ -13,9 +13,6 @@ from .api import (
     get_version,
 )
 from .audio import ClipMode
-from .pretrained import get_model
-
-
 __all__ = [
     "__version__",
     "Separator",
@@ -23,5 +20,4 @@ __all__ = [
     "ClipMode",
     "list_models",
     "get_version",
-    "get_model",
 ]

@@ -60,10 +60,10 @@ Demucs provides a callback-based system for monitoring progress during long-runn
 
 ### Model Download Progress
 
-When using `get_model()` or the `Separator` class with models that need to be downloaded, you can provide a progress callback:
+When using the `Separator` class with models that need to be downloaded, you can provide a progress callback to the `ModelRepository`:
 
 ```python
-from demucs.pretrained import get_model
+from demucs.repo import ModelRepository
 
 def progress_callback(event_type: str, data: dict):
     if event_type == "download_start":
@@ -80,7 +80,9 @@ def progress_callback(event_type: str, data: dict):
     elif event_type == "download_complete":
         print(f"Download complete: {data['model_name']}")
 
-model = get_model("htdemucs", progress_callback=progress_callback)
+model_repo = ModelRepository()
+model = model_repo.get_model("htdemucs", progress_callback=progress_callback)
+model.eval()
 ```
 
 #### Model Download Events
@@ -155,7 +157,7 @@ Here's an example of how to create a Rich progress bar using the callback system
 
 ```python
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from demucs.pretrained import get_model
+from demucs.repo import ModelRepository
 
 def create_rich_callback(progress_bar, task):
     def callback(event_type: str, data: dict):
@@ -182,7 +184,9 @@ with Progress(
 ) as progress:
     task = progress.add_task("Downloading model...", total=100)
     callback = create_rich_callback(progress, task)
-    model = get_model("htdemucs", progress_callback=callback)
+    model_repo = ModelRepository()
+    model = model_repo.get_model("htdemucs", progress_callback=callback)
+    model.eval()
 ```
 
 This callback system allows you to integrate Demucs progress reporting into any UI framework, whether it's a CLI tool, web application, desktop GUI, or any other interface.

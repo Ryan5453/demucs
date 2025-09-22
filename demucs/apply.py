@@ -18,7 +18,7 @@ from torch.nn import functional as F
 
 from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
-from .utils import center_trim
+from .blocks import center_trim
 
 Model: TypeAlias = HDemucs | HTDemucs
 

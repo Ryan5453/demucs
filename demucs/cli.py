@@ -18,9 +18,10 @@ from typing_extensions import Annotated
 from . import __version__
 from .api import Separator
 from .audio import save_audio, ClipMode
-from .pretrained import METADATA_PATH, get_model
 from .repo import ModelRepository
-from .errors import ModelLoadingError
+from .exceptions import ModelLoadingError
+
+METADATA_PATH = Path(__file__).parent / "metadata.json"
 
 
 class DeviceType(str, Enum):
@@ -186,7 +187,9 @@ def _download_model_with_progress(name: str) -> bool:
 
             # Download the model using callback
             callback = _create_progress_callback(progress_bar, task)
-            model = get_model(name=name, progress_callback=callback)
+            model_repo = ModelRepository()
+            model = model_repo.get_model(name=name, progress_callback=callback)
+            model.eval()
 
             progress_bar.remove_task(task)
 
@@ -313,7 +316,9 @@ def _download_single_model_in_batch(name: str, models: dict, progress_bar) -> No
 
         # Download the model using callback
         callback = _create_progress_callback(progress_bar, task)
-        model = get_model(name=name, progress_callback=callback)
+        model_repo = ModelRepository()
+        model = model_repo.get_model(name=name, progress_callback=callback)
+        model.eval()
 
         progress_bar.remove_task(task)
 

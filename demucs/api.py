@@ -15,9 +15,8 @@ from torchcodec.encoders import AudioEncoder
 
 from .apply import apply_model
 from .audio import ClipMode, convert_audio, save_audio, prevent_clip
-from .pretrained import get_model
 from .repo import AnyModel, ModelRepository
-from .errors import (
+from .exceptions import (
     LoadAudioError,
     ModelLoadingError,
     SegmentValidationError,
@@ -148,7 +147,9 @@ class Separator:
         :param device: Device to use for processing
         """
         self.device = device
-        self.model = get_model(name=model)
+        model_repo = ModelRepository()
+        self.model = model_repo.get_model(name=model)
+        self.model.eval()
         if self.model is None:
             raise ModelLoadingError("Failed to load model")
         self.audio_channels = self.model.audio_channels

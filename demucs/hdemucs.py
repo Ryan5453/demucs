@@ -15,7 +15,7 @@ from torch.nn import functional as F
 
 from .blocks import DConv, rescale_module
 from .states import capture_init
-from .utils import ispectro, spectro
+from .blocks import ispectro, spectro
 
 
 def pad1d(
@@ -837,21 +837,9 @@ class HDemucs(nn.Module):
         x = x.view(B, S, -1, Fq, T)
         x = x * std[:, None] + mean[:, None]
 
-        # to cpu as mps doesnt support complex numbers
-        # demucs issue #435 ##432
-        # NOTE: in this case z already is on cpu
-        # TODO: remove this when mps supports complex numbers
-        x_is_mps_xpu = x.device.type in ["mps", "xpu"]
-        x_device = x.device
-        if x_is_mps_xpu:
-            x = x.cpu()
 
         zout = self._mask(z, x)
         x = self._ispec(zout, length)
-
-        # back to mps device
-        if x_is_mps_xpu:
-            x = x.to(x_device)
 
         if self.hybrid:
             xt = xt.view(B, S, -1, length)
