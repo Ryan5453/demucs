@@ -284,16 +284,6 @@ class Separator:
         return SeparatedSources(sources, self.sample_rate, original=wav)
 
 
-def list_models() -> dict[str, dict[str, Any]]:
-    """
-    List all available models.
-
-    :return: Dictionary with model names as keys and metadata as values
-    """
-    model_repo = ModelRepository()
-    return model_repo.list_models()
-
-
 def get_version() -> str:
     """
     Get the version of Demucs you have installed.
