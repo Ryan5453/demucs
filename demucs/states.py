@@ -13,7 +13,6 @@ from pathlib import Path
 import torch
 
 
-
 def load_model(path_or_package, strict=False):
     """Load a model from the given serialized model, either given as a dict (already loaded)
     or a path to a file on disk."""

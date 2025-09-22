@@ -113,6 +113,7 @@ def create_sin_embedding_cape(
         dim=-1,
     ).float()
 
+
 def get_elementary_mask(
     T1,
     T2,
@@ -664,7 +665,9 @@ class CrossTransformerEncoder(nn.Module):
         pos_emb_2d = create_2d_sin_embedding(
             C, Fr, T1, x.device, self.max_period
         )  # (1, C, Fr, T1)
-        pos_emb_2d = pos_emb_2d.permute(0, 2, 3, 1).reshape(B, T1 * Fr, C)  # "b c fr t1 -> b (t1 fr) c"
+        pos_emb_2d = pos_emb_2d.permute(0, 2, 3, 1).reshape(
+            B, T1 * Fr, C
+        )  # "b c fr t1 -> b (t1 fr) c"
         x = x.permute(0, 2, 3, 1).reshape(B, T1 * Fr, C)  # "b c fr t1 -> b (t1 fr) c"
         x = self.norm_in(x)
         x = x + self.weight_pos_embed * pos_emb_2d

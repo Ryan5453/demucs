@@ -17,7 +17,7 @@ from typing_extensions import Annotated
 
 from . import __version__
 from .api import Separator
-from .audio import save_audio, ClipMode
+from .audio import ClipMode
 from .repo import ModelRepository
 from .exceptions import ModelLoadingError
 
@@ -129,19 +129,19 @@ def _create_audio_progress_callback(progress_bar, task):
             progress_bar.update(
                 task,
                 description=f"Processing audio ({data['total_chunks']} chunks)",
-                total=data['total_chunks'],
+                total=data["total_chunks"],
                 completed=0,
             )
         elif event_type == "chunk_complete":
             progress_bar.update(
                 task,
-                completed=data['completed_chunks'],
+                completed=data["completed_chunks"],
                 description=f"Processing audio ({data['completed_chunks']}/{data['total_chunks']} chunks)",
             )
         elif event_type == "processing_complete":
             progress_bar.update(
                 task,
-                completed=data['total_chunks'],
+                completed=data["total_chunks"],
                 description="Audio processing complete",
             )
 
@@ -422,14 +422,16 @@ def format_file_size(size_bytes):
         return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 
-def format_output_path(template: str, model: str, track: Path, stem: str, ext: str = "wav") -> Path:
+def format_output_path(
+    template: str, model: str, track: Path, stem: str, ext: str = "wav"
+) -> Path:
     """Format output path template with variables"""
     now = datetime.now()
-    
+
     # Extract track name and extension
     track_name = track.name.rsplit(".", 1)[0]
     track_ext = track.name.rsplit(".", 1)[-1] if "." in track.name else ""
-    
+
     # Template variables
     variables = {
         "model": model,
@@ -441,12 +443,12 @@ def format_output_path(template: str, model: str, track: Path, stem: str, ext: s
         "time": now.strftime("%H-%M-%S"),
         "timestamp": str(int(now.timestamp())),
     }
-    
+
     # Replace all variables in the template
     formatted_path = template
     for var, value in variables.items():
         formatted_path = formatted_path.replace(f"{{{var}}}", value)
-    
+
     return Path(formatted_path)
 
 
@@ -571,11 +573,11 @@ def get_models() -> dict[str, dict]:
     else:
         raise RuntimeError("Invalid metadata structure: no models or collections found")
 
+
 def main_command(
     # Input/Output
     tracks: Annotated[
-        list[Path] | None, 
-        typer.Argument(help="Path to tracks", show_default=False)
+        list[Path] | None, typer.Argument(help="Path to tracks", show_default=False)
     ] = None,
     # Model Selection
     model: Annotated[
@@ -629,8 +631,8 @@ def main_command(
         float,
         typer.Option(
             "--split-overlap",
-            help="Overlap between split chunks (0.0 to 1.0). Higher values improve quality at chunk boundaries", 
-            rich_help_panel="Processing"
+            help="Overlap between split chunks (0.0 to 1.0). Higher values improve quality at chunk boundaries",
+            rich_help_panel="Processing",
         ),
     ] = 0.25,
     # Output
@@ -643,10 +645,10 @@ def main_command(
             rich_help_panel="Output",
         ),
     ] = "separated/{model}/{track}/{stem}.{ext}",
-    add_complement: Annotated[
+    isolate_stem: Annotated[
         StemName | None,
         typer.Option(
-            help='Add a "no_{STEM}" stem/file containing all other stems combined',
+            help='Only creates a {stem} and no_{stem} stem/file',
             rich_help_panel="Output",
         ),
     ] = None,
@@ -657,6 +659,15 @@ def main_command(
             rich_help_panel="Output",
         ),
     ] = ClipMode.rescale,
+    format: Annotated[
+        str,
+        typer.Option(
+            "-f",
+            "--format",
+            help="Output audio format, anything supported by FFmpeg",
+            rich_help_panel="Output",
+        ),
+    ] = "wav",
 ):
     """
     Separate the sources for the given tracks.
@@ -679,16 +690,23 @@ def main_command(
         console.print(f"[red]✗[/red] [bold]{model.value}[/bold]: {error}")
         return
 
-    if add_complement is not None and add_complement.value not in separator.model.sources:
+    if (
+        isolate_stem is not None
+        and isolate_stem.value not in separator.model.sources
+    ):
         console.print(
-            f'[red]✗[/red] [bold]{model.value}[/bold]: error: stem "{add_complement.value}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
+            f'[red]✗[/red] [bold]{model.value}[/bold]: error: stem "{isolate_stem.value}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
         )
         return
 
     # Show where tracks will be stored (using first track as example)
     if tracks:
-        example_path = format_output_path(output, model.value, tracks[0], "vocals")
-        console.print(f"Separated tracks will be stored in {example_path.parent.resolve()}/")
+        example_path = format_output_path(
+            output, model.value, tracks[0], "vocals", format
+        )
+        console.print(
+            f"Separated tracks will be stored in {example_path.parent.resolve()}/"
+        )
 
     for track in tracks:
         if not track.exists():
@@ -707,10 +725,12 @@ def main_command(
                     total=100,
                     completed=0,
                 )
-                
+
                 # Create callback for audio processing progress
-                audio_callback = _create_audio_progress_callback(audio_progress, audio_task)
-                
+                audio_callback = _create_audio_progress_callback(
+                    audio_progress, audio_task
+                )
+
                 # Use the new API with SeparatedSources and progress callback
                 separated = separator.separate(
                     audio=track,
@@ -721,25 +741,17 @@ def main_command(
                     progress_callback=audio_callback,
                 )
 
-            # Always save all stems
-            sources_to_save = separated.sources.copy()
-            
-            # If adding complement, also create the "no_{stem}" file
-            if add_complement is not None:
-                stem_name = add_complement.value
-                separated.add_complement_stem(stem_name)
-                sources_to_save[f"no_{stem_name}"] = separated.sources[f"no_{stem_name}"]
+            # If adding complement, create the "no_{stem}" stem
+            if isolate_stem is not None:
+                stem_name = isolate_stem.value
+                separated = separated.isolate_stem(stem_name)
 
-            # Save each stem
-            for stem_name, source in sources_to_save.items():
-                stem_path = format_output_path(output, model.value, track, stem_name, "wav")
-                stem_path.parent.mkdir(parents=True, exist_ok=True)
-                save_audio(
-                    source,
-                    str(stem_path),
-                    samplerate=separator.sample_rate,
-                    clip=clip_mode,
+            # Save each stem using export_stem
+            for stem_name in separated.sources:
+                stem_path = format_output_path(
+                    output, model.value, track, stem_name, format
                 )
+                separated.export_stem(stem_name, stem_path, format=format, clip=clip_mode)
 
         except Exception as e:
             console.print(f"[red]✗[/red] Error processing {track}: {str(e)}")

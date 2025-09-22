@@ -196,16 +196,7 @@ class Predictor(BasePredictor):
         for stem_name in valid_stems:
             output_filename = f"{stem_name}.{output_format}"
             output_path = temp_dir / output_filename
-
-            if output_format == "wav":
-                separated.save_stem(stem_name, output_path, clip=clip_mode_enum)
-            else:
-                audio_bytes = separated.export_stem(
-                    stem_name, format=output_format, clip=clip_mode_enum
-                )
-                with open(output_path, "wb") as f:
-                    f.write(audio_bytes)
-
+            separated.export_stem(stem_name, output_path, format=output_format, clip=clip_mode_enum)
             output_paths[stem_name] = output_path
 
         if verbose:

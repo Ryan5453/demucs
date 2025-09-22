@@ -837,7 +837,6 @@ class HDemucs(nn.Module):
         x = x.view(B, S, -1, Fq, T)
         x = x * std[:, None] + mean[:, None]
 
-
         zout = self._mask(z, x)
         x = self._ispec(zout, length)
 

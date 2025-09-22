@@ -4,16 +4,13 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from pathlib import Path
 from enum import Enum
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torchcodec.encoders import AudioEncoder
 
 from .exceptions import InvalidClipModeError
-
 
 
 class ClipMode(str, Enum):
@@ -54,68 +51,45 @@ def convert_audio_channels(wav, channels=2):
 def convert_audio(wav, from_samplerate, to_samplerate, channels) -> Tensor:
     """Convert audio from a given samplerate to a target one and target number of channels."""
     wav = convert_audio_channels(wav, channels)
-    
+
     # If sample rates are the same, no resampling needed
     if from_samplerate == to_samplerate:
         return wav
-    
+
     # Calculate the resampling ratio
     ratio = to_samplerate / from_samplerate
-    
+
     # Resample using PyTorch's interpolate function
     # wav shape: [..., channels, samples]
     original_shape = wav.shape
     wav_reshaped = wav.view(-1, 1, original_shape[-1])  # [batch*channels, 1, samples]
-    
+
     # Use linear interpolation for audio resampling
     resampled = F.interpolate(
-        wav_reshaped, 
-        scale_factor=ratio, 
-        mode='linear', 
-        align_corners=False
+        wav_reshaped, scale_factor=ratio, mode="linear", align_corners=False
     )
-    
+
     # Reshape back to original format
     new_length = resampled.shape[-1]
     return resampled.view(*original_shape[:-1], new_length)
 
 
-def prevent_clip(wav, mode: ClipMode = ClipMode.rescale):
+def prevent_clip(audio: Tensor, mode: ClipMode = ClipMode.rescale) -> Tensor:
     """
     Different strategies for avoiding raw clipping.
+    
+    :param audio: The audio tensor to prevent clipping from
+    :param mode: The mode to use for preventing clipping
+    :return: The audio tensor with clipping prevented
+    :raises InvalidClipModeError: If the clippingmode is invalid
     """
-    if mode is None or mode == ClipMode.none:
-        return wav
-    assert wav.dtype.is_floating_point, "too late for clipping"
-    if mode == ClipMode.rescale:
-        wav = wav / max(1.01 * wav.abs().max(), 1)
+    if mode == ClipMode.none:
+        return audio
+    elif mode == ClipMode.rescale:
+        return audio / max(1.01 * audio.abs().max(), 1)
     elif mode == ClipMode.clamp:
-        wav = wav.clamp(-0.99, 0.99)
+        return audio.clamp(-0.99, 0.99)
     elif mode == ClipMode.tanh:
-        wav = torch.tanh(wav)
+        return torch.tanh(audio)
     else:
         raise InvalidClipModeError(f"Invalid mode {mode}")
-    return wav
-
-
-def save_audio(
-    wav: Tensor,
-    path: Path | str,
-    samplerate: int,
-    clip: ClipMode = ClipMode.rescale,
-):
-    """Save audio file as 32-bit float WAV (native model output format),
-    automatically preventing clipping if necessary based on the given `clip` strategy.
-    """
-    path = Path(path)
-
-    # Ensure tensor is on CPU before any operations
-    if wav.device.type != "cpu":
-        wav = wav.cpu()
-
-    wav = prevent_clip(wav, mode=clip)
-
-    # Always save as 32-bit float (native model format)
-    # Use native torchcodec AudioEncoder for best performance
-    encoder = AudioEncoder(samples=wav, sample_rate=samplerate)
-    encoder.to_file(path)

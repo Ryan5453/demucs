@@ -413,32 +413,32 @@ class ModelRepository:
         # Optimization: Return raw model for single models with default weights
         weights = model_info.get("weights")
         segment = model_info.get("segment")
-        
+
         # Check if this is a single model with identity weights (or no weights specified)
         if len(layers) == 1:
-            is_identity_weights = (
-                weights is None or 
-                (len(weights) == 1 and 
-                 len(weights[0]) == len(layers[0].sources) and
-                 all(abs(w - 1.0) < 1e-6 for w in weights[0]))
+            is_identity_weights = weights is None or (
+                len(weights) == 1
+                and len(weights[0]) == len(layers[0].sources)
+                and all(abs(w - 1.0) < 1e-6 for w in weights[0])
             )
-            
+
             if is_identity_weights:
                 # Return the raw model directly for better performance
                 model = layers[0]
-                
+
                 # Apply segment override if needed
                 if segment is not None:
                     # Import here to avoid circular imports
                     from .htdemucs import HTDemucs
+
                     if (
                         not isinstance(model, HTDemucs)
                         or segment <= model.max_allowed_segment
                     ):
                         model.max_allowed_segment = segment
-                
+
                 return model
-        
+
         # Use BagOfModels for true ensembles or models with custom weights
         return BagOfModels(layers, weights, segment)
 

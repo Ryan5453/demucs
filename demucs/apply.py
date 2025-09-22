@@ -260,7 +260,7 @@ def apply_model(
 
         # Process chunks sequentially (PyTorch handles internal threading)
         total_chunks = len(offsets)
-        
+
         # Notify callback about processing start
         if progress_callback:
             progress_callback("processing_start", {"total_chunks": total_chunks})
@@ -274,9 +274,9 @@ def apply_model(
                 **kwargs,
             )
             chunk_length = chunk_out.shape[-1]
-            out[..., offset : offset + segment_length] += (
-                weight_on_device[:chunk_length] * chunk_out.to(mix.device)
-            )
+            out[..., offset : offset + segment_length] += weight_on_device[
+                :chunk_length
+            ] * chunk_out.to(mix.device)
             sum_weight[offset : offset + segment_length] += weight_on_device[
                 :chunk_length
             ]

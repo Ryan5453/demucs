@@ -12,6 +12,7 @@ from .api import (
     get_version,
 )
 from .audio import ClipMode
+
 __all__ = [
     "__version__",
     "Separator",

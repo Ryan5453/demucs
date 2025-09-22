@@ -14,7 +14,7 @@ from torchcodec.decoders import AudioDecoder
 from torchcodec.encoders import AudioEncoder
 
 from .apply import apply_model
-from .audio import ClipMode, convert_audio, save_audio, prevent_clip
+from .audio import ClipMode, convert_audio, prevent_clip
 from .repo import AnyModel, ModelRepository
 from .exceptions import (
     LoadAudioError,
@@ -47,15 +47,13 @@ class SeparatedSources:
         self.sample_rate = sample_rate
         self.original = original
 
-    def add_complement_stem(
-        self, name: str,
-    ) -> "SeparatedSources":
+    def isolate_stem(self, name: str) -> "SeparatedSources":
         """
-        Add the complement of a stem to this SeparatedSources object.
-        This modifies the current object by adding a "no_{name}" stem.
+        Isolate a stem from the separated sources.
+        This creates a new SeparatedSources object with the isolated stem and the accompanying complement stem (no_{STEM})
 
-        :param name: Name of the stem to create complement for
-        :return: Self for method chaining
+        :param name: Name of the stem to isolate
+        :return: New SeparatedSources object with the isolated stem and the accompanying complement stem
         :raises InvalidStemError: If the requested stem isn't found in the sources
         """
         if name not in self.sources:
@@ -65,14 +63,13 @@ class SeparatedSources:
 
         complement = torch.zeros_like(self.sources[name])
         for source, audio in self.sources.items():
-            # Don't include other "no_" stems
-            if source != name and not source.startswith(
-                "no_"
-            ):
-                complement += audio
+            complement += audio
 
-        self.sources[f"no_{name}"] = complement
-        return self
+        return SeparatedSources(
+            sources={name: self.sources[name], f"no_{name}": complement},
+            sample_rate=self.sample_rate,
+            original=self.original,
+        )
 
     def export_stem(
         self,
@@ -82,11 +79,11 @@ class SeparatedSources:
         clip: ClipMode = ClipMode.rescale,
     ) -> Path | bytes:
         """
-        Exports a stem to either a file path or a bytes object.
+        Export a stem to either a file path or return as bytes.
 
-        :param stem_name: Name of the stem to get
-        :param path: Path to save the stem to, if saving to disk
-        :param format: Format to export the stem to
+        :param stem_name: Name of the stem to export
+        :param path: Path to save the stem to. If None, returns raw audio bytes
+        :param format: Format to export the stem to, anything supported by FFmpeg
         :param clip: Clipping mode to prevent audio distortion (rescale or clamp)
         :return: Path to saved file if path provided, otherwise raw audio bytes
         :raises InvalidStemError: If the stem name is not found
@@ -113,17 +110,15 @@ class SeparatedSources:
 
             file_path.parent.mkdir(exist_ok=True, parents=True)
 
-            save_audio(tensor, file_path, self.sample_rate)
+            encoder = AudioEncoder(samples=tensor, sample_rate=self.sample_rate)
+            encoder.to_file(file_path)
+
             return file_path
         else:
-            try:
-                encoder = AudioEncoder(samples=tensor, sample_rate=self.sample_rate)
-                encoded_tensor = encoder.to_tensor(format=format)
-                return encoded_tensor.numpy().tobytes()
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to export stem '{stem_name}' as {format}: {e}"
-                )
+            encoder = AudioEncoder(samples=tensor, sample_rate=self.sample_rate)
+            encoded_tensor = encoder.to_tensor(format=format)
+            return encoded_tensor.numpy().tobytes()
+
 
 
 class Separator:
