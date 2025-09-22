@@ -49,14 +49,6 @@ class InvalidStemError(DemucsError):
     pass
 
 
-class InvalidComplementMethodError(DemucsError):
-    """
-    Exception raised when a complement method is invalid.
-    """
-
-    pass
-
-
 class InvalidClipModeError(DemucsError):
     """
     Exception raised when a clip mode is invalid.

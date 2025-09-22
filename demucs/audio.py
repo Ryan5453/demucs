@@ -12,6 +12,8 @@ import torch.nn.functional as F
 from torch import Tensor
 from torchcodec.encoders import AudioEncoder
 
+from .errors import InvalidClipModeError
+
 
 
 class ClipMode(str, Enum):

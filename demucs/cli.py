@@ -12,15 +12,12 @@ from datetime import datetime
 import torch
 import typer
 from rich.console import Console
-from rich.progress import (
-    TextColumn,
-)
 from rich.table import Table
 from typing_extensions import Annotated
 
 from . import __version__
-from .api import Separator, save_audio, OtherMethod, ClipMode
-from .apply import BagOfModels
+from .api import Separator
+from .audio import save_audio, ClipMode
 from .pretrained import METADATA_PATH, get_model
 from .repo import ModelRepository
 from .errors import ModelLoadingError
@@ -692,8 +689,7 @@ def main_command(
         if not track.exists():
             console.print(
                 f"File {track} does not exist. If the path contains spaces, "
-                'please try again after surrounding the entire path with quotes "".',
-                err=True,
+                'please try again after surrounding the entire path with quotes "".'
             )
             continue
         console.print(f"Separating track {track}")
@@ -714,9 +710,9 @@ def main_command(
                 separated = separator.separate(
                     audio=track,
                     shifts=shifts,
-                    overlap=split_overlap,
                     split=split,
-                    segment=split_size,
+                    split_size=split_size,
+                    split_overlap=split_overlap,
                     progress_callback=audio_callback,
                 )
 
@@ -726,7 +722,7 @@ def main_command(
             # If adding complement, also create the "no_{stem}" file
             if add_complement is not None:
                 stem_name = add_complement.value
-                separated.add_complement_stem(stem_name, OtherMethod.add)
+                separated.add_complement_stem(stem_name)
                 sources_to_save[f"no_{stem_name}"] = separated.sources[f"no_{stem_name}"]
 
             # Save each stem

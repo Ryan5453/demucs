@@ -9,11 +9,10 @@ __version__ = "1.0.0.dev0"
 from .api import (
     Separator,
     SeparatedSources,
-    OtherMethod,
-    ClipMode,
     list_models,
     get_version,
 )
+from .audio import ClipMode
 from .pretrained import get_model
 
 
@@ -21,7 +20,6 @@ __all__ = [
     "__version__",
     "Separator",
     "SeparatedSources",
-    "OtherMethod",
     "ClipMode",
     "list_models",
     "get_version",

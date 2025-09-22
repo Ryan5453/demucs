@@ -13,7 +13,6 @@ from torch import Tensor
 from torchcodec.decoders import AudioDecoder
 from torchcodec.encoders import AudioEncoder
 
-from enum import Enum
 from .apply import apply_model
 from .audio import ClipMode, convert_audio, save_audio, prevent_clip
 from .pretrained import get_model
@@ -23,15 +22,8 @@ from .errors import (
     ModelLoadingError,
     SegmentValidationError,
     InvalidStemError,
-    InvalidComplementMethodError,
 )
 from . import __version__
-
-
-
-class OtherMethod(str, Enum):
-    add = "add"
-    none = "none"
 
 
 class SeparatedSources:
@@ -57,40 +49,30 @@ class SeparatedSources:
         self.original = original
 
     def add_complement_stem(
-        self, name: str, method: OtherMethod = OtherMethod.add
+        self, name: str,
     ) -> "SeparatedSources":
         """
         Add the complement of a stem to this SeparatedSources object.
         This modifies the current object by adding a "no_{name}" stem.
 
         :param name: Name of the stem to create complement for
-        :param method: Method to use for creating the complement ("add" or "minus")
         :return: Self for method chaining
-        :raises ValueError: If the requested stem isn't found in the sources or method is invalid
+        :raises InvalidStemError: If the requested stem isn't found in the sources
         """
         if name not in self.sources:
             raise InvalidStemError(
-                f"Stem '{name}' not found in sources. Available: {list(self.sources.keys())}"
+                f"Stem '{name}' not found in sources. Available stems: {list(self.sources.keys())}"
             )
 
-        complement_name = f"no_{name}"
+        complement = torch.zeros_like(self.sources[name])
+        for source, audio in self.sources.items():
+            # Don't include other "no_" stems
+            if source != name and not source.startswith(
+                "no_"
+            ):
+                complement += audio
 
-        if method == OtherMethod.add:
-            complement = torch.zeros_like(self.sources[name])
-            for source, audio in self.sources.items():
-                if source != name and not source.startswith(
-                    "no_"
-                ):  # Don't include other "no_" stems
-                    complement += audio
-        elif method == OtherMethod.none:
-            # Don't create complement stem
-            return self
-        else:
-            raise InvalidComplementMethodError(
-                f"Invalid method: {method}. Use 'add' or 'none'."
-            )
-
-        self.sources[complement_name] = complement
+        self.sources[f"no_{name}"] = complement
         return self
 
     def export_stem(
@@ -99,8 +81,6 @@ class SeparatedSources:
         path: Path | str | None = None,
         format: str = "wav",
         clip: ClipMode = ClipMode.rescale,
-        encoding: str | None = None,
-        bits_per_sample: int | None = None,
     ) -> Path | bytes:
         """
         Exports a stem to either a file path or a bytes object.
@@ -109,8 +89,6 @@ class SeparatedSources:
         :param path: Path to save the stem to, if saving to disk
         :param format: Format to export the stem to
         :param clip: Clipping mode to prevent audio distortion (rescale or clamp)
-        :param encoding: Encoding to use for the audio, only used for WAV and FLAC
-        :param bits_per_sample: Bits per sample for audio encoding, only used for WAV and FLAC
         :return: Path to saved file if path provided, otherwise raw audio bytes
         :raises InvalidStemError: If the stem name is not found
         """
@@ -140,7 +118,6 @@ class SeparatedSources:
             return file_path
         else:
             try:
-                # Use native torchcodec AudioEncoder for BytesIO exports
                 encoder = AudioEncoder(samples=tensor, sample_rate=self.sample_rate)
                 encoded_tensor = encoder.to_tensor(format=format)
                 return encoded_tensor.numpy().tobytes()
@@ -245,9 +222,9 @@ class Separator:
         self,
         audio: Tensor | Path | str | bytes,
         shifts: int = 1,
-        split_overlap: float = 0.25,
         split: bool = True,
         split_size: int | None = None,
+        split_overlap: float = 0.25,
         sample_rate: int | None = None,
         progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> SeparatedSources:
