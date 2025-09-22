@@ -6,16 +6,10 @@
 
 
 import math
-import os
-import tempfile
-from collections import defaultdict
-from concurrent.futures import CancelledError
-from contextlib import contextmanager
 
 import torch
 from torch import Tensor
 from torch.nn import functional
-from torch.utils.data import Subset
 
 
 def unfold(a, kernel_size, stride):
@@ -53,74 +47,6 @@ def center_trim(tensor: Tensor, reference: Tensor | int):
     if delta:
         tensor = tensor[..., delta // 2 : -(delta - delta // 2)]
     return tensor
-
-
-def pull_metric(history: list[dict], name: str):
-    out = []
-    for metrics in history:
-        metric = metrics
-        for part in name.split("."):
-            metric = metric[part]
-        out.append(metric)
-    return out
-
-
-def EMA(beta: float = 1):
-    """
-    Exponential Moving Average callback.
-    Returns a single function that can be called to repeatidly update the EMA
-    with a dict of metrics. The callback will return
-    the new averaged dict of metrics.
-
-    Note that for `beta=1`, this is just plain averaging.
-    """
-    fix: dict[str, float] = defaultdict(float)
-    total: dict[str, float] = defaultdict(float)
-
-    def _update(metrics: dict, weight: float = 1) -> dict:
-        nonlocal total, fix
-        for key, value in metrics.items():
-            total[key] = total[key] * beta + weight * float(value)
-            fix[key] = fix[key] * beta + weight
-        return {key: tot / fix[key] for key, tot in total.items()}
-
-    return _update
-
-
-def sizeof_fmt(num: float, suffix: str = "B"):
-    """
-    Given `num` bytes, return human readable size.
-    Taken from https://stackoverflow.com/a/1094933
-    """
-    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
-        if abs(num) < 1024.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.1f%s%s" % (num, "Yi", suffix)
-
-
-@contextmanager
-def temp_filenames(count: int, delete=True):
-    names = []
-    try:
-        for _ in range(count):
-            names.append(tempfile.NamedTemporaryFile(delete=False).name)
-        yield names
-    finally:
-        if delete:
-            for name in names:
-                os.unlink(name)
-
-
-def random_subset(dataset, max_samples: int, seed: int = 42):
-    if max_samples >= len(dataset):
-        return dataset
-
-    generator = torch.Generator().manual_seed(seed)
-    perm = torch.randperm(len(dataset), generator=generator)
-    return Subset(dataset, perm[:max_samples].tolist())
-
-
 
 
 def spectro(x, n_fft=512, hop_length=None, pad=0):

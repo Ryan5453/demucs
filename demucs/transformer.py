@@ -113,12 +113,6 @@ def create_sin_embedding_cape(
         dim=-1,
     ).float()
 
-
-def get_causal_mask(length):
-    pos = torch.arange(length)
-    return pos > pos[:, None]
-
-
 def get_elementary_mask(
     T1,
     T2,

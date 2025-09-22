@@ -315,12 +315,12 @@ class ModelRepository:
         Args:
             name: Model name
             progress_callback: Optional callback function for progress updates.
-                              Called with (event_type, data) where event_type is one of:
-                              - "download_start": data = {"model_name": str, "total_layers": int}
-                              - "layer_start": data = {"model_name": str, "layer_index": int, "total_layers": int, "layer_size_bytes": int}
-                              - "layer_progress": data = {"model_name": str, "layer_index": int, "total_layers": int, "progress_percent": float, "downloaded_bytes": int, "total_bytes": int, "phase": str}
-                              - "layer_complete": data = {"model_name": str, "layer_index": int, "total_layers": int}
-                              - "download_complete": data = {"model_name": str, "total_layers": int}
+                              Called with progress_callback(event_type: str, data: dict[str, str | int | float]):
+                              - "download_start", {"model_name": str, "total_layers": int}
+                              - "layer_start", {"model_name": str, "layer_index": int, "total_layers": int, "layer_size_bytes": int}
+                              - "layer_progress", {"model_name": str, "layer_index": int, "total_layers": int, "progress_percent": float, "downloaded_bytes": int, "total_bytes": int, "phase": str}
+                              - "layer_complete", {"model_name": str, "layer_index": int, "total_layers": int}
+                              - "download_complete", {"model_name": str, "total_layers": int}
 
         Returns:
             The requested model
@@ -410,9 +410,36 @@ class ModelRepository:
                 },
             )
 
-        # Create BagOfModels from the layers
+        # Optimization: Return raw model for single models with default weights
         weights = model_info.get("weights")
         segment = model_info.get("segment")
+        
+        # Check if this is a single model with identity weights (or no weights specified)
+        if len(layers) == 1:
+            is_identity_weights = (
+                weights is None or 
+                (len(weights) == 1 and 
+                 len(weights[0]) == len(layers[0].sources) and
+                 all(abs(w - 1.0) < 1e-6 for w in weights[0]))
+            )
+            
+            if is_identity_weights:
+                # Return the raw model directly for better performance
+                model = layers[0]
+                
+                # Apply segment override if needed
+                if segment is not None:
+                    # Import here to avoid circular imports
+                    from .htdemucs import HTDemucs
+                    if (
+                        not isinstance(model, HTDemucs)
+                        or segment <= model.max_allowed_segment
+                    ):
+                        model.max_allowed_segment = segment
+                
+                return model
+        
+        # Use BagOfModels for true ensembles or models with custom weights
         return BagOfModels(layers, weights, segment)
 
     def list_models(self) -> dict[str, dict]:
