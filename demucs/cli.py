@@ -600,7 +600,9 @@ def main_command(
     shifts: Annotated[
         int,
         typer.Option(
-            help="Number of random shifts for equivariant stabilization, this increases separation time but improves quality",
+            min=1,
+            max=20,
+            help="Number of random shifts for equivariant stabilization, increases separation time but improves quality",
             rich_help_panel="Processing",
         ),
     ] = 1,
@@ -615,6 +617,7 @@ def main_command(
         int | None,
         typer.Option(
             "--split-size",
+            min=1,
             help="Size of each chunk when split=True (in seconds), smaller values use less GPU memory but process slower",
             rich_help_panel="Processing",
         ),
@@ -623,7 +626,9 @@ def main_command(
         float,
         typer.Option(
             "--split-overlap",
-            help="Overlap between split chunks (0.0 to 1.0), higher values improve quality at chunk boundaries",
+            min=0.0,
+            max=1.0,
+            help="Overlap between split chunks, higher values improve quality at chunk boundaries",
             rich_help_panel="Processing",
         ),
     ] = 0.25,
@@ -761,19 +766,18 @@ def main():
         no_args_is_help=True,
         rich_markup_mode="legacy",
         pretty_exceptions_show_locals=False,
-        add_help_option=False,
     )
 
     models_app = typer.Typer(
         help="Download, list and manage models", no_args_is_help=True
     )
-    models_app.command(name="list", add_help_option=False)(list_models_command)
-    models_app.command(name="download", add_help_option=False)(download_models_command)
-    models_app.command(name="remove", add_help_option=False)(remove_models_command)
+    models_app.command(name="list")(list_models_command)
+    models_app.command(name="download")(download_models_command)
+    models_app.command(name="remove")(remove_models_command)
 
     # Main commands
-    app.command(name="separate", add_help_option=False)(main_command)
-    app.add_typer(models_app, name="models", add_help_option=False)
+    app.command(name="separate")(main_command)
+    app.add_typer(models_app, name="models")
     app.command(name="version")(version_command)
 
     # Run the app
