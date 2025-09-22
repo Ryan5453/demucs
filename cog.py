@@ -196,7 +196,9 @@ class Predictor(BasePredictor):
         for stem_name in valid_stems:
             output_filename = f"{stem_name}.{output_format}"
             output_path = temp_dir / output_filename
-            separated.export_stem(stem_name, output_path, format=output_format, clip=clip_mode_enum)
+            separated.export_stem(
+                stem_name, output_path, format=output_format, clip=clip_mode_enum
+            )
             output_paths[stem_name] = output_path
 
         if verbose:
