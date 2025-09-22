@@ -645,7 +645,7 @@ def main_command(
     isolate_stem: Annotated[
         StemName | None,
         typer.Option(
-            help='Only creates a {stem} and no_{stem} stem/file',
+            help="Only creates a {stem} and no_{stem} stem/file",
             rich_help_panel="Output",
         ),
     ] = None,
@@ -672,6 +672,7 @@ def main_command(
     if tracks is None or not tracks:
         # Just show the help for the separate command using the current context
         import click
+
         ctx = click.get_current_context()
         click.echo(ctx.get_help())
         ctx.exit()
@@ -690,10 +691,7 @@ def main_command(
         console.print(f"[red]✗[/red] [bold]{model.value}[/bold]: {error}")
         return
 
-    if (
-        isolate_stem is not None
-        and isolate_stem.value not in separator.model.sources
-    ):
+    if isolate_stem is not None and isolate_stem.value not in separator.model.sources:
         console.print(
             f'[red]✗[/red] [bold]{model.value}[/bold]: error: stem "{isolate_stem.value}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
         )
@@ -751,7 +749,9 @@ def main_command(
                 stem_path = format_output_path(
                     output, model.value, track, stem_name, format
                 )
-                separated.export_stem(stem_name, stem_path, format=format, clip=clip_mode)
+                separated.export_stem(
+                    stem_name, stem_path, format=format, clip=clip_mode
+                )
 
         except Exception as e:
             console.print(f"[red]✗[/red] Error processing {track}: {str(e)}")

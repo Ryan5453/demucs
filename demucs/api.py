@@ -120,7 +120,6 @@ class SeparatedSources:
             return encoded_tensor.numpy().tobytes()
 
 
-
 class Separator:
     """
     Audio source separation using Demucs models.

@@ -77,7 +77,7 @@ def convert_audio(wav, from_samplerate, to_samplerate, channels) -> Tensor:
 def prevent_clip(audio: Tensor, mode: ClipMode = ClipMode.rescale) -> Tensor:
     """
     Different strategies for avoiding raw clipping.
-    
+
     :param audio: The audio tensor to prevent clipping from
     :param mode: The mode to use for preventing clipping
     :return: The audio tensor with clipping prevented
