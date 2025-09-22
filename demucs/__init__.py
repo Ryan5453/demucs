@@ -12,11 +12,13 @@ from .api import (
     get_version,
 )
 from .audio import ClipMode
+from .repo import ModelRepository
 
 __all__ = [
     "__version__",
     "Separator",
     "SeparatedSources",
     "ClipMode",
+    "ModelRepository",
     "get_version",
 ]
