@@ -59,6 +59,7 @@ class ClipMode(str, Enum):
     rescale = "rescale"
     clamp = "clamp"
     tanh = "tanh"
+    none = "none"
 
 
 console = Console()
@@ -655,7 +656,7 @@ def main_command(
         ),
     ] = None,
     clip_mode: Annotated[
-        ClipMode | None,
+        ClipMode,
         typer.Option(
             help="Strategy for avoiding clipping",
             rich_help_panel="Output",
@@ -687,14 +688,10 @@ def main_command(
     if not _ensure_model_available(model.value):
         return
 
-    try:
-        separator = Separator(
-            model=model.value,
-            device=device.value,
-        )
-    except Exception as error:
-        console.print(f"[red]✗[/red] [bold]{model.value}[/bold]: {error}")
-        return
+    separator = Separator(
+        model=model.value,
+        device=device.value,
+    )
 
     if isolate_stem is not None and isolate_stem.value not in separator.model.sources:
         console.print(
@@ -755,7 +752,7 @@ def main_command(
                     output, model.value, track, stem_name, format
                 )
                 separated.export_stem(
-                    stem_name, stem_path, format=format, clip=clip_mode.value
+                    stem_name, stem_path, format=format, clip=None if clip_mode == ClipMode.none else clip_mode.value
                 )
 
         except Exception as e:

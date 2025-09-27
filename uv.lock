@@ -57,9 +57,7 @@ name = "demucs"
 version = "5.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "einops" },
     { name = "httpx" },
-    { name = "julius" },
     { name = "openunmix" },
     { name = "torch" },
     { name = "torchcodec" },
@@ -73,9 +71,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "einops" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "julius", specifier = ">=0.2.3" },
     { name = "openunmix" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "torch", specifier = ">=2.8.0" },
@@ -83,15 +79,6 @@ requires-dist = [
     { name = "typer", specifier = ">=0.19.1" },
 ]
 provides-extras = ["dev"]
-
-[[package]]
-name = "einops"
-version = "0.8.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e5/81/df4fbe24dff8ba3934af99044188e20a98ed441ad17a274539b74e82e126/einops-0.8.1.tar.gz", hash = "sha256:de5d960a7a761225532e0f1959e5315ebeafc0cd43394732f103ca44b9837e84", size = 54805, upload-time = "2025-02-09T03:17:00.434Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/62/9773de14fe6c45c23649e98b83231fffd7b9892b6cf863251dc2afa73643/einops-0.8.1-py3-none-any.whl", hash = "sha256:919387eb55330f5757c6bea9165c5ff5cfe63a642682ea788a6d472576d81737", size = 64359, upload-time = "2025-02-09T03:17:01.998Z" },
-]
 
 [[package]]
 name = "exceptiongroup"
@@ -180,15 +167,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
 ]
-
-[[package]]
-name = "julius"
-version = "0.2.7"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "torch" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/19/c9e1596b5572c786b93428d0904280e964c930fae7e6c9368ed9e1b63922/julius-0.2.7.tar.gz", hash = "sha256:3c0f5f5306d7d6016fcc95196b274cae6f07e2c9596eed314e4e7641554fbb08", size = 59640, upload-time = "2022-09-19T16:13:34.2Z" }
 
 [[package]]
 name = "markdown-it-py"

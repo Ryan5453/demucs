@@ -5,11 +5,28 @@ This is a fork of the [author](https://github.com/adefossez)'s [fork](https://gi
 
 ## Installation
 
-The recommended way to install demucs-inference is to use UV, an alternative Python package manager.
+### Prerequisites
 
-### Installing UV
+#### FFmpeg
 
-Use the following commands to install UV:
+Demucs requires FFmpeg to be installed on your system. Versions 4 - 7 are supported. You can install it using the following command:
+
+```bash
+# macOS
+brew install ffmpeg@7
+brew link ffmpeg@7
+
+# Ubuntu/Debian
+sudo apt-get install ffmpeg
+
+# Windows
+choco install ffmpeg
+```
+
+#### UV
+
+The recommended (but optional) way to install demucs-inference is to use UV, an alternative Python package manager. You can install it using the following command:
+
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -53,14 +70,14 @@ pip install demucs-inference
 After installing Demucs, you can use it like the following:
 
 ```bash
+# View separation options
+demucs separate --help
+
 # Separate one audio file
 demucs separate audio_file.mp3
 
 # Separate multiple audio files
 demucs separate audio_file_1.mp3 audio_file_2.mp3
-
-# Separate all audio files in the current directory
-demucs separate *.mp3
 ```
 
 **Note:** Demucs also provides a `demucs-inference` command in your enviornment. This is identical to the `demucs` command, but is provided for compatibility with uvx.
