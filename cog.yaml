@@ -1,16 +1,8 @@
 build:
   gpu: true
-  cuda: "11.8"
-  system_packages:
-    - "ffmpeg"
-    - "soundstretch"
-  python_version: "3.10"
+  python_version: "3.12"
   run:
-    - "pip3 install --no-cache-dir torch torchvision torchaudio"
-    # Facebook/Meta no longer maintains demucs, this is the original author's fork
-    # The newest version of numpy has issues with diffq (a requirement of Demucs)
-    - "pip3 install -U --no-cache-dir git+https://github.com/adefossez/demucs#egg=demucs[dev] numpy==1.21."
-    # Locally caching models should provide a slight performance improvement
-    # When building the image, we don't have access to the code, so I have to resort to this mess to fit the code in one line...
-    - "python3 -c \"from demucs.pretrained import REMOTE_ROOT, _parse_remote_files; from demucs.repo import AnyModelRepo, BagOnlyRepo, RemoteRepo; models = _parse_remote_files(REMOTE_ROOT / 'files.txt'); model_repo = RemoteRepo(models); repo = AnyModelRepo(model_repo, BagOnlyRepo(REMOTE_ROOT, model_repo)); [repo.get_model(model) for model in models if model]\""
-predict: "predict.py:Predictor"
+    - "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    - "uv pip install demucs-inference --torch-backend=auto"
+    - "demucs models download --all"
+predict: "cog.py:Predictor"

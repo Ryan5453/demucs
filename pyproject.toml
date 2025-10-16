@@ -1,2 +1,41 @@
-[tool.isort]
-profile = "black"
+[project]
+name = "demucs-inference"
+version = "1.0.0"
+description = "Audio source separation for music."
+readme = "README.md"
+authors = [
+    {name = "Alexandre Défossez", email = "defossez@fb.com"},
+    {name = "Ryan Fahey", email = "git@ryan.science"}
+]
+license = {text = "MIT License"}
+requires-python = ">=3.10, <3.14"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.8.0",
+    "torchcodec>=0.7.0",
+    "openunmix",
+
+    "typer>=0.19.1",
+    "httpx>=0.28.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff",
+]
+
+[build-system]
+requires = ["uv_build>=0.7.21,<0.8.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "demucs"
+module-root = ""
+
+[project.scripts]
+demucs = "demucs.cli:main"
+demucs-inference = "demucs.cli:main" # Provided for compatibility with uvx
