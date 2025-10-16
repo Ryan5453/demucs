@@ -1,5 +1,8 @@
 # 🎛️ demucs-inference
 
+> [!WARNING]
+> This repository is still in beta and is not in a perfectly working state. Use with caution.
+
 Demucs is a state-of-the-art music source separation model capable of separating drums, bass, and vocals from the rest of the accompaniment.
 This is a fork of the [author](https://github.com/adefossez)'s [fork](https://github.com/adefossez/demucs) of the [original Demucs repository](https://github.com/facebookresearch/demucs). It has been updated to use modern versions of Python, PyTorch, and TorchCodec.
 
@@ -9,12 +12,11 @@ This is a fork of the [author](https://github.com/adefossez)'s [fork](https://gi
 
 #### FFmpeg
 
-Demucs requires FFmpeg to be installed on your system. Versions 4 - 7 are supported. You can install it using the following command:
+Demucs requires FFmpeg v4+ to be installed on your system. You can install it using the following command:
 
 ```bash
 # macOS
-brew install ffmpeg@7
-brew link ffmpeg@7
+brew install ffmpeg
 
 # Ubuntu/Debian
 sudo apt-get install ffmpeg
