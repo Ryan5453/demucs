@@ -45,7 +45,7 @@ With UV, you can use the `uvx` command to run Demucs without installing it perma
 uvx demucs-inference separate audio_file.mp3
 ```
 
-**Note**: Demucs does not specify a specific PyTorch wheel. This means that GPUs will only work on Apple Silicon or PyTorch's default CUDA version (currently 12.8) on Linux. Demucs will fall back to CPU if one of the above conditions are not met.
+**Note**: Demucs does not specify a specific PyTorch wheel. This means that GPUs will only work on Apple Silicon or PyTorch's default CUDA version (currently 12.8) on Linux when using uvx. Demucs will fall back to CPU if one of the above conditions are not met.
 
 ### Install using UV
 
