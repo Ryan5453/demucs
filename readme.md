@@ -85,8 +85,6 @@ demucs separate audio_file_1.mp3 audio_file_2.mp3
 demucs separate /path/to/music/folder
 ```
 
-**Note:** Demucs also provides a `demucs-inference` command in your enviornment. This is identical to the `demucs` command, but is provided for compatibility with uvx.
-
 ## Cog Usage
 
 Demucs provides a [Cog](https://github.com/replicate/cog), which allows you to easily deploy a Demucs model as a REST API. You can alternatively use the hosted version at [Replicate](https://replicate.com/ryan5453/demucs).
