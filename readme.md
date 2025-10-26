@@ -1,7 +1,7 @@
 # 🎛️ demucs-inference
 
 > [!WARNING]
-> This repository is still in beta and is not in a perfectly working state. Use with caution.
+> `demucs-inference` is still in an alpha state and is not recommended for production use. A stable release will be released soon,
 
 Demucs is a state-of-the-art music source separation model capable of separating drums, bass, and vocals from the rest of the accompaniment.
 This is a fork of the [author](https://github.com/adefossez)'s [fork](https://github.com/adefossez/demucs) of the [original Demucs repository](https://github.com/facebookresearch/demucs). It has been updated to use modern versions of Python, PyTorch, and TorchCodec.
