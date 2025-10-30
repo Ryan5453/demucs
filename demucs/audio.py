@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from .exceptions import InvalidClipModeError
+from .exceptions import ValidationError
 
 
 def convert_audio_channels(wav, channels=2):
@@ -72,7 +72,7 @@ def prevent_clip(audio: Tensor, mode: str | None = "rescale") -> Tensor:
     :param audio: The audio tensor to prevent clipping from
     :param mode: The mode to use for preventing clipping ("rescale", "clamp", "tanh", or None)
     :return: The audio tensor with clipping prevented
-    :raises InvalidClipModeError: If the clippingmode is invalid
+    :raises ValidationError: If the clipping mode is invalid
     """
     if mode == "rescale":
         return audio / max(1.01 * audio.abs().max(), 1)
@@ -83,4 +83,4 @@ def prevent_clip(audio: Tensor, mode: str | None = "rescale") -> Tensor:
     elif not mode:
         return audio
     else:
-        raise InvalidClipModeError(f"Invalid mode {mode}")
+        raise ValidationError(f"Invalid clip mode '{mode}'. Must be one of: 'rescale', 'clamp', 'tanh', or None")

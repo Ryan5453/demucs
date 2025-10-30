@@ -29,25 +29,9 @@ class ModelLoadingError(DemucsError):
     pass
 
 
-class SegmentValidationError(DemucsError):
+class ValidationError(DemucsError):
     """
-    Exception raised when segment parameter is invalid for the model.
-    """
-
-    pass
-
-
-class InvalidStemError(DemucsError):
-    """
-    Exception raised when a stem name is invalid.
-    """
-
-    pass
-
-
-class InvalidClipModeError(DemucsError):
-    """
-    Exception raised when a clip mode is invalid.
+    Exception raised when a parameter value is invalid.
     """
 
     pass

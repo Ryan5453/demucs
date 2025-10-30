@@ -109,7 +109,6 @@ def _expand_paths_to_audio_files(paths: list[Path]) -> list[Path]:
                 # Sort files for consistent processing order
                 found_files.sort()
                 audio_files.extend(found_files)
-                console.print(f"Found {len(found_files)} potential audio files in '{path}'")
             else:
                 console.print(f"[yellow]Warning:[/yellow] No audio files found in '{path}'")
         else:
@@ -581,16 +580,10 @@ def format_output_path(
 ) -> Path:
     """Format output path template with variables"""
     now = datetime.now()
-
-    # Extract track name and extension
-    track_name = track.name.rsplit(".", 1)[0]
-    track_ext = track.name.rsplit(".", 1)[-1] if "." in track.name else ""
-
     # Template variables
     variables = {
         "model": model,
-        "track": track_name,
-        "trackext": track_ext,
+        "track": track.name.rsplit(".", 1)[0],
         "stem": stem,
         "ext": ext,
         "date": now.strftime("%Y-%m-%d"),
@@ -792,7 +785,7 @@ def main_command(
         typer.Option(
             "-o",
             "--output",
-            help="Output path template. Variables: {model}, {track}, {trackext}, {stem}, {ext}, {date}, {time}, {timestamp}",
+            help="Output path template. Variables: {model}, {track}, {stem}, {ext}, {date}, {time}, {timestamp}",
             rich_help_panel="Output",
         ),
     ] = "separated/{model}/{track}/{stem}.{ext}",
@@ -856,48 +849,27 @@ def main_command(
 
     # Show where tracks will be stored
     if audio_files:
+        # Resolve variables that are constant: model, ext, timestamp vars
+        resolved_template = output
+        resolved_template = resolved_template.replace("{model}", model.value)
+        resolved_template = resolved_template.replace("{ext}", format)
+        
+        now = datetime.now()
+        resolved_template = resolved_template.replace("{date}", now.strftime("%Y-%m-%d"))
+        resolved_template = resolved_template.replace("{time}", now.strftime("%H-%M-%S"))
+        resolved_template = resolved_template.replace("{timestamp}", str(int(now.timestamp())))
+        
+        # If single file, also resolve {track}
         if len(audio_files) == 1:
-            # Single file - show exact directory
-            example_path = format_output_path(
-                output, model.value, audio_files[0], "vocals", format
-            )
+            track_name = audio_files[0].name.rsplit(".", 1)[0]
+            resolved_template = resolved_template.replace("{track}", track_name)
             console.print(
-                f"Separated tracks will be stored in '{example_path.parent.resolve()}/'"
+                f"Separated track will be stored using template '{resolved_template}'"
             )
         else:
-            # Multiple files - show base directory pattern
-            # Check if template contains {track} variable (each track gets its own folder)
-            if "{track}" in output:
-                # Get the base directory without the track-specific part
-                base_template = output.split("{track}")[0]
-                if base_template.endswith("/"):
-                    base_template = base_template[:-1]
-                
-                # Format the base template
-                now = datetime.now()
-                base_variables = {
-                    "model": model.value,
-                    "date": now.strftime("%Y-%m-%d"),
-                    "time": now.strftime("%H-%M-%S"),
-                    "timestamp": str(int(now.timestamp())),
-                }
-                
-                formatted_base = base_template
-                for var, value in base_variables.items():
-                    formatted_base = formatted_base.replace(f"{{{var}}}", value)
-                
-                base_path = Path(formatted_base).resolve()
-                console.print(
-                    f"Separated tracks will be stored in '{base_path}/' (each track in its own subfolder)"
-                )
-            else:
-                # All tracks go to the same directory
-                example_path = format_output_path(
-                    output, model.value, audio_files[0], "vocals", format
-                )
-                console.print(
-                    f"Separated tracks will be stored in '{example_path.parent.resolve()}/'"
-                )
+            console.print(
+                f"Separated tracks will be stored using template '{resolved_template}'"
+            )
 
     # Use improved progress tracking for multiple files
     with FileProgressTracker(len(audio_files)) as progress_tracker:

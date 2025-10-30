@@ -19,8 +19,7 @@ from .repo import AnyModel, ModelRepository
 from .exceptions import (
     LoadAudioError,
     ModelLoadingError,
-    SegmentValidationError,
-    InvalidStemError,
+    ValidationError,
 )
 from . import __version__
 
@@ -54,10 +53,10 @@ class SeparatedSources:
 
         :param name: Name of the stem to isolate
         :return: New SeparatedSources object with the isolated stem and the accompanying complement stem
-        :raises InvalidStemError: If the requested stem isn't found in the sources
+        :raises ValidationError: If the requested stem isn't found in the sources
         """
         if name not in self.sources:
-            raise InvalidStemError(
+            raise ValidationError(
                 f"Stem '{name}' not found in sources. Available stems: {list(self.sources.keys())}"
             )
 
@@ -86,10 +85,10 @@ class SeparatedSources:
         :param format: Format to export the stem to, anything supported by FFmpeg
         :param clip: Clipping mode to prevent audio distortion ("rescale", "clamp", "tanh", or None)
         :return: Path to saved file if path provided, otherwise raw audio bytes
-        :raises InvalidStemError: If the stem name is not found
+        :raises ValidationError: If the stem name is not found
         """
         if stem_name not in self.sources:
-            raise InvalidStemError(
+            raise ValidationError(
                 f"Stem '{stem_name}' not found. Available stems: {list(self.sources.keys())}"
             )
 
@@ -138,8 +137,17 @@ class Separator:
         Initialize a Separator with the specified model and device.
 
         :param model: Model to use for separation
-        :param device: Device to use for processing
+        :param device: Device to use for processing (must be "cpu", "cuda", or "mps")
+        :raises ValidationError: If device is not a valid device type
+        :raises ModelLoadingError: If model fails to load
         """
+        # Validate device
+        valid_devices = {"cpu", "cuda", "mps"}
+        if device not in valid_devices:
+            raise ValidationError(
+                f"Invalid device '{device}'. Must be one of: {', '.join(sorted(valid_devices))}"
+            )
+        
         self.device = device
         model_repo = ModelRepository()
         self.model = model_repo.get_model(name=model)
@@ -230,7 +238,7 @@ class Separator:
                      - A Tensor of shape [channels, samples]
                      - A file path (str or Path)
                      - Raw audio bytes
-        :param shifts: Number of random shifts for equivariant stabilization
+        :param shifts: Number of random shifts for equivariant stabilization (1-20)
                       Higher values improve quality but increase processing time
         :param split_overlap: Overlap between split chunks (0.0 to 1.0)
                              Higher values improve quality at chunk boundaries
@@ -239,17 +247,40 @@ class Separator:
         :param sample_rate: Sample rate of input audio (only used with tensor input)
         :param progress_callback: Optional callback for progress updates during audio processing
         :return: SeparatedSources object containing the separated stems
+        :raises ValidationError: If any parameter value is invalid
         """
-        # Validate split_size parameter inline to reduce helpers
+        # Validate shifts parameter
+        if not isinstance(shifts, int) or shifts < 1 or shifts > 20:
+            raise ValidationError(
+                f"shifts must be an integer between 1 and 20 (inclusive), got {shifts}"
+            )
+        
+        # Validate split_overlap parameter
+        if not isinstance(split_overlap, (int, float)) or split_overlap < 0.0 or split_overlap > 1.0:
+            raise ValidationError(
+                f"split_overlap must be a float between 0.0 and 1.0 (inclusive), got {split_overlap}"
+            )
+        
+        # Validate split_size parameter
         if split_size is not None:
+            if not isinstance(split_size, (int, float)) or split_size < 1:
+                raise ValidationError(
+                    f"split_size must be a number >= 1 if provided, got {split_size}"
+                )
             max_allowed = self.model.max_allowed_segment
             if split_size > max_allowed:
                 model_name = getattr(self.model, "name", type(self.model).__name__)
-                raise SegmentValidationError(
+                raise ValidationError(
                     f"Cannot use split_size={split_size} with model '{model_name}'. "
                     f"Maximum allowed split size for this model is {max_allowed} seconds. "
                     f"Transformer models cannot process segments longer than they were trained for."
                 )
+        
+        # Validate progress_callback parameter
+        if progress_callback is not None and not callable(progress_callback):
+            raise ValidationError(
+                f"progress_callback must be callable if provided, got {type(progress_callback)}"
+            )
 
         # Normalize input to tensor
         wav = self._to_tensor(audio, sample_rate)

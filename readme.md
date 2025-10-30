@@ -12,7 +12,9 @@ This is a fork of the [author](https://github.com/adefossez)'s [fork](https://gi
 
 #### FFmpeg
 
-Demucs requires FFmpeg v4+ to be installed on your system. You can install it using the following command:
+Demucs requires FFmpeg v4+ to be installed on your system[^1]. You can install it using the following command:
+
+[^1]: You should be able to use the Python Demucs API without FFmpeg, as you have the option to provide the audio as a Tensor. But you'd likely use FFmpeg under some other abstraction yourself...
 
 ```bash
 # macOS
@@ -95,4 +97,4 @@ Demucs provides a Python API for separating audio files. Please refer to the [AP
 
 ## Changelog
 
-The [changelog](docs/changelog.md) contains information about the changes between versions of demucs-inference, including a migration guide from upstream demucs.
+The [changelog](docs/changelog.md) contains information about the changes between versions of demucs-inference, including a migration guide from upstream Demucs.
