@@ -62,7 +62,8 @@ class SeparatedSources:
 
         complement = torch.zeros_like(self.sources[name])
         for source, audio in self.sources.items():
-            complement += audio
+            if source != name: 
+                complement += audio
 
         return SeparatedSources(
             sources={name: self.sources[name], f"no_{name}": complement},
