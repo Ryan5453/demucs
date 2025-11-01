@@ -13,11 +13,10 @@ from openunmix.filtering import wiener
 from torch import nn
 from torch.nn import functional as F
 
-from .blocks import rescale_module
+from .blocks import ispectro, rescale_module, spectro
 from .hdemucs import HDecLayer, HEncLayer, MultiWrap, ScaledEmbedding, pad1d
 from .states import capture_init
 from .transformer import CrossTransformerEncoder
-from .blocks import ispectro, spectro
 
 
 class HTDemucs(nn.Module):

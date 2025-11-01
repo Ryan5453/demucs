@@ -4,9 +4,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from cog import BasePredictor, Input, Path, File
-
-from demucs import Separator, ModelRepository
+from cog import BasePredictor, File, Input, Path
+from demucs import ModelRepository, Separator
 
 
 class Predictor(BasePredictor):

@@ -83,4 +83,6 @@ def prevent_clip(audio: Tensor, mode: str | None = "rescale") -> Tensor:
     elif not mode:
         return audio
     else:
-        raise ValidationError(f"Invalid clip mode '{mode}'. Must be one of: 'rescale', 'clamp', 'tanh', or None")
+        raise ValidationError(
+            f"Invalid clip mode '{mode}'. Must be one of: 'rescale', 'clamp', 'tanh', or None"
+        )

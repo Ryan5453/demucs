@@ -16,9 +16,9 @@ import torch.nn as nn
 from torch import Tensor
 from torch.nn import functional as F
 
+from .blocks import center_trim
 from .hdemucs import HDemucs
 from .htdemucs import HTDemucs
-from .blocks import center_trim
 
 Model: TypeAlias = HDemucs | HTDemucs
 
@@ -193,7 +193,7 @@ def apply_model(
         # Special treatment for model ensemble.
         # We explicitely apply multiple times `apply_model` so that the random shifts
         # are different for each model.
-        
+
         # Optimization: If use_only_stem is specified, only run the specialized model
         if use_only_stem:
             # Find which model specializes in this stem
@@ -206,26 +206,32 @@ def apply_model(
                 # Find the model that specializes in this stem
                 model_index = None
                 for i, weights in enumerate(model.weights):
-                    if (len(weights) > stem_index and
-                        abs(weights[stem_index] - 1.0) < 1e-6 and
-                        all(abs(w) < 1e-6 for j, w in enumerate(weights) if j != stem_index)):
+                    if (
+                        len(weights) > stem_index
+                        and abs(weights[stem_index] - 1.0) < 1e-6
+                        and all(
+                            abs(w) < 1e-6
+                            for j, w in enumerate(weights)
+                            if j != stem_index
+                        )
+                    ):
                         model_index = i
                         break
-                
+
                 if model_index is not None:
                     # Run only the specialized model
                     sub_model = model.models[model_index]
                     original_model_device = next(iter(sub_model.parameters())).device
                     sub_model.to(device)
-                    
+
                     # Remove use_only_stem for the recursive call
                     sub_kwargs = dict(kwargs)
                     sub_kwargs.pop("use_only_stem")
                     result = apply_model(sub_model, mix, **sub_kwargs)
-                    
+
                     sub_model.to(original_model_device)
                     return result
-        
+
         # Default behavior: run all models in the bag
         estimates: float | Tensor = 0.0
         totals = [0.0] * len(model.sources)

@@ -4,24 +4,24 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable
-from io import BytesIO
 
 import torch
 from torch import Tensor
 from torchcodec.decoders import AudioDecoder
 from torchcodec.encoders import AudioEncoder
 
+from . import __version__
 from .apply import apply_model
 from .audio import convert_audio, prevent_clip
-from .repo import AnyModel, ModelRepository
 from .exceptions import (
     LoadAudioError,
     ModelLoadingError,
     ValidationError,
 )
-from . import __version__
+from .repo import AnyModel, ModelRepository
 
 
 class SeparatedSources:
@@ -62,7 +62,7 @@ class SeparatedSources:
 
         complement = torch.zeros_like(self.sources[name])
         for source, audio in self.sources.items():
-            if source != name: 
+            if source != name:
                 complement += audio
 
         return SeparatedSources(
@@ -151,9 +151,9 @@ class Separator:
             raise ValidationError(
                 f"Invalid device '{device}'. Must be one of: {', '.join(sorted(valid_devices))}"
             )
-        
+
         self.device = device
-        
+
         # Handle both string model names and model instances
         if isinstance(model, str):
             model_repo = ModelRepository()
@@ -161,18 +161,18 @@ class Separator:
         else:
             # model is already a Model instance
             self.model = model
-        
+
         self.model.eval()
         if self.model is None:
             raise ModelLoadingError("Failed to load model")
-        
+
         # Validate only_load stem exists in the loaded model
         if only_load and only_load not in self.model.sources:
             raise ValidationError(
                 f"Stem '{only_load}' not found in model. "
                 f"Available stems: {', '.join(self.model.sources)}"
             )
-        
+
         self.audio_channels = self.model.audio_channels
         self.sample_rate = self.model.samplerate
 
@@ -276,13 +276,17 @@ class Separator:
             raise ValidationError(
                 f"shifts must be an integer between 1 and 20 (inclusive), got {shifts}"
             )
-        
+
         # Validate split_overlap parameter
-        if not isinstance(split_overlap, (int, float)) or split_overlap < 0.0 or split_overlap > 1.0:
+        if (
+            not isinstance(split_overlap, (int, float))
+            or split_overlap < 0.0
+            or split_overlap > 1.0
+        ):
             raise ValidationError(
                 f"split_overlap must be a float between 0.0 and 1.0 (inclusive), got {split_overlap}"
             )
-        
+
         # Validate split_size parameter
         if split_size is not None:
             if not isinstance(split_size, (int, float)) or split_size < 1:
@@ -297,7 +301,7 @@ class Separator:
                     f"Maximum allowed split size for this model is {max_allowed} seconds. "
                     f"Transformer models cannot process segments longer than they were trained for."
                 )
-        
+
         # Validate progress_callback parameter
         if progress_callback is not None and not callable(progress_callback):
             raise ValidationError(

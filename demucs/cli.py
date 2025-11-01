@@ -5,15 +5,14 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
-from pathlib import Path
-from enum import Enum
+import time
 from datetime import datetime
+from enum import Enum
+from pathlib import Path
 
 import torch
-import time
 import typer
 from rich.console import Console
-from rich.table import Table
 from rich.progress import (
     BarColumn,
     Progress,
@@ -22,13 +21,13 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
-
+from rich.table import Table
 from typing_extensions import Annotated
 
 from . import __version__
 from .api import Separator
-from .repo import ModelRepository
 from .exceptions import ModelLoadingError
+from .repo import ModelRepository
 
 METADATA_PATH = Path(__file__).parent / "metadata.json"
 
@@ -74,8 +73,20 @@ def _get_common_audio_extensions() -> set[str]:
     # Common audio/video formats that typically contain audio streams
     # Note: This is just a heuristic for performance - torchcodec determines actual support
     return {
-        '.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.opus',
-        '.mp4', '.webm', '.mkv', '.avi', '.mov', '.wma', '.alac'
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".m4a",
+        ".aac",
+        ".ogg",
+        ".opus",
+        ".mp4",
+        ".webm",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".wma",
+        ".alac",
     }
 
 
@@ -93,7 +104,7 @@ def _expand_paths_to_audio_files(paths: list[Path]) -> list[Path]:
     Uses common extensions as a fast filter - torchcodec validates actual support at load time.
     """
     audio_files = []
-    
+
     for path in paths:
         if path.is_file():
             # For individual files, just add them and let torchcodec handle validation
@@ -102,18 +113,22 @@ def _expand_paths_to_audio_files(paths: list[Path]) -> list[Path]:
         elif path.is_dir():
             # For directories, use extension heuristic for performance
             # Otherwise we'd have to probe every single file which could be very slow
-            all_files = [f for f in path.iterdir() if f.is_file() and not f.name.startswith('.')]
+            all_files = [
+                f for f in path.iterdir() if f.is_file() and not f.name.startswith(".")
+            ]
             found_files = [f for f in all_files if _looks_like_audio_file(f)]
-            
+
             if found_files:
                 # Sort files for consistent processing order
                 found_files.sort()
                 audio_files.extend(found_files)
             else:
-                console.print(f"[yellow]Warning:[/yellow] No audio files found in '{path}'")
+                console.print(
+                    f"[yellow]Warning:[/yellow] No audio files found in '{path}'"
+                )
         else:
             console.print(f"[red]Error:[/red] Path '{path}' does not exist")
-    
+
     return audio_files
 
 
@@ -181,33 +196,6 @@ def _create_progress_callback(progress_bar, task):
     return callback
 
 
-def _create_audio_progress_callback(progress_bar, task):
-    """Create a progress callback that updates a Rich progress bar for audio processing."""
-
-    def callback(event_type: str, data: dict):
-        if event_type == "processing_start":
-            progress_bar.update(
-                task,
-                description=f"Processing audio ({data['total_chunks']} chunks)",
-                total=data["total_chunks"],
-                completed=0,
-            )
-        elif event_type == "chunk_complete":
-            progress_bar.update(
-                task,
-                completed=data["completed_chunks"],
-                description=f"Processing audio ({data['completed_chunks']}/{data['total_chunks']} chunks)",
-            )
-        elif event_type == "processing_complete":
-            progress_bar.update(
-                task,
-                completed=data["total_chunks"],
-                description="Audio processing complete",
-            )
-
-    return callback
-
-
 def _create_file_progress_bar():
     """Create a progress bar optimized for processing multiple files."""
     return Progress(
@@ -225,81 +213,75 @@ def _create_file_progress_bar():
 
 class FileProgressTracker:
     """Tracks progress across multiple files with improved UX."""
-    
+
     def __init__(self, total_files: int):
         self.total_files = total_files
         self.completed_files = 0
         self.progress_bar = None
         self.current_task = None
         self.file_tasks = {}
-        
+
     def __enter__(self):
         self.progress_bar = _create_file_progress_bar()
         self.progress_bar.__enter__()
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.progress_bar:
             self.progress_bar.__exit__(exc_type, exc_val, exc_tb)
-    
+
     def start_file(self, filename: str) -> int:
         """Start processing a new file."""
         # Create task for this file
-        task_id = self.progress_bar.add_task(
-            filename.strip(),
-            total=100,
-            completed=0
-        )
+        task_id = self.progress_bar.add_task(filename.strip(), total=100, completed=0)
         self.file_tasks[filename] = task_id
         return task_id
-    
+
     def update_file_progress(self, filename: str, event_type: str, data: dict):
         """Update progress for a specific file."""
         if filename not in self.file_tasks:
             return
-            
+
         task_id = self.file_tasks[filename]
-        
+
         if event_type == "processing_start":
             self.progress_bar.update(
                 task_id,
                 description=filename.strip(),
                 total=data["total_chunks"],
-                completed=0
+                completed=0,
             )
         elif event_type == "chunk_complete":
             self.progress_bar.update(
                 task_id,
                 completed=data["completed_chunks"],
-                description=filename.strip()
+                description=filename.strip(),
             )
         elif event_type == "processing_complete":
             # Complete the task which will show the checkmark in the spinner column
             self.progress_bar.update(
-                task_id,
-                completed=data["total_chunks"],
-                description=filename.strip()
+                task_id, completed=data["total_chunks"], description=filename.strip()
             )
             self.completed_files += 1
-    
+
     def error_file(self, filename: str, error_msg: str):
         """Mark a file as having an error."""
         if filename not in self.file_tasks:
             return
-            
+
         task_id = self.file_tasks[filename]
         # Complete the task to stop spinner and show red error mark
         self.progress_bar.update(
-            task_id,
-            completed=100,
-            description=f"[red]✗[/red] {filename.strip()}"
+            task_id, completed=100, description=f"[red]✗[/red] {filename.strip()}"
         )
         self.completed_files += 1
-    
+
     def create_audio_callback(self, filename: str):
         """Create a callback for audio processing progress."""
+
         def callback(event_type: str, data: dict):
             self.update_file_progress(filename, event_type, data)
+
         return callback
 
 
@@ -716,7 +698,11 @@ def get_models() -> dict[str, dict]:
 def main_command(
     # Input/Output
     tracks: Annotated[
-        list[Path] | None, typer.Argument(help="Path to audio files or directories containing audio files", show_default=False)
+        list[Path] | None,
+        typer.Argument(
+            help="Path to audio files or directories containing audio files",
+            show_default=False,
+        ),
     ] = None,
     # Model Selection
     model: Annotated[
@@ -827,7 +813,7 @@ def main_command(
 
     # Expand directory paths to audio files
     audio_files = _expand_paths_to_audio_files(tracks)
-    
+
     if not audio_files:
         console.print("[red]No audio files found to process.[/red]")
         return
@@ -859,12 +845,18 @@ def main_command(
         resolved_template = output
         resolved_template = resolved_template.replace("{model}", model.value)
         resolved_template = resolved_template.replace("{ext}", format)
-        
+
         now = datetime.now()
-        resolved_template = resolved_template.replace("{date}", now.strftime("%Y-%m-%d"))
-        resolved_template = resolved_template.replace("{time}", now.strftime("%H-%M-%S"))
-        resolved_template = resolved_template.replace("{timestamp}", str(int(now.timestamp())))
-        
+        resolved_template = resolved_template.replace(
+            "{date}", now.strftime("%Y-%m-%d")
+        )
+        resolved_template = resolved_template.replace(
+            "{time}", now.strftime("%H-%M-%S")
+        )
+        resolved_template = resolved_template.replace(
+            "{timestamp}", str(int(now.timestamp()))
+        )
+
         # If single file, also resolve {track}
         if len(audio_files) == 1:
             track_name = audio_files[0].name.rsplit(".", 1)[0]
@@ -882,7 +874,7 @@ def main_command(
         for track in audio_files:
             # Get just the filename for cleaner display
             filename = track.name
-            
+
             # Start tracking this file
             progress_tracker.start_file(filename)
 
@@ -911,7 +903,10 @@ def main_command(
                         output, model.value, track, stem_name, format
                     )
                     separated.export_stem(
-                        stem_name, stem_path, format=format, clip=None if clip_mode == ClipMode.none else clip_mode.value
+                        stem_name,
+                        stem_path,
+                        format=format,
+                        clip=None if clip_mode == ClipMode.none else clip_mode.value,
                     )
 
             except Exception as e:

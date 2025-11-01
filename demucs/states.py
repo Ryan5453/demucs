@@ -46,7 +46,7 @@ def load_model(path_or_package, strict=False):
     return model
 
 
-def set_state(model, state, quantizer=None):
+def set_state(model, state):
     """Set the state on a given model."""
     model.load_state_dict(state)
     return state

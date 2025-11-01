@@ -729,12 +729,6 @@ class CrossTransformerEncoder(nn.Module):
 
         return pos_emb
 
-    def make_optim_group(self):
-        group = {"params": list(self.parameters()), "weight_decay": self.weight_decay}
-        if self.lr is not None:
-            group["lr"] = self.lr
-        return group
-
 
 # Attention Modules
 

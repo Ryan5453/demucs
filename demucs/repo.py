@@ -12,14 +12,14 @@ import tempfile
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import TypeAlias, Callable, Any
+from typing import Any, Callable, TypeAlias
 
 import httpx
 import torch
 
-from .apply import ModelEnsemble, Model
-from .states import load_model
+from .apply import Model, ModelEnsemble
 from .exceptions import ModelLoadingError
+from .states import load_model
 
 # Type alias for models
 AnyModel: TypeAlias = Model | ModelEnsemble
@@ -48,23 +48,6 @@ def check_checksum(path: Path, checksum: str):
             f"Invalid checksum for file {path}, "
             f"expected {checksum} but got {actual_checksum}"
         )
-
-
-def format_file_size(size_bytes: int) -> str:
-    """
-    Formats a file size in a human-readable way
-
-    :param size_bytes: The size of the file in bytes
-    :return: A string representing the size of the file in a human-readable way
-    """
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 
 def get_cache_dir() -> Path:
@@ -110,10 +93,6 @@ class ModelRepository:
                     checksum = model_entry["checksum"]
                     remote_path = model_entry["remote"]
                     self._layer_urls[checksum] = f"{BASE_CDN_URL}/{remote_path}"
-
-    def has_model(self, name: str) -> bool:
-        """Check if a model exists."""
-        return name in self._models
 
     def get_cache_info(self) -> dict[str, dict]:
         """
@@ -338,21 +317,23 @@ class ModelRepository:
         model_info = self._models[name]
         weights = model_info.get("weights")
         layer_checksums = [entry["checksum"] for entry in model_info["models"]]
-        
+
         # Check if we should load only a specific stem model
         if only_load and weights and len(weights) > 1:
             # This is a model ensemble - try to find the specialized model for this stem
             cache_dir = get_cache_dir()
-            
+
             # Load first model to get stem names
             first_checksum = layer_checksums[0]
             first_cache_path = cache_dir / f"{first_checksum}.th"
-            
+
             # Download first model if needed to get stem names
             if not first_cache_path.exists():
                 if first_checksum not in self._layer_urls:
-                    raise ModelLoadingError(f"Layer {first_checksum} not found in metadata")
-                
+                    raise ModelLoadingError(
+                        f"Layer {first_checksum} not found in metadata"
+                    )
+
                 url = self._layer_urls[first_checksum]
                 first_model = self._download_and_load_layer(
                     url=url,
@@ -367,7 +348,9 @@ class ModelRepository:
                 try:
                     check_checksum(first_cache_path, first_checksum)
                     first_model = load_model(
-                        torch.load(first_cache_path, map_location="cpu", weights_only=False)
+                        torch.load(
+                            first_cache_path, map_location="cpu", weights_only=False
+                        )
                     )
                 except (ModelLoadingError, Exception):
                     if first_cache_path.exists():
@@ -382,9 +365,9 @@ class ModelRepository:
                         layer_index=1,
                         total_layers=1,
                     )
-            
+
             stem_names = first_model.sources
-            
+
             if only_load not in stem_names:
                 # Stem doesn't exist - fall through to load full model
                 # Validation will happen in Separator
@@ -393,14 +376,20 @@ class ModelRepository:
                 # Find which model specializes in this stem
                 stem_index = stem_names.index(only_load)
                 model_index = None
-                
+
                 for i, weight_row in enumerate(weights):
-                    if (len(weight_row) > stem_index and 
-                        abs(weight_row[stem_index] - 1.0) < 1e-6 and
-                        all(abs(w) < 1e-6 for j, w in enumerate(weight_row) if j != stem_index)):
+                    if (
+                        len(weight_row) > stem_index
+                        and abs(weight_row[stem_index] - 1.0) < 1e-6
+                        and all(
+                            abs(w) < 1e-6
+                            for j, w in enumerate(weight_row)
+                            if j != stem_index
+                        )
+                    ):
                         model_index = i
                         break
-                
+
                 if model_index is not None:
                     # Load only the specialized model
                     layer_checksums = [layer_checksums[model_index]]

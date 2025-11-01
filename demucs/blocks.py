@@ -8,8 +8,7 @@ import math
 from typing import Callable
 
 import torch
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 from torch.nn import functional
 
 from .transformer import LayerScale

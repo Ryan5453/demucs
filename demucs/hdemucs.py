@@ -13,9 +13,8 @@ from openunmix.filtering import wiener
 from torch import Tensor, nn
 from torch.nn import functional as F
 
-from .blocks import DConv, rescale_module
+from .blocks import DConv, ispectro, rescale_module, spectro
 from .states import capture_init
-from .blocks import ispectro, spectro
 
 
 def pad1d(
