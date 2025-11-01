@@ -307,6 +307,7 @@ class ModelRepository:
     def get_model(
         self,
         name: str,
+        only_load: str | None = None,
         progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> AnyModel:
         """
@@ -314,6 +315,8 @@ class ModelRepository:
 
         Args:
             name: Model name
+            only_load: If specified and model is a bag with stem-specialized models,
+                      load only the model for this stem. Ignored for single models.
             progress_callback: Optional callback function for progress updates.
                               Called with progress_callback(event_type: str, data: dict[str, str | int | float]):
                               - "download_start", {"model_name": str, "total_layers": int}
@@ -333,7 +336,78 @@ class ModelRepository:
             )
 
         model_info = self._models[name]
+        weights = model_info.get("weights")
         layer_checksums = [entry["checksum"] for entry in model_info["models"]]
+        
+        # Check if we should load only a specific stem model
+        if only_load and weights and len(weights) > 1:
+            # This is a bag of models - try to find the specialized model for this stem
+            cache_dir = get_cache_dir()
+            
+            # Load first model to get stem names
+            first_checksum = layer_checksums[0]
+            first_cache_path = cache_dir / f"{first_checksum}.th"
+            
+            # Download first model if needed to get stem names
+            if not first_cache_path.exists():
+                if first_checksum not in self._layer_urls:
+                    raise ModelLoadingError(f"Layer {first_checksum} not found in metadata")
+                
+                url = self._layer_urls[first_checksum]
+                first_model = self._download_and_load_layer(
+                    url=url,
+                    cache_path=first_cache_path,
+                    expected_checksum=first_checksum,
+                    progress_callback=None,
+                    model_name=name,
+                    layer_index=1,
+                    total_layers=1,
+                )
+            else:
+                try:
+                    check_checksum(first_cache_path, first_checksum)
+                    first_model = load_model(
+                        torch.load(first_cache_path, map_location="cpu", weights_only=False)
+                    )
+                except (ModelLoadingError, Exception):
+                    if first_cache_path.exists():
+                        first_cache_path.unlink()
+                    url = self._layer_urls[first_checksum]
+                    first_model = self._download_and_load_layer(
+                        url=url,
+                        cache_path=first_cache_path,
+                        expected_checksum=first_checksum,
+                        progress_callback=None,
+                        model_name=name,
+                        layer_index=1,
+                        total_layers=1,
+                    )
+            
+            stem_names = first_model.sources
+            
+            if only_load not in stem_names:
+                # Stem doesn't exist - fall through to load full model
+                # Validation will happen in Separator
+                pass
+            else:
+                # Find which model specializes in this stem
+                stem_index = stem_names.index(only_load)
+                model_index = None
+                
+                for i, weight_row in enumerate(weights):
+                    if (len(weight_row) > stem_index and 
+                        abs(weight_row[stem_index] - 1.0) < 1e-6 and
+                        all(abs(w) < 1e-6 for j, w in enumerate(weight_row) if j != stem_index)):
+                        model_index = i
+                        break
+                
+                if model_index is not None:
+                    # Load only the specialized model
+                    layer_checksums = [layer_checksums[model_index]]
+                    # Update model_info to indicate this is now a single-model config
+                    # Remove weights so it's treated as identity
+                    model_info = dict(model_info)  # Make a copy
+                    model_info.pop("weights", None)  # Remove weights
 
         # Download each layer
         layers = []

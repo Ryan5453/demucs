@@ -132,13 +132,16 @@ class Separator:
         else "mps"
         if torch.backends.mps.is_available()
         else "cpu",
+        only_load: str | None = None,
     ):
         """
         Initialize a Separator with the specified model and device.
 
-        :param model: Model to use for separation
+        :param model: Model to use for separation (name or model instance)
         :param device: Device to use for processing (must be "cpu", "cuda", or "mps")
-        :raises ValidationError: If device is not a valid device type
+        :param only_load: If specified, load only the specialized model for this stem
+                         (only applicable to bag-of-models like htdemucs_ft)
+        :raises ValidationError: If device is not valid or only_load stem doesn't exist
         :raises ModelLoadingError: If model fails to load
         """
         # Validate device
@@ -149,11 +152,26 @@ class Separator:
             )
         
         self.device = device
-        model_repo = ModelRepository()
-        self.model = model_repo.get_model(name=model)
+        
+        # Handle both string model names and model instances
+        if isinstance(model, str):
+            model_repo = ModelRepository()
+            self.model = model_repo.get_model(name=model, only_load=only_load)
+        else:
+            # model is already a Model instance
+            self.model = model
+        
         self.model.eval()
         if self.model is None:
             raise ModelLoadingError("Failed to load model")
+        
+        # Validate only_load stem exists in the loaded model
+        if only_load and only_load not in self.model.sources:
+            raise ValidationError(
+                f"Stem '{only_load}' not found in model. "
+                f"Available stems: {', '.join(self.model.sources)}"
+            )
+        
         self.audio_channels = self.model.audio_channels
         self.sample_rate = self.model.samplerate
 
@@ -230,6 +248,7 @@ class Separator:
         split_overlap: float = 0.25,
         sample_rate: int | None = None,
         progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
+        use_only_stem: str | None = None,
     ) -> SeparatedSources:
         """
         Separate audio into stems. Accepts tensor, file path, or raw bytes.
@@ -246,6 +265,8 @@ class Separator:
         :param split_size: Length (in seconds) of each chunk (only used if split=True)
         :param sample_rate: Sample rate of input audio (only used with tensor input)
         :param progress_callback: Optional callback for progress updates during audio processing
+        :param use_only_stem: If specified and model is a BagOfModels, only use the model
+                             specialized for this stem (performance optimization for Cog)
         :return: SeparatedSources object containing the separated stems
         :raises ValidationError: If any parameter value is invalid
         """
@@ -300,6 +321,7 @@ class Separator:
             overlap=split_overlap,
             segment=split_size,
             progress_callback=progress_callback,
+            use_only_stem=use_only_stem,
         )[0]
 
         sources = {}

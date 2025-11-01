@@ -836,11 +836,17 @@ def main_command(
     if not _ensure_model_available(model.value):
         return
 
+    # Extract only_load value for optimization
+    only_load_stem = isolate_stem.value if isolate_stem else None
+
+    # Create separator (with automatic optimization if isolate_stem specified)
     separator = Separator(
         model=model.value,
         device=device.value,
+        only_load=only_load_stem,
     )
 
+    # Validate that the requested stem exists in the model
     if isolate_stem is not None and isolate_stem.value not in separator.model.sources:
         console.print(
             f'[red]✗[/red] [bold]{model.value}[/bold]: error: stem "{isolate_stem.value}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'

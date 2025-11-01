@@ -86,16 +86,24 @@ class Predictor(BasePredictor):
                     int(max_segment) if max_segment != float("inf") else split_size
                 )
 
-        separated = separator.separate(
-            audio=audio,
-            shifts=shifts,
-            split=split,
-            split_size=split_size,
-            split_overlap=split_overlap,
-        )
-
         if isolate_stem is not None:
+            separated = separator.separate(
+                audio=audio,
+                shifts=shifts,
+                split=split,
+                split_size=split_size,
+                split_overlap=split_overlap,
+                use_only_stem=isolate_stem,
+            )
             separated = separated.isolate_stem(isolate_stem)
+        else:
+            separated = separator.separate(
+                audio=audio,
+                shifts=shifts,
+                split=split,
+                split_size=split_size,
+                split_overlap=split_overlap,
+            )
 
         return {
             stem: File(separated.export_stem(stem, format=format, clip=clip_mode))

@@ -147,6 +147,7 @@ def apply_model(
     transition_power=1.0,
     progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
     segment=None,
+    use_only_stem: str | None = None,
 ):
     """
     Apply model to a given mixture.
@@ -169,6 +170,8 @@ def apply_model(
             When `device` is different from `mix.device`, only local computations will
             be on `device`, while the entire tracks will be stored on `mix.device`.
         segment (float or None): override the model segment parameter.
+        use_only_stem (str or None): if specified and model is a BagOfModels, only use
+            the sub-model specialized for this stem (performance optimization).
     """
     if device is None:
         device = mix.device
@@ -182,6 +185,7 @@ def apply_model(
         "progress_callback": progress_callback,
         "device": device,
         "segment": segment,
+        "use_only_stem": use_only_stem,
     }
     out: float | Tensor
     res: float | Tensor
@@ -189,13 +193,50 @@ def apply_model(
         # Special treatment for bag of model.
         # We explicitely apply multiple times `apply_model` so that the random shifts
         # are different for each model.
+        
+        # Optimization: If use_only_stem is specified, only run the specialized model
+        if use_only_stem:
+            # Find which model specializes in this stem
+            try:
+                stem_index = model.sources.index(use_only_stem)
+            except ValueError:
+                # Stem doesn't exist, fall through to run all models
+                pass
+            else:
+                # Find the model that specializes in this stem
+                model_index = None
+                for i, weights in enumerate(model.weights):
+                    if (len(weights) > stem_index and
+                        abs(weights[stem_index] - 1.0) < 1e-6 and
+                        all(abs(w) < 1e-6 for j, w in enumerate(weights) if j != stem_index)):
+                        model_index = i
+                        break
+                
+                if model_index is not None:
+                    # Run only the specialized model
+                    sub_model = model.models[model_index]
+                    original_model_device = next(iter(sub_model.parameters())).device
+                    sub_model.to(device)
+                    
+                    # Remove use_only_stem for the recursive call
+                    sub_kwargs = dict(kwargs)
+                    sub_kwargs.pop("use_only_stem")
+                    result = apply_model(sub_model, mix, **sub_kwargs)
+                    
+                    sub_model.to(original_model_device)
+                    return result
+        
+        # Default behavior: run all models in the bag
         estimates: float | Tensor = 0.0
         totals = [0.0] * len(model.sources)
         for sub_model, model_weights in zip(model.models, model.weights):
             original_model_device = next(iter(sub_model.parameters())).device
             sub_model.to(device)
 
-            res = apply_model(sub_model, mix, **kwargs)
+            # Remove use_only_stem for recursive calls
+            sub_kwargs = dict(kwargs)
+            sub_kwargs.pop("use_only_stem")
+            res = apply_model(sub_model, mix, **sub_kwargs)
             out = res
             sub_model.to(original_model_device)
             for k, inst_weight in enumerate(model_weights):
