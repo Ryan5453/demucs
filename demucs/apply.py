@@ -23,7 +23,7 @@ from .blocks import center_trim
 Model: TypeAlias = HDemucs | HTDemucs
 
 
-class BagOfModels(nn.Module):
+class ModelEnsemble(nn.Module):
     def __init__(
         self,
         models: list[Model],
@@ -31,7 +31,7 @@ class BagOfModels(nn.Module):
         segment: float | None = None,
     ):
         """
-        Represents a bag of models with specific weights.
+        Represents a model ensemble with specific weights.
         You should call `apply_model` rather than calling directly the forward here for
         optimal performance.
 
@@ -138,7 +138,7 @@ def tensor_chunk(tensor_or_chunk):
 
 
 def apply_model(
-    model: BagOfModels | Model,
+    model: ModelEnsemble | Model,
     mix: Tensor | TensorChunk,
     device=None,
     shifts=0,
@@ -170,7 +170,7 @@ def apply_model(
             When `device` is different from `mix.device`, only local computations will
             be on `device`, while the entire tracks will be stored on `mix.device`.
         segment (float or None): override the model segment parameter.
-        use_only_stem (str or None): if specified and model is a BagOfModels, only use
+        use_only_stem (str or None): if specified and model is a ModelEnsemble, only use
             the sub-model specialized for this stem (performance optimization).
     """
     if device is None:
@@ -189,8 +189,8 @@ def apply_model(
     }
     out: float | Tensor
     res: float | Tensor
-    if isinstance(model, BagOfModels):
-        # Special treatment for bag of model.
+    if isinstance(model, ModelEnsemble):
+        # Special treatment for model ensemble.
         # We explicitely apply multiple times `apply_model` so that the random shifts
         # are different for each model.
         

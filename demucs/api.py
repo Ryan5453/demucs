@@ -266,7 +266,7 @@ class Separator:
         :param split_size: Length (in seconds) of each chunk (only used if split=True)
         :param sample_rate: Sample rate of input audio (only used with tensor input)
         :param progress_callback: Optional callback for progress updates during audio processing
-        :param use_only_stem: If specified and model is a BagOfModels, only use the model
+        :param use_only_stem: If specified and model is a ModelEnsemble, only use the model
                              specialized for this stem (performance optimization for Cog)
         :return: SeparatedSources object containing the separated stems
         :raises ValidationError: If any parameter value is invalid

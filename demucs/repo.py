@@ -17,12 +17,12 @@ from typing import TypeAlias, Callable, Any
 import httpx
 import torch
 
-from .apply import BagOfModels, Model
+from .apply import ModelEnsemble, Model
 from .states import load_model
 from .exceptions import ModelLoadingError
 
 # Type alias for models
-AnyModel: TypeAlias = Model | BagOfModels
+AnyModel: TypeAlias = Model | ModelEnsemble
 
 BASE_CDN_URL = "https://dl.fbaipublicfiles.com/demucs"
 
@@ -341,7 +341,7 @@ class ModelRepository:
         
         # Check if we should load only a specific stem model
         if only_load and weights and len(weights) > 1:
-            # This is a bag of models - try to find the specialized model for this stem
+            # This is a model ensemble - try to find the specialized model for this stem
             cache_dir = get_cache_dir()
             
             # Load first model to get stem names
@@ -513,8 +513,8 @@ class ModelRepository:
 
                 return model
 
-        # Use BagOfModels for true ensembles or models with custom weights
-        return BagOfModels(layers, weights, segment)
+        # Use ModelEnsemble for true ensembles or models with custom weights
+        return ModelEnsemble(layers, weights, segment)
 
     def list_models(self) -> dict[str, dict]:
         """
