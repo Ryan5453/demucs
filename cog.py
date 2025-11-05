@@ -78,13 +78,6 @@ class Predictor(BasePredictor):
     ) -> dict[str, File]:
         separator = self.separators[model]
 
-        if split_size is not None:
-            max_segment = separator.model.max_allowed_segment
-            if split_size > max_segment:
-                split_size = (
-                    int(max_segment) if max_segment != float("inf") else split_size
-                )
-
         if isolate_stem is not None:
             separated = separator.separate(
                 audio=audio,

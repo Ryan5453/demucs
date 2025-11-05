@@ -287,20 +287,15 @@ class Separator:
                 f"split_overlap must be a float between 0.0 and 1.0 (inclusive), got {split_overlap}"
             )
 
-        # Validate split_size parameter
+        # Validate and adjust split_size parameter
         if split_size is not None:
             if not isinstance(split_size, (int, float)) or split_size < 1:
                 raise ValidationError(
                     f"split_size must be a number >= 1 if provided, got {split_size}"
                 )
             max_allowed = self.model.max_allowed_segment
-            if split_size > max_allowed:
-                model_name = getattr(self.model, "name", type(self.model).__name__)
-                raise ValidationError(
-                    f"Cannot use split_size={split_size} with model '{model_name}'. "
-                    f"Maximum allowed split size for this model is {max_allowed} seconds. "
-                    f"Transformer models cannot process segments longer than they were trained for."
-                )
+            if split_size > max_allowed and max_allowed != float("inf"):
+                split_size = max_allowed
 
         # Validate progress_callback parameter
         if progress_callback is not None and not callable(progress_callback):
