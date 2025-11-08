@@ -17,8 +17,7 @@ classifiers = [
 dependencies = [
     "torch>=2.8.0",
     "torchcodec>=0.7.0",
-    "openunmix",
-
+    "openunmix>=1.2.1,<2.0.0",
     "typer>=0.19.1",
     "httpx>=0.28.1",
 ]

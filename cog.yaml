@@ -1,8 +1,18 @@
 build:
   gpu: true
   python_version: "3.12"
+  python_packages:
+    - "torch>=2.8.0"
+    - "torchcodec>=0.7.0"
+    - "openunmix>=1.2.1,<2.0.0"
+    - "typer>=0.19.1"
+    - "httpx>=0.28.1"
   run:
-    - "curl -LsSf https://astral.sh/uv/install.sh | sh"
-    - "uv pip install demucs-inference --torch-backend=auto"
-    - "demucs models download --all"
-predict: "cog.py:Predictor"
+    - mkdir -p /root/.demucs/models
+    - curl -L -o /root/.demucs/models/1941ce65.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/75fc33f5-1941ce65.th
+    - curl -L -o /root/.demucs/models/8726e21a.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th
+    - curl -L -o /root/.demucs/models/ba3fe64a.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/f7e0c4bc-ba3fe64a.th
+    - curl -L -o /root/.demucs/models/e57c48e6.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/d12395a8-e57c48e6.th
+    - curl -L -o /root/.demucs/models/ef3bcb9c.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/92cfc3b6-ef3bcb9c.th
+    - curl -L -o /root/.demucs/models/34c22ccb.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th
+predict: "predictor.py:Predictor"

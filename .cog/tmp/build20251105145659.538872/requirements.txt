@@ -1,0 +1,5 @@
+torch>=2.8.0
+torchcodec>=0.7.0
+openunmix
+typer>=0.19.1
+httpx>=0.28.1
