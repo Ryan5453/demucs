@@ -176,12 +176,10 @@ class Separator:
         self.audio_channels = self.model.audio_channels
         self.sample_rate = self.model.samplerate
 
-    def _to_tensor(
-        self, audio: tuple[Tensor, int] | Path | str | bytes
-    ) -> Tensor:
+    def _to_tensor(self, audio: tuple[Tensor, int] | Path | str | bytes) -> Tensor:
         """
-        Convert various input types (tuple of Tensor and sample rate, path, bytes) 
-        to a 2D float32 tensor on the configured device, matching the model's 
+        Convert various input types (tuple of Tensor and sample rate, path, bytes)
+        to a 2D float32 tensor on the configured device, matching the model's
         sample rate and channels when possible.
         """
         wav: Tensor
@@ -329,7 +327,11 @@ class Separator:
 
 
 def select_model(
-    audio: tuple[Tensor, int] | Path | str | list[tuple[Tensor, int] | Path | str] | None = None,
+    audio: tuple[Tensor, int]
+    | Path
+    | str
+    | list[tuple[Tensor, int] | Path | str]
+    | None = None,
     isolate_stem: str | None = None,
 ) -> tuple[str, str | None]:
     """
