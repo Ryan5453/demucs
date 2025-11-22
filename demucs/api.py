@@ -177,19 +177,18 @@ class Separator:
         self.sample_rate = self.model.samplerate
 
     def _to_tensor(
-        self, audio: Tensor | Path | str | bytes, sample_rate: int | None = None
+        self, audio: tuple[Tensor, int] | Path | str | bytes
     ) -> Tensor:
         """
-        Convert various input types (Tensor, path, bytes) to a 2D float32 tensor
-        on the configured device, matching the model's sample rate and channels
-        when possible.
+        Convert various input types (tuple of Tensor and sample rate, path, bytes) 
+        to a 2D float32 tensor on the configured device, matching the model's 
+        sample rate and channels when possible.
         """
         wav: Tensor
         input_sr: int | None = None
 
-        if isinstance(audio, Tensor):
-            wav = audio
-            input_sr = sample_rate
+        if isinstance(audio, tuple):
+            wav, input_sr = audio
         elif isinstance(audio, (str, Path)):
             try:
                 # Use native torchcodec AudioDecoder for better performance
@@ -220,7 +219,7 @@ class Separator:
         else:
             raise ValueError(
                 f"Unsupported audio input type: {type(audio)}. "
-                "Expected Tensor, file path (str/Path), or bytes."
+                "Expected tuple of (Tensor, sample_rate), file path (str/Path), or bytes."
             )
 
         # Minimal shape/dtype normalization
@@ -242,20 +241,19 @@ class Separator:
 
     def separate(
         self,
-        audio: Tensor | Path | str | bytes,
+        audio: tuple[Tensor, int] | Path | str | bytes,
         shifts: int = 1,
         split: bool = True,
         split_size: int | None = None,
         split_overlap: float = 0.25,
-        sample_rate: int | None = None,
         progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
         use_only_stem: str | None = None,
     ) -> SeparatedSources:
         """
-        Separate audio into stems. Accepts tensor, file path, or raw bytes.
+        Separate audio into stems. Accepts tensor with sample rate, file path, or raw bytes.
 
         :param audio: Audio input - can be:
-                     - A Tensor of shape [channels, samples]
+                     - A tuple of (Tensor, sample_rate) where Tensor is shape [channels, samples]
                      - A file path (str or Path)
                      - Raw audio bytes
         :param shifts: Number of random shifts for equivariant stabilization (1-20)
@@ -264,7 +262,6 @@ class Separator:
                              Higher values improve quality at chunk boundaries
         :param split: Whether to split the input into chunks for processing
         :param split_size: Length (in seconds) of each chunk (only used if split=True)
-        :param sample_rate: Sample rate of input audio (only used with tensor input)
         :param progress_callback: Optional callback for progress updates during audio processing
         :param use_only_stem: If specified and model is a ModelEnsemble, only use the model
                              specialized for this stem (performance optimization for Cog)
@@ -304,7 +301,7 @@ class Separator:
             )
 
         # Normalize input to tensor
-        wav = self._to_tensor(audio, sample_rate)
+        wav = self._to_tensor(audio)
 
         # Separation logic (inlined)
         ref = wav.mean(0)
@@ -329,6 +326,86 @@ class Separator:
             sources[source_name] = sources_tensor[source_idx] * std + mean
 
         return SeparatedSources(sources, self.sample_rate, original=wav)
+
+
+def select_model(
+    audio: tuple[Tensor, int] | Path | str | list[tuple[Tensor, int] | Path | str] | None = None,
+    isolate_stem: str | None = None,
+) -> tuple[str, str | None]:
+    """
+    Select optimal Demucs model for audio separation.
+
+    This function automatically chooses the best model based on the use case,
+    optimizing for quality and performance:
+
+    - For specific stems: Uses specialized fine-tuned models
+      - vocals, bass, other -> htdemucs_ft (fine-tuned, better quality)
+      - guitar, piano -> htdemucs_6s (6-stem model)
+      - drums -> htdemucs (already optimal)
+
+    - For full separation on long audio (>=7 min): Uses hdemucs_mmi
+      (higher quality and significantly faster for long files)
+
+    - Default: htdemucs (balanced quality/performance)
+
+    :param audio: Audio for duration analysis - can be:
+                 - A tuple of (Tensor, sample_rate) where Tensor is shape [channels, samples]
+                 - A file path (str or Path)
+                 - A list of any of the above
+    :param isolate_stem: Specific stem to isolate.
+    :return: Tuple of (model_name, only_load_stem)
+        - model_name: Name of the recommended model
+        - only_load_stem: Stem to load exclusively from ModelEnsemble (for htdemucs_ft),
+                         or None to load all stems
+
+    """
+    # Stem-specific model selection (quality optimization)
+    if isolate_stem:
+        if isolate_stem in ["guitar", "piano"]:
+            # htdemucs_6s is specialized for 6-stem separation
+            return ("htdemucs_6s", None)
+        if isolate_stem == "drums":
+            # htdemucs already performs best for drums
+            return ("htdemucs", None)
+        if isolate_stem in ["bass", "other", "vocals"]:
+            # htdemucs_ft has fine-tuned models for these stems
+            return ("htdemucs_ft", isolate_stem)
+
+    # Duration-based selection for full separation (quality + speed optimization)
+    if audio:
+        durations = []
+        files = audio if isinstance(audio, list) else [audio]
+
+        for file in files:
+            if isinstance(file, tuple):
+                # For Tensor inputs as (tensor, sample_rate)
+                try:
+                    wav, sr = file
+                    # Tensor shape is [channels, samples]
+                    num_samples = wav.shape[-1] if wav.dim() > 0 else 0
+                    duration = num_samples / sr
+                    durations.append(duration)
+                except Exception:
+                    # Skip if we can't determine duration
+                    pass
+            elif isinstance(file, (str, Path)):
+                try:
+                    decoder = AudioDecoder(str(file))
+                    duration = decoder.metadata.duration_seconds_from_header
+                    if duration is not None:
+                        durations.append(duration)
+                except Exception:
+                    # Skip files that fail to load - don't break the flow
+                    pass
+
+        if durations:
+            avg_duration = sum(durations) / len(durations)
+            if avg_duration >= 420:  # 7 minutes
+                # hdemucs_mmi provides better quality and is faster for long files
+                return ("hdemucs_mmi", None)
+
+    # Default: htdemucs is the best balanced model
+    return ("htdemucs", None)
 
 
 def get_version() -> str:

@@ -1,0 +1,9 @@
+# This is only used for the Cog build
+# It is identical to the pyproject.toml dependencies which is used for the PyPI package
+
+torch>=2.8.0
+torchcodec>=0.7.0
+openunmix>=1.2.1,<2.0.0
+typer>=0.19.1
+httpx>=0.28.1
+

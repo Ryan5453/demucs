@@ -1,4 +1,4 @@
-# 🎛️ demucs-inference
+# demucs-inference
 
 > [!WARNING]
 > `demucs-inference` is still in an alpha state and is not recommended for production use. A stable release will be released soon.
@@ -12,9 +12,9 @@ This is a fork of the [author](https://github.com/adefossez)'s [fork](https://gi
 
 #### FFmpeg
 
-Demucs requires FFmpeg v4+ to be installed on your system[^1]. You can install it using the following command:
+Demucs requires[^1] FFmpeg v4+ to be installed on your system. You can install it using the following command:
 
-[^1]: You should be able to use the Python API without FFmpeg, as you have the option to provide the audio as a Tensor.
+[^1]: You can use the Python API without FFmpeg, as you have the option to provide the audio as a Tensor.
 
 ```bash
 # macOS
@@ -29,7 +29,7 @@ choco install ffmpeg
 
 #### UV
 
-The recommended (but optional) way to install demucs-inference is to use UV, an alternative Python package manager. You can install it using the following command:
+The recommended way to install demucs-inference is to use UV. You can install it using the following command:
 
 ```bash
 # macOS/Linux

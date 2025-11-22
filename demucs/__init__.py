@@ -10,6 +10,7 @@ from .api import (
     SeparatedSources,
     Separator,
     get_version,
+    select_model,
 )
 from .repo import ModelRepository
 
@@ -19,4 +20,5 @@ __all__ = [
     "SeparatedSources",
     "ModelRepository",
     "get_version",
+    "select_model",
 ]

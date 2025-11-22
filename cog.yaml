@@ -1,12 +1,7 @@
 build:
   gpu: true
   python_version: "3.12"
-  python_packages:
-    - "torch>=2.8.0"
-    - "torchcodec>=0.7.0"
-    - "openunmix>=1.2.1,<2.0.0"
-    - "typer>=0.19.1"
-    - "httpx>=0.28.1"
+  python_requirements: "requirements.txt"
   run:
     - mkdir -p /root/.demucs/models
     - curl -L -o /root/.demucs/models/1941ce65.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/75fc33f5-1941ce65.th

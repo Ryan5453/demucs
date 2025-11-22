@@ -5,7 +5,8 @@
 # LICENSE file in the root directory of this source tree.
 
 from cog import BasePredictor, File, Input, Path
-from demucs import ModelRepository, Separator
+
+from demucs import ModelRepository, Separator, select_model
 
 
 class Predictor(BasePredictor):
@@ -25,8 +26,9 @@ class Predictor(BasePredictor):
         audio: Path = Input(description="The audio file to separate"),
         model: str = Input(
             description="Model to use for separation",
-            default="htdemucs",
+            default="auto",
             choices=[
+                "auto",
                 "hdemucs_mmi",
                 "htdemucs",
                 "htdemucs_ft",
@@ -37,7 +39,7 @@ class Predictor(BasePredictor):
             description="Output audio format, anything supported by FFmpeg",
             default="wav",
         ),
-        isolate_stem: str = Input(
+        isolate_stem: str | None = Input(
             description="Only creates a {stem} and no_{stem} stem/file",
             default=None,
             choices=[
@@ -76,6 +78,11 @@ class Predictor(BasePredictor):
             choices=["rescale", "clamp", "tanh"],
         ),
     ) -> dict[str, File]:
+        if model == "auto":
+            model, _ = select_model(
+                audio=audio,
+                isolate_stem=isolate_stem,
+            )
         separator = self.separators[model]
 
         if isolate_stem is not None:

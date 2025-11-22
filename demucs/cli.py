@@ -25,7 +25,7 @@ from rich.table import Table
 from typing_extensions import Annotated
 
 from . import __version__
-from .api import Separator
+from .api import Separator, select_model
 from .exceptions import ModelLoadingError
 from .repo import ModelRepository
 
@@ -39,6 +39,7 @@ class DeviceType(str, Enum):
 
 
 class ModelName(str, Enum):
+    auto = "auto"
     hdemucs_mmi = "hdemucs_mmi"
     htdemucs = "htdemucs"
     htdemucs_ft = "htdemucs_ft"
@@ -818,16 +819,24 @@ def main_command(
         console.print("[red]No audio files found to process.[/red]")
         return
 
-    # Ensure model is available (download if necessary)
-    if not _ensure_model_available(model.value):
-        return
+    if model.value == "auto":
+        selected_model_name, only_load_stem = select_model(
+            audio=audio_files,
+            isolate_stem=isolate_stem.value if isolate_stem else None,
+        )
+        console.print(
+            f"[cyan]Auto-selected model:[/cyan] [bold]{selected_model_name}[/bold]"
+        )
+    else:
+        selected_model_name = model.value
+        only_load_stem = isolate_stem.value if isolate_stem else None
 
-    # Extract only_load value for optimization
-    only_load_stem = isolate_stem.value if isolate_stem else None
+    if not _ensure_model_available(selected_model_name):
+        return
 
     # Create separator (with automatic optimization if isolate_stem specified)
     separator = Separator(
-        model=model.value,
+        model=selected_model_name,
         device=device.value,
         only_load=only_load_stem,
     )
@@ -835,7 +844,7 @@ def main_command(
     # Validate that the requested stem exists in the model
     if isolate_stem is not None and isolate_stem.value not in separator.model.sources:
         console.print(
-            f'[red]✗[/red] [bold]{model.value}[/bold]: error: stem "{isolate_stem.value}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
+            f'[red]✗[/red] [bold]{selected_model_name}[/bold]: error: stem "{isolate_stem.value}" is not in selected model. STEM must be one of {", ".join(separator.model.sources)}.'
         )
         return
 
@@ -843,7 +852,7 @@ def main_command(
     if audio_files:
         # Resolve variables that are constant: model, ext, timestamp vars
         resolved_template = output
-        resolved_template = resolved_template.replace("{model}", model.value)
+        resolved_template = resolved_template.replace("{model}", selected_model_name)
         resolved_template = resolved_template.replace("{ext}", format)
 
         now = datetime.now()
@@ -900,7 +909,7 @@ def main_command(
                 # Save each stem using export_stem
                 for stem_name in separated.sources:
                     stem_path = format_output_path(
-                        output, model.value, track, stem_name, format
+                        output, selected_model_name, track, stem_name, format
                     )
                     separated.export_stem(
                         stem_name,
