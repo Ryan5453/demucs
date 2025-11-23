@@ -16,7 +16,7 @@ separator = Separator(
 
 A `Separator` only takes in three parameters:
 
-- `model` - The model to use for separation.
+- `model` - The model to use for separation. While just passing in a string is the easiest, you can use `ModelRepository` to load models manually and then pass them in.
 - `device` - The device/backend to use for loading and running the model. Demucs can usually auto-detect the best backend to use based on the availability of the hardware using the heuristic above.
 - `only_load` - Optional, if specified, load only the specialized model for this stem (only applicable to bag-of-models like htdemucs_ft).
 
@@ -41,11 +41,9 @@ When separating audio, you have the ability to specify the following parameters:
 - `split` - Whether to split the audio into chunks.
 - `split_size` - The size of each chunk in seconds.
 - `split_overlap` - The overlap between split chunks.
-- `progress_callback` - A callback function to receive progress updates.
+- `progress_callback` - A callback function to receive progress updates. View the [Progress Callbacks](#progress-callbacks) section for more information.
 - `use_only_stem` - If specified, perform the separation using only the specialized model for this stem. In most cases you should use `only_load` when creating the `Separator` instance instead of this.
 
-> [!NOTE]
-> The `Separator` API operates silently by default and never prints to stdout. If you need progress updates, use the callback system described in the [Progress Callbacks](#progress-callbacks) section.
 
 ## SeparatedSources
 
@@ -130,6 +128,11 @@ This will return a dictionary of information about the cached models.
 def get_model(self, name: str, only_load: str | None = None, progress_callback: Callable[[str, dict[str, Any]], None] | None = None) -> Model | ModelEnsemble:
 ```
 
+When using the `get_model` method, the following parameters are available:
+- `name` - The name of the model to load.
+- `only_load` - Optional, if specified, load only the specialized model for this stem (only applicable to bag-of-models like htdemucs_ft).
+- `progress_callback` - Optional, a callback function to receive progress updates. View the [Progress Callbacks](#progress-callbacks) section for more information.
+
 This will return either a `Model` or `ModelEnsemble` instance corresponding to the given model name.
 
 ### list_models
@@ -156,7 +159,7 @@ This will return a dictionary of all available models.
 def remove_model(self, name: str) -> bool:
 ```
 
-This will remove the model from the cache / remove the weights from the filesystem.
+Pass in the name of the model you would like to remove and it will remove the weights from the filesystem.
 
 ### get_cache_dir
 

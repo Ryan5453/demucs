@@ -97,4 +97,4 @@ Demucs provides a Python API for separating audio files. Please refer to the [AP
 
 ## Changelog
 
-The [changelog](docs/changelog.md) contains information about the changes between versions of demucs-inference, including a migration guide from upstream Demucs.
+The [changelog](docs/changelog.md) contains information about the changes between versions of demucs-inference. 
