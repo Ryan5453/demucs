@@ -9,184 +9,103 @@ The `Separator` class is a higher level representation of a Demucs audio source 
 ```python
 separator = Separator(
     model: str | AnyModel = "htdemucs", 
-    device: str = "cuda"
-    if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu",
+    device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    only_load: str | None = None,
 )
 ```
 
-A `Separator` only takes in two parameters, the model to use for separation, which backend to use for loading and running the model. Demucs can usually auto-detect the best backend to use based on the availability of the hardware.
+A `Separator` only takes in three parameters:
+
+- `model` - The model to use for separation.
+- `device` - The device/backend to use for loading and running the model. Demucs can usually auto-detect the best backend to use based on the availability of the hardware using the heuristic above.
+- `only_load` - Optional, if specified, load only the specialized model for this stem (only applicable to bag-of-models like htdemucs_ft).
 
 Once you have a `Separator` instance, you can use the `separate` method to separate an audio file into its constituent stems.
 
 ```python
 def separate(
-    audio: Tensor | Path | str | bytes,
+    self,
+    audio: tuple[Tensor, int] | Path | str | bytes,
     shifts: int = 1,
-    overlap: float = 0.25,
     split: bool = True,
-    segment: int | None = None,
-    sample_rate: int | None = None,
+    split_size: int | None = None,
+    split_overlap: float = 0.25,
     progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
+    use_only_stem: str | None = None,
 ) -> SeparatedSources:
 ```
 
-When separating audio, you primarily only need to care about the `audio` parameter. The `audio` parameter can be a `Tensor` matching the model expectations, a file path, or raw audio bytes.
+When separating audio, you have the ability to specify the following parameters:
+- `audio` - The audio to separate. Can be a tuple of (Tensor, sample_rate), a file path, or raw audio bytes.
+- `shifts` - The number of random shifts for equivariant stabilization. In simple terms, this is a technique to make the model more robust to small changes in the audio, such as small shifts in time or pitch. More shifts mean generally higher quality separation but also longer processing time.
+- `split` - Whether to split the audio into chunks.
+- `split_size` - The size of each chunk in seconds.
+- `split_overlap` - The overlap between split chunks.
+- `progress_callback` - A callback function to receive progress updates.
+- `use_only_stem` - If specified, perform the separation using only the specialized model for this stem. In most cases you should use `only_load` when creating the `Separator` instance instead of this.
 
-**Note**: The `Separator` API operates silently and never prints to the console. If you need progress updates, use the callback system described in the [Progress Callbacks](#progress-callbacks) section.
+> [!NOTE]
+> The `Separator` API operates silently by defaultand never prints to stdout. If you need progress updates, use the callback system described in the [Progress Callbacks](#progress-callbacks) section.
 
 ## SeparatedSources
 
-After running the `Separator`'s `separate` method, you will be returned a `SeparatedSources` instance. This instance contains the separated audio sources, the sample rate of the audio, and the original audio.
+After running `Separator.separate`, you will be returned a `SeparatedSources` instance. This instance contains the separated audio sources, the sample rate of the audio, and the original audio.
 
 If you're happy with the pure audio stems, you have the ability to export them to an audio container (rather than the Tensors that are stored in the `SeparatedSources` instance). 
 
 ```python
 def export_stem(
+    self,
     stem_name: str,
-    path: Path | str | None = None, # Format extension will be added if not provided
+    path: Path | str | None = None,
     format: str = "wav",
-    clip: ClipMode = ClipMode.rescale,
-    encoding: str | None = None, # Only used for WAV and FLAC
-    bits_per_sample: int | None = None, # Only used for WAV and FLAC
+    clip: str | None = "rescale",
 ) -> Path | bytes:
 ```
 
+When exporting a stem, you have the ability to specify the following parameters:
+- `stem_name` - The name of the stem to export.
+- `path` - The path to save the stem to. If not provided, the stem will be returned as raw audio bytes.
+- `format` - The format to export the stem to. Anything supported by FFmpeg.
+- `clip` - The clipping mode to use to prevent audio distortion.
+
+However, Demucs provides an option to be able to isolate a single stem from the `SeparatedSources` instance. This returns a new `SeparatedSources` instance with the chosen stem and an accompanying complement stem (no_{STEM}) that is the sum of all other stems.
+
+```python
+def isolate_stem(self, name: str) -> "SeparatedSources":
+```
+
+## Auto Model Selection
+
+As Demucs provides many models to perform audio source separation, it is often difficult to know which model to use for a given task. Demucs provides a function to attempt to select the best model for a given task.
+
+```python
+def select_model(
+    audio: tuple[Tensor, int] | Path | str | list[tuple[Tensor, int] | Path | str],
+    isolate_stem: str | None = None,
+) -> tuple[str, str | None]:
+```
+
+Pass in either the following or a list of the above for the `audio` parameter:
+- A tuple of (Tensor, sample_rate)
+- A file path (str or Path)
+- A list of any of the above
+
+If you are attempting to isolate a single stem, pass in the name of the stem to the `isolate_stem` parameter.
+
+This will return a tuple of the model name and the stem to exclusively load from the model. When creating a `Separator` instance, you pass these in as the `model` and `only_load` parameters respectively.****
+
+## ModelRepository
+
+Demucs provides a `ModelRepository` class to more deeply control the model loading process. This is used internally by the `Separator` class but can be used directly to load models manually to then pass to Separator itself.
+
 ## Progress Callbacks
 
-Demucs provides a callback-based system for monitoring progress during long-running operations like model downloads and audio processing. This system is designed to be UI-agnostic, allowing you to implement progress displays in any framework.
+Demucs provides a callback-based system for monitoring progress during long-running operations like model downloads and audio processing. This system is designed to be UI-agnostic, allowing you to implement a progress display into your own CLI or other application.
 
-### Model Download Progress
-
-When using the `Separator` class with models that need to be downloaded, you can provide a progress callback to the `ModelRepository`:
+All Demucs progress callbacks are designed to use the same API. You should implement a method that matches the following signature:
 
 ```python
-from demucs.repo import ModelRepository
-
-def progress_callback(event_type: str, data: dict):
-    if event_type == "download_start":
-        print(f"Starting download of {data['model_name']} ({data['total_layers']} layers)")
-    elif event_type == "layer_start":
-        print(f"Downloading layer {data['layer_index']}/{data['total_layers']}")
-    elif event_type == "layer_progress":
-        print(f"Layer {data['layer_index']}: {data['progress_percent']:.1f}%")
-    elif event_type == "layer_complete":
-        if data.get("cached"):
-            print(f"Layer {data['layer_index']} (cached)")
-        else:
-            print(f"Layer {data['layer_index']} complete")
-    elif event_type == "download_complete":
-        print(f"Download complete: {data['model_name']}")
-
-model_repo = ModelRepository()
-model = model_repo.get_model("htdemucs", progress_callback=progress_callback)
-model.eval()
+def progress_callback(message: str, data: dict[str, Any]): # NOT RIGHT, CHANGE THIS
+    pass
 ```
-
-#### Model Download Events
-
-- **`download_start`**: Emitted when model download begins
-  - `model_name`: Name of the model being downloaded
-  - `total_layers`: Total number of layers to download
-
-- **`layer_start`**: Emitted when each layer download starts
-  - `model_name`: Name of the model
-  - `layer_index`: Current layer number (1-based)
-  - `total_layers`: Total number of layers
-  - `layer_size_bytes`: Size of the layer in bytes
-
-- **`layer_progress`**: Emitted during layer download with progress updates
-  - `model_name`: Name of the model
-  - `layer_index`: Current layer number (1-based)
-  - `total_layers`: Total number of layers
-  - `progress_percent`: Download progress for this layer (0-100)
-  - `downloaded_bytes`: Bytes downloaded so far
-  - `total_bytes`: Total bytes for this layer
-  - `phase` (optional): Current phase ("loading", "verifying")
-
-- **`layer_complete`**: Emitted when each layer finishes downloading
-  - `model_name`: Name of the model
-  - `layer_index`: Layer number that completed (1-based)
-  - `total_layers`: Total number of layers
-  - `cached` (optional): `True` if layer was already cached
-
-- **`download_complete`**: Emitted when entire model download is finished
-  - `model_name`: Name of the model
-  - `total_layers`: Total number of layers downloaded
-
-### Audio Processing Progress
-
-When using `apply_model()` directly with split processing, you can monitor chunk processing progress:
-
-```python
-from demucs.apply import apply_model
-
-def processing_callback(event_type: str, data: dict):
-    if event_type == "processing_start":
-        print(f"Processing {data['total_chunks']} chunks")
-    elif event_type == "chunk_complete":
-        print(f"Completed {data['completed_chunks']}/{data['total_chunks']} chunks")
-    elif event_type == "processing_complete":
-        print("Audio processing complete")
-
-result = apply_model(
-    model, 
-    audio_tensor, 
-    split=True, 
-    progress_callback=processing_callback
-)
-```
-
-#### Audio Processing Events
-
-- **`processing_start`**: Emitted when chunk processing begins
-  - `total_chunks`: Number of audio chunks to process
-
-- **`chunk_complete`**: Emitted after each chunk is processed
-  - `completed_chunks`: Number of chunks completed so far
-  - `total_chunks`: Total number of chunks
-
-- **`processing_complete`**: Emitted when all chunks are finished
-  - `total_chunks`: Total number of chunks processed
-
-### Example: Rich Progress Bar
-
-Here's an example of how to create a Rich progress bar using the callback system:
-
-```python
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from demucs.repo import ModelRepository
-
-def create_rich_callback(progress_bar, task):
-    def callback(event_type: str, data: dict):
-        if event_type == "layer_start":
-            progress_bar.update(
-                task,
-                description=f"Downloading {data['model_name']} - Layer {data['layer_index']}/{data['total_layers']}"
-            )
-        elif event_type == "layer_progress":
-            # Calculate overall progress across all layers
-            layer_base = (data['layer_index'] - 1) / data['total_layers'] * 100
-            layer_progress = data['progress_percent'] / data['total_layers']
-            overall_progress = layer_base + layer_progress
-            progress_bar.update(task, completed=overall_progress)
-        elif event_type == "download_complete":
-            progress_bar.update(task, completed=100)
-    return callback
-
-with Progress(
-    SpinnerColumn(),
-    TextColumn("[bold blue]{task.description}"),
-    BarColumn(),
-    TaskProgressColumn(),
-) as progress:
-    task = progress.add_task("Downloading model...", total=100)
-    callback = create_rich_callback(progress, task)
-    model_repo = ModelRepository()
-    model = model_repo.get_model("htdemucs", progress_callback=callback)
-    model.eval()
-```
-
-This callback system allows you to integrate Demucs progress reporting into any UI framework, whether it's a CLI tool, web application, desktop GUI, or any other interface.
