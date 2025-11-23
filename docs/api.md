@@ -119,7 +119,8 @@ This will return a dictionary of information about the cached models.
             }
         },
         "size_bytes": int, # Total size of the model in bytes
-    }
+    },
+    ...
 }
 ```
 
@@ -172,6 +173,47 @@ Demucs provides a callback-based system for monitoring progress during long-runn
 All Demucs progress callbacks are designed to use the same API. You should implement a method that matches the following signature:
 
 ```python
-def progress_callback(message: str, data: dict[str, Any]): # NOT RIGHT, CHANGE THIS
+def progress_callback(event: str, data: dict[str, Any]) -> Any:
     pass
 ```
+
+### Model Downloading
+
+When using `ModelRepository.get_model` (or creating a `Separator` which calls it internally), the callback receives the following events:
+
+- `download_start`: Fired when the download process begins.
+    - `model_name`: Name of the model being downloaded.
+    - `total_layers`: Total number of layers to download.
+- `layer_start`: Fired when a specific layer starts downloading.
+    - `model_name`: Name of the model.
+    - `layer_index`: Index of the current layer (1-based).
+    - `total_layers`: Total number of layers.
+    - `layer_size_bytes`: Size of the layer in bytes.
+- `layer_progress`: Fired periodically during download and loading.
+    - `model_name`: Name of the model.
+    - `layer_index`: Index of the current layer.
+    - `total_layers`: Total number of layers.
+    - `progress_percent`: Percentage complete (0-100).
+    - `downloaded_bytes`: Bytes downloaded so far.
+    - `total_bytes`: Total bytes to download.
+    - `phase`: Optional. Can be "loading" or "verifying" during those stages.
+- `layer_complete`: Fired when a layer is successfully loaded and cached.
+    - `model_name`: Name of the model.
+    - `layer_index`: Index of the current layer.
+    - `total_layers`: Total number of layers.
+    - `cached`: Optional. True if the layer was found in cache.
+- `download_complete`: Fired when all layers are downloaded and loaded.
+    - `model_name`: Name of the model.
+    - `total_layers`: Total number of layers.
+
+### Audio Separation
+
+When using `Separator.separate`, the callback receives the following events (only if `split=True`):
+
+- `processing_start`: Fired before processing chunks.
+    - `total_chunks`: Total number of chunks to process.
+- `chunk_complete`: Fired after each chunk is processed.
+    - `completed_chunks`: Number of chunks completed so far.
+    - `total_chunks`: Total number of chunks.
+- `processing_complete`: Fired after all chunks are processed.
+    - `total_chunks`: Total number of chunks.
