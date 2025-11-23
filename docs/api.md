@@ -4,11 +4,11 @@ The Demucs Python API is primarily comprised of two classes: `Separator` and `Se
 
 ## Separator
 
-The `Separator` class is a higher level representation of a Demucs audio source separation model. When you want to separate an audio file into its constituent stems, you will first need to create an instance of the `Separator` class which will load the model into memory for use.
+The `Separator` class is a high level representation of a Demucs audio source separation model. When you want to separate an audio file into its constituent stems, you will first need to create an instance of the `Separator` class which will load the model into memory for use.
 
 ```python
 separator = Separator(
-    model: str | AnyModel = "htdemucs", 
+    model: str | Model | ModelEnsemble = "htdemucs", 
     device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     only_load: str | None = None,
 )
@@ -45,7 +45,7 @@ When separating audio, you have the ability to specify the following parameters:
 - `use_only_stem` - If specified, perform the separation using only the specialized model for this stem. In most cases you should use `only_load` when creating the `Separator` instance instead of this.
 
 > [!NOTE]
-> The `Separator` API operates silently by defaultand never prints to stdout. If you need progress updates, use the callback system described in the [Progress Callbacks](#progress-callbacks) section.
+> The `Separator` API operates silently by default and never prints to stdout. If you need progress updates, use the callback system described in the [Progress Callbacks](#progress-callbacks) section.
 
 ## SeparatedSources
 
@@ -93,11 +93,77 @@ Pass in either the following or a list of the above for the `audio` parameter:
 
 If you are attempting to isolate a single stem, pass in the name of the stem to the `isolate_stem` parameter.
 
-This will return a tuple of the model name and the stem to exclusively load from the model. When creating a `Separator` instance, you pass these in as the `model` and `only_load` parameters respectively.****
+This will return a tuple of the model name and the stem to exclusively load from the model. When creating a `Separator` instance, you pass these in as the `model` and `only_load` parameters respectively.
 
 ## ModelRepository
 
 Demucs provides a `ModelRepository` class to more deeply control the model loading process. This is used internally by the `Separator` class but can be used directly to load models manually to then pass to Separator itself.
+
+`ModelRepository` is initialized with no parameters. (i.e. `repo = ModelRepository()`)
+
+### get_cache_info
+
+```python
+def get_cache_info(self) -> dict[str, dict]:
+```
+
+This will return a dictionary of information about the cached models.
+
+```python
+{
+    "model_name": {
+        "layers": {       # A dictionary mapping layer checksums to their cache information
+            "checksum": {
+                "path": Path,      # Path to the cached layer file
+                "size_bytes": int, # Size of the layer in bytes
+            }
+        },
+        "size_bytes": int, # Total size of the model in bytes
+    }
+}
+```
+
+### get_model
+
+```python
+def get_model(self, name: str, only_load: str | None = None, progress_callback: Callable[[str, dict[str, Any]], None] | None = None) -> Model | ModelEnsemble:
+```
+
+This will return either a `Model` or `ModelEnsemble` instance corresponding to the given model name.
+
+### list_models
+
+```python
+def list_models(self) -> dict[str, dict]:
+```
+
+This will return a dictionary of all available models.
+
+```python
+{
+    "model_name": {
+        "description": str, # Description of the model
+        "layers": list,     # List of layer configurations
+        # ... other metadata fields
+    }
+}
+```
+
+### remove_model
+
+```python
+def remove_model(self, name: str) -> bool:
+```
+
+This will remove the model from the cache / remove the weights from the filesystem.
+
+### get_cache_dir
+
+```python
+def get_cache_dir(self) -> Path:
+```
+
+This will return the directory where the models are cached. This path is fully resolved.
 
 ## Progress Callbacks
 

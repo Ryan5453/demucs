@@ -21,9 +21,6 @@ from .apply import Model, ModelEnsemble
 from .exceptions import ModelLoadingError
 from .states import load_model
 
-# Type alias for models
-AnyModel: TypeAlias = Model | ModelEnsemble
-
 BASE_CDN_URL = "https://dl.fbaipublicfiles.com/demucs"
 
 
@@ -115,7 +112,6 @@ class ModelRepository:
                 cached_layers[checksum] = {
                     "path": str(layer_path),
                     "size_bytes": size_bytes,
-                    "size_mb": size_bytes / (1024 * 1024),
                 }
 
         # Handle models
@@ -136,10 +132,8 @@ class ModelRepository:
 
                 if all_cached:
                     cached_models[name] = {
-                        "type": "model",
                         "layers": components,
                         "size_bytes": total_size,
-                        "size_mb": total_size / (1024 * 1024),
                     }
 
         return cached_models
@@ -153,7 +147,7 @@ class ModelRepository:
         model_name: str = "",
         layer_index: int = 1,
         total_layers: int = 1,
-    ) -> AnyModel:
+    ) -> Model | ModelEnsemble:
         """Download and load a model layer from a URL."""
         # Download the file to memory first
         try:
@@ -288,7 +282,7 @@ class ModelRepository:
         name: str,
         only_load: str | None = None,
         progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
-    ) -> AnyModel:
+    ) -> Model | ModelEnsemble:
         """
         Get a model by name.
 
@@ -516,7 +510,7 @@ class ModelRepository:
 
         # Add models
         for name, info in self._models.items():
-            result[name] = {"type": "model", "info": info}
+            result[name] = info
 
         return result
 

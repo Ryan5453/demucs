@@ -21,7 +21,8 @@ from .exceptions import (
     ModelLoadingError,
     ValidationError,
 )
-from .repo import AnyModel, ModelRepository
+from .repo import ModelRepository
+from .apply import Model, ModelEnsemble
 
 
 class SeparatedSources:
@@ -127,7 +128,7 @@ class Separator:
 
     def __init__(
         self,
-        model: str | AnyModel = "htdemucs",
+        model: str | Model | ModelEnsemble = "htdemucs",
         device: str = "cuda"
         if torch.cuda.is_available()
         else "mps"
