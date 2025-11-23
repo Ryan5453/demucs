@@ -2,6 +2,8 @@ build:
   gpu: true
   python_version: "3.12"
   python_requirements: "requirements.txt"
+  system_packages:
+    - "ffmpeg"
   run:
     - mkdir -p /root/.demucs/models
     - curl -L -o /root/.demucs/models/1941ce65.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/75fc33f5-1941ce65.th

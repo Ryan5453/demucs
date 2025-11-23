@@ -39,10 +39,11 @@ class Predictor(BasePredictor):
             description="Output audio format, anything supported by FFmpeg",
             default="wav",
         ),
-        isolate_stem: str | None = Input(
+        isolate_stem: str = Input(
             description="Only creates a {stem} and no_{stem} stem/file",
-            default=None,
+            default="none",
             choices=[
+                "none",
                 "drums",
                 "bass",
                 "other",
@@ -72,20 +73,20 @@ class Predictor(BasePredictor):
             ge=0.0,
             le=1.0,
         ),
-        clip_mode: str | None = Input(
+        clip_mode: str = Input(
             description="Method to prevent audio clipping in output, or None for no clipping prevention",
             default="rescale",
-            choices=["rescale", "clamp", "tanh"],
+            choices=["none", "rescale", "clamp", "tanh"],
         ),
     ) -> dict[str, File]:
         if model == "auto":
             model, _ = select_model(
                 audio=audio,
-                isolate_stem=isolate_stem,
+                isolate_stem=None if isolate_stem == "none" else isolate_stem,
             )
         separator = self.separators[model]
 
-        if isolate_stem is not None:
+        if isolate_stem != "none":
             separated = separator.separate(
                 audio=audio,
                 shifts=shifts,
@@ -105,6 +106,6 @@ class Predictor(BasePredictor):
             )
 
         return {
-            stem: File(separated.export_stem(stem, format=format, clip=clip_mode))
+            stem: File(separated.export_stem(stem, format=format, clip=None if clip_mode == "none" else clip_mode))
             for stem in separated.sources
         }
