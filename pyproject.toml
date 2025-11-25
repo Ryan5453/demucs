@@ -8,15 +8,15 @@ authors = [
     {name = "Ryan Fahey", email = "git@ryan.science"}
 ]
 license = {text = "MIT License"}
-requires-python = ">=3.10, <3.14"
+requires-python = ">=3.10, <=3.13"
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Topic :: Multimedia :: Sound/Audio",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "torch>=2.8.0",
-    "torchcodec>=0.7.0",
+    "torch>=2.9.0",
+    "torchcodec>=0.8.1",
     "openunmix>=1.2.1,<2.0.0",
     "typer>=0.19.1",
     "httpx>=0.28.1",

@@ -4,9 +4,16 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from cog import BasePredictor, File, Input, Path
+from io import BytesIO
+
+from cog import BaseModel, BasePredictor, Input, Path
 
 from demucs import ModelRepository, Separator, select_model
+
+
+class Output(BaseModel):
+    class Config:
+        extra = "allow"
 
 
 class Predictor(BasePredictor):
@@ -78,7 +85,7 @@ class Predictor(BasePredictor):
             default="rescale",
             choices=["none", "rescale", "clamp", "tanh"],
         ),
-    ) -> dict[str, File]:
+    ) -> Output:
         if model == "auto":
             model, _ = select_model(
                 audio=audio,
@@ -105,7 +112,12 @@ class Predictor(BasePredictor):
                 split_overlap=split_overlap,
             )
 
-        return {
-            stem: File(separated.export_stem(stem, format=format, clip=None if clip_mode == "none" else clip_mode))
-            for stem in separated.sources
-        }
+        output_data = {}
+        for stem in separated.sources:
+            audio_bytes = separated.export_stem(
+                stem, format=format, clip=None if clip_mode == "none" else clip_mode
+            )
+
+            output_data[stem] = BytesIO(audio_bytes)
+
+        return Output(**output_data)

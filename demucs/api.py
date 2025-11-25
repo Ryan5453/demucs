@@ -14,7 +14,7 @@ from torchcodec.decoders import AudioDecoder
 from torchcodec.encoders import AudioEncoder
 
 from . import __version__
-from .apply import apply_model
+from .apply import Model, ModelEnsemble, apply_model
 from .audio import convert_audio, prevent_clip
 from .exceptions import (
     LoadAudioError,
@@ -22,7 +22,6 @@ from .exceptions import (
     ValidationError,
 )
 from .repo import ModelRepository
-from .apply import Model, ModelEnsemble
 
 
 class SeparatedSources:
