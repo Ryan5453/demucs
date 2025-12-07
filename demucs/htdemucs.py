@@ -5,11 +5,11 @@
 # LICENSE file in the root directory of this source tree.
 
 
+
 import math
-from fractions import Fraction
+
 
 import torch
-from openunmix.filtering import wiener
 from torch import nn
 from torch.nn import functional as F
 
@@ -58,9 +58,6 @@ class HTDemucs(nn.Module):
         growth=2,
         # STFT
         nfft=4096,
-        wiener_iters=0,
-        end_iters=0,
-        wiener_residual=False,
         cac=True,
         # Main structure
         depth=4,
@@ -107,7 +104,7 @@ class HTDemucs(nn.Module):
         t_weight_pos_embed=1.0,
         t_sin_random_shift=0,
         t_cape_mean_normalize=True,
-        t_cape_augment=True,
+        t_cape_augment=False,  # Always False for inference
         t_cape_glob_loc_scale=[5000.0, 1.0, 1.4],
         t_sparse_self_attn=False,
         t_sparse_cross_attn=False,
@@ -124,7 +121,7 @@ class HTDemucs(nn.Module):
         # Metadata
         samplerate=44100,
         segment=10,
-        use_train_segment=True,
+
     ):
         """
         Args:
@@ -135,9 +132,6 @@ class HTDemucs(nn.Module):
             growth: increase the number of hidden channels by this factor at each layer.
             nfft: number of fft bins. Note that changing this require careful computation of
                 various shape parameters and will not work out of the box for hybrid models.
-            wiener_iters: when using Wiener filtering, number of iterations at test time.
-            end_iters: same but at train time. For a hybrid model, must be equal to `wiener_iters`.
-            wiener_residual: add residual source before wiener filtering.
             cac: uses complex as channels, i.e. complex numbers are 2 channels each
                 in input and output. no further processing is done before ISTFT.
             depth (int): number of layers in the encoder and in the decoder.
@@ -212,12 +206,9 @@ class HTDemucs(nn.Module):
             t_cross_first: (bool) if True cross attention is the first layer of the
                 transformer (False seems to be better)
             rescale: weight rescaling trick
-            use_train_segment: (bool) if True, the actual size that is used during the
-                training is used during inference.
         """
         super().__init__()
         self.cac = cac
-        self.wiener_residual = wiener_residual
         self.audio_channels = audio_channels
         self.sources = sources
         self.kernel_size = kernel_size
@@ -228,13 +219,9 @@ class HTDemucs(nn.Module):
         self.channels = channels
         self.samplerate = samplerate
         self.max_allowed_segment = segment
-        self.use_train_segment = use_train_segment
         self.nfft = nfft
         self.hop_length = nfft // 4
-        self.wiener_iters = wiener_iters
-        self.end_iters = end_iters
         self.freq_emb = None
-        assert wiener_iters == end_iters
 
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
@@ -456,62 +443,18 @@ class HTDemucs(nn.Module):
         return m
 
     def _mask(self, z, m):
-        # Apply masking given the mixture spectrogram `z` and the estimated mask `m`.
-        # If `cac` is True, `m` is actually a full spectrogram and `z` is ignored.
-        niters = self.wiener_iters
-        if self.cac:
-            B, S, C, Fr, T = m.shape
-            out = m.view(B, S, -1, 2, Fr, T).permute(0, 1, 2, 4, 5, 3)
-            out = torch.view_as_complex(out.contiguous())
-            return out
-        if self.training:
-            niters = self.end_iters
-        if niters < 0:
-            z = z[:, None]
-            return z / (1e-8 + z.abs()) * m
-        else:
-            return self._wiener(m, z, niters)
-
-    def _wiener(self, mag_out, mix_stft, niters):
-        # apply wiener filtering from OpenUnmix.
-        init = mix_stft.dtype
-        wiener_win_len = 300
-        residual = self.wiener_residual
-
-        B, S, C, Fq, T = mag_out.shape
-        mag_out = mag_out.permute(0, 4, 3, 2, 1)
-        mix_stft = torch.view_as_real(mix_stft.permute(0, 3, 2, 1))
-
-        outs = []
-        for sample in range(B):
-            pos = 0
-            out = []
-            for pos in range(0, T, wiener_win_len):
-                frame = slice(pos, pos + wiener_win_len)
-                z_out = wiener(
-                    mag_out[sample, frame],
-                    mix_stft[sample, frame],
-                    niters,
-                    residual=residual,
-                )
-                out.append(z_out.transpose(-1, -2))
-            outs.append(torch.cat(out, dim=0))
-        out = torch.view_as_complex(torch.stack(outs, 0))
-        out = out.permute(0, 4, 3, 2, 1).contiguous()
-        if residual:
-            out = out[:, :-1]
-        assert list(out.shape) == [B, S, C, Fq, T]
-        return out.to(init)
+        # Convert CaC format back to complex.
+        # With CaC, `m` is actually a full spectrogram and `z` is ignored.
+        B, S, C, Fr, T = m.shape
+        out = m.view(B, S, -1, 2, Fr, T).permute(0, 1, 2, 4, 5, 3)
+        out = torch.view_as_complex(out.contiguous())
+        return out
 
     def valid_length(self, length: int):
         """
         Return a length that is appropriate for evaluation.
-        In our case, always return the training length, unless
-        it is smaller than the given length, in which case this
-        raises an error.
+        Returns the training length for consistent segment processing.
         """
-        if not self.use_train_segment:
-            return length
         training_length = int(self.max_allowed_segment * self.samplerate)
         if training_length < length:
             raise ValueError(
@@ -523,14 +466,12 @@ class HTDemucs(nn.Module):
     def forward(self, mix):
         length = mix.shape[-1]
         length_pre_pad = None
-        if self.use_train_segment:
-            if self.training:
-                self.max_allowed_segment = Fraction(mix.shape[-1], self.samplerate)
-            else:
-                training_length = int(self.max_allowed_segment * self.samplerate)
-                if mix.shape[-1] < training_length:
-                    length_pre_pad = mix.shape[-1]
-                    mix = F.pad(mix, (0, training_length - length_pre_pad))
+        
+        # Always use training segment length for consistent processing
+        training_length = int(self.max_allowed_segment * self.samplerate)
+        if mix.shape[-1] < training_length:
+            length_pre_pad = mix.shape[-1]
+            mix = F.pad(mix, (0, training_length - length_pre_pad))
         z = self._spec(mix)
         mag = self._magnitude(z).to(mix.device)
         x = mag
@@ -622,21 +563,9 @@ class HTDemucs(nn.Module):
         x = x * std[:, None] + mean[:, None]
 
         zout = self._mask(z, x)
-        if self.use_train_segment:
-            if self.training:
-                x = self._ispec(zout, length)
-            else:
-                x = self._ispec(zout, training_length)
-        else:
-            x = self._ispec(zout, length)
+        x = self._ispec(zout, training_length)
 
-        if self.use_train_segment:
-            if self.training:
-                xt = xt.view(B, S, -1, length)
-            else:
-                xt = xt.view(B, S, -1, training_length)
-        else:
-            xt = xt.view(B, S, -1, length)
+        xt = xt.view(B, S, -1, training_length)
         xt = xt * stdt[:, None] + meant[:, None]
         x = xt + x
         if length_pre_pad:

@@ -28,6 +28,7 @@ from . import __version__
 from .api import Separator, select_model
 from .exceptions import ModelLoadingError
 from .repo import ModelRepository
+from .onnx import export_onnx_command
 
 METADATA_PATH = Path(__file__).parent / "metadata.json"
 
@@ -946,6 +947,8 @@ def main():
     app.command(name="separate")(main_command)
     app.add_typer(models_app, name="models")
     app.command(name="version")(version_command)
+
+    app.command(name="export-onnx", hidden=True)(export_onnx_command)
 
     # Run the app
     app()

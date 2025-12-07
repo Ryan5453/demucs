@@ -13,6 +13,11 @@ from pathlib import Path
 import torch
 
 
+# Known deprecated parameters that are present in older model checkpoints
+# but are no longer used in the current model classes. These are silently ignored.
+_DEPRECATED_PARAMS = frozenset({"wiener_iters", "end_iters", "wiener_residual"})
+
+
 def load_model(path_or_package, strict=False):
     """Load a model from the given serialized model, either given as a dict (already loaded)
     or a path to a file on disk."""
@@ -36,7 +41,8 @@ def load_model(path_or_package, strict=False):
         sig = inspect.signature(klass)
         for key in list(kwargs):
             if key not in sig.parameters:
-                warnings.warn("Dropping inexistant parameter " + key)
+                if key not in _DEPRECATED_PARAMS:
+                    warnings.warn("Dropping inexistant parameter " + key)
                 del kwargs[key]
         model = klass(*args, **kwargs)
 

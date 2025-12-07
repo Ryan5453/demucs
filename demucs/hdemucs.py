@@ -9,7 +9,6 @@ import math
 from copy import deepcopy
 
 import torch
-from openunmix.filtering import wiener
 from torch import Tensor, nn
 from torch.nn import functional as F
 
@@ -411,9 +410,6 @@ class HDemucs(nn.Module):
         growth=2,
         # STFT
         nfft=4096,
-        wiener_iters=0,
-        end_iters=0,
-        wiener_residual=False,
         cac=True,
         # Main structure
         depth=6,
@@ -493,7 +489,6 @@ class HDemucs(nn.Module):
         """
         super().__init__()
         self.cac = cac
-        self.wiener_residual = wiener_residual
         self.audio_channels = audio_channels
         self.sources = sources
         self.kernel_size = kernel_size
@@ -506,15 +501,11 @@ class HDemucs(nn.Module):
 
         self.nfft = nfft
         self.hop_length = nfft // 4
-        self.wiener_iters = wiener_iters
-        self.end_iters = end_iters
         self.freq_emb = None
         self.hybrid = hybrid
         self.hybrid_old = hybrid_old
         if hybrid_old:
             assert hybrid, "hybrid_old must come with hybrid=True"
-        if hybrid:
-            assert wiener_iters == end_iters
 
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
@@ -703,52 +694,13 @@ class HDemucs(nn.Module):
         return m
 
     def _mask(self, z, m):
-        # Apply masking given the mixture spectrogram `z` and the estimated mask `m`.
-        # If `cac` is True, `m` is actually a full spectrogram and `z` is ignored.
-        niters = self.wiener_iters
-        if self.cac:
-            B, S, C, Fr, T = m.shape
-            out = m.view(B, S, -1, 2, Fr, T).permute(0, 1, 2, 4, 5, 3)
-            out = torch.view_as_complex(out.contiguous())
-            return out
-        if self.training:
-            niters = self.end_iters
-        if niters < 0:
-            z = z[:, None]
-            return z / (1e-8 + z.abs()) * m
-        else:
-            return self._wiener(m, z, niters)
+        # Convert CaC format back to complex.
+        # With CaC, `m` is actually a full spectrogram and `z` is ignored.
+        B, S, C, Fr, T = m.shape
+        out = m.view(B, S, -1, 2, Fr, T).permute(0, 1, 2, 4, 5, 3)
+        out = torch.view_as_complex(out.contiguous())
+        return out
 
-    def _wiener(self, mag_out, mix_stft, niters):
-        # apply wiener filtering from OpenUnmix.
-        init = mix_stft.dtype
-        wiener_win_len = 300
-        residual = self.wiener_residual
-
-        B, S, C, Fq, T = mag_out.shape
-        mag_out = mag_out.permute(0, 4, 3, 2, 1)
-        mix_stft = torch.view_as_real(mix_stft.permute(0, 3, 2, 1))
-
-        outs = []
-        for sample in range(B):
-            pos = 0
-            out = []
-            for pos in range(0, T, wiener_win_len):
-                frame = slice(pos, pos + wiener_win_len)
-                z_out = wiener(
-                    mag_out[sample, frame],
-                    mix_stft[sample, frame],
-                    niters,
-                    residual=residual,
-                )
-                out.append(z_out.transpose(-1, -2))
-            outs.append(torch.cat(out, dim=0))
-        out = torch.view_as_complex(torch.stack(outs, 0))
-        out = out.permute(0, 4, 3, 2, 1).contiguous()
-        if residual:
-            out = out[:, :-1]
-        assert list(out.shape) == [B, S, C, Fq, T]
-        return out.to(init)
 
     def forward(self, mix):
         x = mix

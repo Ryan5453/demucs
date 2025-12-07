@@ -3,7 +3,6 @@
 
 torch>=2.9.0
 torchcodec>=0.8.1
-openunmix>=1.2.1,<2.0.0
 typer>=0.19.1
 httpx>=0.28.1
 

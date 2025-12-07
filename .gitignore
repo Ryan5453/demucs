@@ -1,5 +1,7 @@
 TODO.md
 .cog/
+node_modules
+DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
