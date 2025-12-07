@@ -1,0 +1,434 @@
+@import "tailwindcss";
+
+/* Winamp-style CSS Custom Properties */
+:root {
+  /* Core Winamp colors */
+  --winamp-bg: #29292a;
+  --winamp-dark: #1a1a1b;
+  --winamp-darker: #0a0a0a;
+  --winamp-highlight: #4a4a4b;
+  --winamp-border-light: #5a5a5b;
+  --winamp-border-dark: #141415;
+
+  /* LED colors */
+  --led-green: #00ff00;
+  --led-green-dim: #006600;
+  --led-orange: #ff8800;
+  --led-red: #ff0000;
+
+  /* Button colors */
+  --btn-face: #3a3a3b;
+  --btn-highlight: #5a5a5b;
+  --btn-shadow: #1a1a1b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 20px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  font-family: 'Arial', 'Helvetica Neue', sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Winamp Window Frame */
+.winamp-window {
+  background: var(--winamp-bg);
+  border: 1px solid var(--winamp-border-dark);
+  box-shadow:
+    inset 1px 1px 0 var(--winamp-highlight),
+    inset -1px -1px 0 var(--winamp-border-dark),
+    2px 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Title Bar */
+.winamp-titlebar {
+  background: linear-gradient(180deg, #4a6a9e 0%, #1a3a6e 100%);
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  cursor: move;
+  user-select: none;
+}
+
+.winamp-titlebar-text {
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.winamp-titlebar-buttons {
+  display: flex;
+  gap: 1px;
+}
+
+.winamp-titlebar-btn {
+  width: 14px;
+  height: 14px;
+  background: var(--btn-face);
+  border: 1px solid;
+  border-color: var(--btn-highlight) var(--btn-shadow) var(--btn-shadow) var(--btn-highlight);
+  font-size: 10px;
+  line-height: 12px;
+  text-align: center;
+  color: #000;
+  cursor: pointer;
+}
+
+.winamp-titlebar-btn:active {
+  border-color: var(--btn-shadow) var(--btn-highlight) var(--btn-highlight) var(--btn-shadow);
+}
+
+/* LED Display */
+.led-display {
+  background: #000;
+  border: 2px solid;
+  border-color: var(--winamp-border-dark) var(--winamp-highlight) var(--winamp-highlight) var(--winamp-border-dark);
+  font-family: 'Courier New', monospace;
+  color: var(--led-green);
+  text-shadow: 0 0 6px var(--led-green);
+  overflow: hidden;
+}
+
+.led-text {
+  white-space: nowrap;
+  animation: marquee 10s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(100%);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.led-text.no-scroll {
+  animation: none;
+  transform: none;
+}
+
+/* LED Time Display - 7-segment style */
+.led-time {
+  font-family: 'Courier New', monospace;
+  font-size: 36px;
+  font-weight: bold;
+  color: var(--led-green);
+  text-shadow: 0 0 8px var(--led-green);
+  letter-spacing: 3px;
+}
+
+/* Winamp Buttons */
+.winamp-btn {
+  background: var(--btn-face);
+  border: 2px solid;
+  border-color: var(--btn-highlight) var(--btn-shadow) var(--btn-shadow) var(--btn-highlight);
+  color: #000;
+  font-size: 14px;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.winamp-btn:hover {
+  background: var(--winamp-highlight);
+}
+
+.winamp-btn:active {
+  border-color: var(--btn-shadow) var(--btn-highlight) var(--btn-highlight) var(--btn-shadow);
+}
+
+.winamp-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.winamp-btn.primary {
+  background: linear-gradient(180deg, #5a7a5a 0%, #3a5a3a 100%);
+  color: #fff;
+}
+
+.winamp-btn.danger {
+  background: linear-gradient(180deg, #8a4a4a 0%, #5a2a2a 100%);
+  color: #fff;
+}
+
+/* Transport Button (Play/Stop style) */
+.transport-btn {
+  width: 40px;
+  height: 32px;
+  background: var(--btn-face);
+  border: 2px solid;
+  border-color: var(--btn-highlight) var(--btn-shadow) var(--btn-shadow) var(--btn-highlight);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.transport-btn:active {
+  border-color: var(--btn-shadow) var(--btn-highlight) var(--btn-highlight) var(--btn-shadow);
+}
+
+.transport-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: #000;
+}
+
+/* Progress Bar */
+.winamp-progress {
+  height: 16px;
+  background: #000;
+  border: 2px solid;
+  border-color: var(--winamp-border-dark) var(--winamp-highlight) var(--winamp-highlight) var(--winamp-border-dark);
+  position: relative;
+  overflow: hidden;
+}
+
+.winamp-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg,
+      var(--led-green) 0%,
+      var(--led-green) 50%,
+      #88ff88 100%);
+  box-shadow: 0 0 6px var(--led-green);
+  transition: width 0.3s ease;
+}
+
+/* Stem Slider (EQ style) */
+.stem-slider-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: var(--winamp-dark);
+  border: 1px solid var(--winamp-border-dark);
+}
+
+.stem-slider-label {
+  font-size: 8px;
+  color: var(--led-green);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stem-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 80px;
+  background: #000;
+  border: 1px solid var(--winamp-border-dark);
+  writing-mode: vertical-lr;
+  direction: rtl;
+}
+
+.stem-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 8px;
+  background: linear-gradient(180deg, #6a6a6a 0%, #3a3a3a 50%, #4a4a4a 100%);
+  border: 1px solid;
+  border-color: #8a8a8a #2a2a2a #2a2a2a #8a8a8a;
+  cursor: pointer;
+}
+
+/* Status Indicator LED */
+.status-led {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--winamp-border-dark);
+}
+
+.status-led.off {
+  background: var(--led-green-dim);
+}
+
+.status-led.on {
+  background: var(--led-green);
+  box-shadow: 0 0 6px var(--led-green);
+}
+
+.status-led.loading {
+  background: var(--led-orange);
+  box-shadow: 0 0 6px var(--led-orange);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.status-led.error {
+  background: var(--led-red);
+  box-shadow: 0 0 6px var(--led-red);
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Inset Panel */
+.inset-panel {
+  background: var(--winamp-darker);
+  border: 2px solid;
+  border-color: var(--winamp-border-dark) var(--winamp-highlight) var(--winamp-highlight) var(--winamp-border-dark);
+  padding: 8px;
+}
+
+/* Log Console */
+.log-console {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--led-green);
+  background: #000;
+  border: 2px solid;
+  border-color: var(--winamp-border-dark) var(--winamp-highlight) var(--winamp-highlight) var(--winamp-border-dark);
+  padding: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.log-entry {
+  margin: 1px 0;
+}
+
+.log-entry.info {
+  color: #4dabf7;
+}
+
+.log-entry.success {
+  color: var(--led-green);
+}
+
+.log-entry.error {
+  color: var(--led-red);
+}
+
+/* Audio Player (styled) */
+.winamp-audio {
+  width: 100%;
+  height: 30px;
+  background: var(--winamp-dark);
+  border: 1px solid var(--winamp-border-dark);
+}
+
+/* Stem Card */
+.stem-card {
+  background: var(--winamp-dark);
+  border: 2px solid;
+  border-color: var(--winamp-highlight) var(--winamp-border-dark) var(--winamp-border-dark) var(--winamp-highlight);
+  padding: 12px;
+}
+
+.stem-card-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--led-orange);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  body {
+    padding: 4px;
+    /* Tighter padding for mobile */
+  }
+}
+
+/* Winamp Slider Styling */
+.winamp-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  background: transparent;
+  cursor: pointer;
+  border: 1px solid #555;
+  background-color: #1a1a1a;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.8);
+  position: relative;
+}
+
+.winamp-slider:focus {
+  outline: none;
+}
+
+/* Track */
+.winamp-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(90deg,
+      transparent,
+      transparent 2px,
+      #333 3px,
+      #333 4px);
+}
+
+/* Thumb (The Handle) */
+.winamp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 10px;
+  width: 24px;
+  background: #c0c0c0;
+  margin-top: 0px;
+  /* Aligns thumb vertically */
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  box-shadow: 1px 1px 0px #000;
+  position: relative;
+  z-index: 2;
+}
+
+.winamp-slider::-webkit-slider-thumb:active {
+  background: #a0a0a0;
+}
+
+/* Firefox Support */
+.winamp-slider::-moz-range-track {
+  width: 100%;
+  height: 100%;
+  background: #1a1a1a;
+}
+
+.winamp-slider::-moz-range-thumb {
+  height: 10px;
+  width: 20px;
+  background: #c0c0c0;
+  border: 1px solid;
+  border-color: #fff #000 #000 #fff;
+}
