@@ -10,10 +10,6 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'node_modules/onnxruntime-web/dist/*.jsep.wasm',
-          dest: '.'
-        },
-        {
           src: 'node_modules/onnxruntime-web/dist/*.mjs',
           dest: '.'
         }
@@ -31,5 +27,15 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    rollupOptions: {
+      external: ['onnxruntime-web', 'onnxruntime-web/webgpu'],
+      output: {
+        globals: {
+          'onnxruntime-web': 'ort',
+          'onnxruntime-web/webgpu': 'ort',
+        },
+      },
+    },
   },
 })
+
