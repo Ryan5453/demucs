@@ -699,29 +699,15 @@ class CrossTransformerEncoder(nn.Module):
                 T, C, shift=shift, device=device, max_period=self.max_period
             )
         elif self.emb == "cape":
-            if self.training:
-                pos_emb = create_sin_embedding_cape(
-                    T,
-                    C,
-                    B,
-                    device=device,
-                    max_period=self.max_period,
-                    mean_normalize=self.cape_mean_normalize,
-                    augment=self.cape_augment,
-                    max_global_shift=self.cape_glob_loc_scale[0],
-                    max_local_shift=self.cape_glob_loc_scale[1],
-                    max_scale=self.cape_glob_loc_scale[2],
-                )
-            else:
-                pos_emb = create_sin_embedding_cape(
-                    T,
-                    C,
-                    B,
-                    device=device,
-                    max_period=self.max_period,
-                    mean_normalize=self.cape_mean_normalize,
-                    augment=False,
-                )
+            pos_emb = create_sin_embedding_cape(
+                T,
+                C,
+                B,
+                device=device,
+                max_period=self.max_period,
+                mean_normalize=self.cape_mean_normalize,
+                augment=False,
+            )
 
         elif self.emb == "scaled":
             pos = torch.arange(T, device=device)

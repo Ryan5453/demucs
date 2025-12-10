@@ -41,9 +41,6 @@ class HTDemucsONNXWrapper(nn.Module):
         self.nfft = model.nfft
         self.hop_length = model.hop_length
         
-        # Remove references to training-specific features
-        self.model.training = False
-        
     def forward(self, spec_real: torch.Tensor, spec_imag: torch.Tensor, 
                 mix: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -61,99 +58,33 @@ class HTDemucsONNXWrapper(nn.Module):
             - out_wave: Separated waveforms from time branch [B, S, C, samples]
         """
         B, C, Fq, T = spec_real.shape
+        samples = mix.shape[-1]
         
-        # Combine real/imag into channels (CaC format)
-        # CaC format is [ch0_real, ch0_imag, ch1_real, ch1_imag, ...]
-        # spec_real: [B, C, Fq, T], spec_imag: [B, C, Fq, T]
-        # Stack to get [B, C, 2, Fq, T] then reshape to [B, C*2, Fq, T]
-        x = torch.stack([spec_real, spec_imag], dim=2)  # [B, C, 2, Fq, T]
-        x = x.reshape(B, C * 2, Fq, T)  # [B, C*2, Fq, T] with interleaved real/imag
+        # Convert real/imag to CaC format: [ch0_real, ch0_imag, ch1_real, ch1_imag, ...]
+        x = torch.stack([spec_real, spec_imag], dim=2).reshape(B, C * 2, Fq, T)
         
-        # Normalize frequency branch input
+        # Normalize inputs
         mean = x.mean(dim=(1, 2, 3), keepdim=True)
         std = x.std(dim=(1, 2, 3), keepdim=True)
         x = (x - mean) / (1e-5 + std)
 
-        # Normalize time branch input  
-        xt = mix
-        meant = xt.mean(dim=(1, 2), keepdim=True)
-        stdt = xt.std(dim=(1, 2), keepdim=True)
-        xt = (xt - meant) / (1e-5 + stdt)
+        meant = mix.mean(dim=(1, 2), keepdim=True)
+        stdt = mix.std(dim=(1, 2), keepdim=True)
+        xt = (mix - meant) / (1e-5 + stdt)
 
-        # Encoder
-        saved = []
-        saved_t = []
-        lengths = []
-        lengths_t = []
-        
-        for idx, encode in enumerate(self.model.encoder):
-            lengths.append(x.shape[-1])
-            inject = None
-            if idx < len(self.model.tencoder):
-                lengths_t.append(xt.shape[-1])
-                tenc = self.model.tencoder[idx]
-                xt = tenc(xt)
-                if not tenc.empty:
-                    saved_t.append(xt)
-                else:
-                    inject = xt
-            x = encode(x, inject)
-            if idx == 0 and self.model.freq_emb is not None:
-                frs = torch.arange(x.shape[-2], device=x.device)
-                emb = self.model.freq_emb(frs).t()[None, :, :, None].expand_as(x)
-                x = x + self.model.freq_emb_scale * emb
-            saved.append(x)
+        # Core encoder-transformer-decoder processing
+        x, xt = self.model.forward_core(x, xt)
 
-        # Cross-transformer
-        if self.model.crosstransformer:
-            if self.model.bottom_channels:
-                b, c, f, t = x.shape
-                x = x.flatten(2)
-                x = self.model.channel_upsampler(x)
-                x = x.view(b, -1, f, t)
-                xt = self.model.channel_upsampler_t(xt)
-
-            x, xt = self.model.crosstransformer(x, xt)
-
-            if self.model.bottom_channels:
-                x = x.flatten(2)
-                x = self.model.channel_downsampler(x)
-                x = x.view(b, -1, f, t)
-                xt = self.model.channel_downsampler_t(xt)
-
-        # Decoder
-        for idx, decode in enumerate(self.model.decoder):
-            skip = saved.pop(-1)
-            x, pre = decode(x, skip, lengths.pop(-1))
-
-            offset = self.model.depth - len(self.model.tdecoder)
-            if idx >= offset:
-                tdec = self.model.tdecoder[idx - offset]
-                length_t = lengths_t.pop(-1)
-                if tdec.empty:
-                    pre = pre[:, :, 0]
-                    xt, _ = tdec(pre, None, length_t)
-                else:
-                    skip = saved_t.pop(-1)
-                    xt, _ = tdec(xt, skip, length_t)
-
-        # Reshape outputs
+        # Denormalize and reshape frequency branch output
         S = len(self.sources)
-        
-        # Frequency branch: [B, S, C*2, Fq, T]
-        # CaC format is [ch0_real, ch0_imag, ch1_real, ch1_imag, ...]
         x = x.view(B, S, -1, Fq, T)
         x = x * std[:, None] + mean[:, None]
         
-        # Split CaC into real/imag properly
-        # CaC layout: [ch0_real, ch0_imag, ch1_real, ch1_imag]
-        # We need to extract [ch0_real, ch1_real] and [ch0_imag, ch1_imag]
-        # x shape: [B, S, C*2, Fq, T]
-        out_spec_real = x[:, :, 0::2, :, :]  # Every other channel starting at 0
-        out_spec_imag = x[:, :, 1::2, :, :]  # Every other channel starting at 1
+        # Split CaC back into real/imag
+        out_spec_real = x[:, :, 0::2, :, :]
+        out_spec_imag = x[:, :, 1::2, :, :]
 
-        # Time branch: [B, S, C, samples]
-        samples = mix.shape[-1]
+        # Denormalize and reshape time branch output
         xt = xt.view(B, S, -1, samples)
         xt = xt * stdt[:, None] + meant[:, None]
 

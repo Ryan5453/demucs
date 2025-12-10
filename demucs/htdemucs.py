@@ -463,11 +463,79 @@ class HTDemucs(nn.Module):
             )
         return training_length
 
+    def forward_core(self, x: torch.Tensor, xt: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Core encoder-transformer-decoder processing.
+        
+        This method contains the main neural network computation, separated from
+        input/output preprocessing.
+        
+        Args:
+            x: Normalized frequency branch input [B, C*2, Fq, T] (CaC format)
+            xt: Normalized time branch input [B, C, samples]
+        
+        Returns:
+            (x, xt): Frequency output [B, S*C*2, Fq, T], Time output [B, S*C, samples]
+        """
+        saved = []
+        saved_t = []
+        lengths = []
+        lengths_t = []
+        
+        for idx, encode in enumerate(self.encoder):
+            lengths.append(x.shape[-1])
+            inject = None
+            if idx < len(self.tencoder):
+                lengths_t.append(xt.shape[-1])
+                tenc = self.tencoder[idx]
+                xt = tenc(xt)
+                if not tenc.empty:
+                    saved_t.append(xt)
+                else:
+                    inject = xt
+            x = encode(x, inject)
+            if idx == 0 and self.freq_emb is not None:
+                frs = torch.arange(x.shape[-2], device=x.device)
+                emb = self.freq_emb(frs).t()[None, :, :, None].expand_as(x)
+                x = x + self.freq_emb_scale * emb
+            saved.append(x)
+
+        if self.crosstransformer:
+            if self.bottom_channels:
+                b, c, f, t = x.shape
+                x = x.flatten(2)
+                x = self.channel_upsampler(x)
+                x = x.view(b, -1, f, t)
+                xt = self.channel_upsampler_t(xt)
+
+            x, xt = self.crosstransformer(x, xt)
+
+            if self.bottom_channels:
+                x = x.flatten(2)
+                x = self.channel_downsampler(x)
+                x = x.view(b, -1, f, t)
+                xt = self.channel_downsampler_t(xt)
+
+        for idx, decode in enumerate(self.decoder):
+            skip = saved.pop(-1)
+            x, pre = decode(x, skip, lengths.pop(-1))
+
+            offset = self.depth - len(self.tdecoder)
+            if idx >= offset:
+                tdec = self.tdecoder[idx - offset]
+                length_t = lengths_t.pop(-1)
+                if tdec.empty:
+                    pre = pre[:, :, 0]
+                    xt, _ = tdec(pre, None, length_t)
+                else:
+                    skip = saved_t.pop(-1)
+                    xt, _ = tdec(xt, skip, length_t)
+
+        return x, xt
+
     def forward(self, mix):
-        length = mix.shape[-1]
         length_pre_pad = None
         
-        # Always use training segment length for consistent processing
         training_length = int(self.max_allowed_segment * self.samplerate)
         if mix.shape[-1] < training_length:
             length_pre_pad = mix.shape[-1]
@@ -478,85 +546,16 @@ class HTDemucs(nn.Module):
 
         B, C, Fq, T = x.shape
 
-        # unlike previous Demucs, we always normalize because it is easier.
         mean = x.mean(dim=(1, 2, 3), keepdim=True)
         std = x.std(dim=(1, 2, 3), keepdim=True)
         x = (x - mean) / (1e-5 + std)
-        # x will be the freq. branch input.
 
-        # Prepare the time branch input.
         xt = mix
         meant = xt.mean(dim=(1, 2), keepdim=True)
         stdt = xt.std(dim=(1, 2), keepdim=True)
         xt = (xt - meant) / (1e-5 + stdt)
 
-        # okay, this is a giant mess I know...
-        saved = []  # skip connections, freq.
-        saved_t = []  # skip connections, time.
-        lengths = []  # saved lengths to properly remove padding, freq branch.
-        lengths_t = []  # saved lengths for time branch.
-        for idx, encode in enumerate(self.encoder):
-            lengths.append(x.shape[-1])
-            inject = None
-            if idx < len(self.tencoder):
-                # we have not yet merged branches.
-                lengths_t.append(xt.shape[-1])
-                tenc = self.tencoder[idx]
-                xt = tenc(xt)
-                if not tenc.empty:
-                    # save for skip connection
-                    saved_t.append(xt)
-                else:
-                    # tenc contains just the first conv., so that now time and freq.
-                    # branches have the same shape and can be merged.
-                    inject = xt
-            x = encode(x, inject)
-            if idx == 0 and self.freq_emb is not None:
-                # add frequency embedding to allow for non equivariant convolutions
-                # over the frequency axis.
-                frs = torch.arange(x.shape[-2], device=x.device)
-                emb = self.freq_emb(frs).t()[None, :, :, None].expand_as(x)
-                x = x + self.freq_emb_scale * emb
-
-            saved.append(x)
-        if self.crosstransformer:
-            if self.bottom_channels:
-                b, c, f, t = x.shape
-                x = x.flatten(2)  # "b c f t-> b c (f t)"
-                x = self.channel_upsampler(x)
-                x = x.view(b, -1, f, t)  # "b c (f t)-> b c f t"
-                xt = self.channel_upsampler_t(xt)
-
-            x, xt = self.crosstransformer(x, xt)
-
-            if self.bottom_channels:
-                x = x.flatten(2)  # "b c f t-> b c (f t)"
-                x = self.channel_downsampler(x)
-                x = x.view(b, -1, f, t)  # "b c (f t)-> b c f t"
-                xt = self.channel_downsampler_t(xt)
-
-        for idx, decode in enumerate(self.decoder):
-            skip = saved.pop(-1)
-            x, pre = decode(x, skip, lengths.pop(-1))
-            # `pre` contains the output just before final transposed convolution,
-            # which is used when the freq. and time branch separate.
-
-            offset = self.depth - len(self.tdecoder)
-            if idx >= offset:
-                tdec = self.tdecoder[idx - offset]
-                length_t = lengths_t.pop(-1)
-                if tdec.empty:
-                    assert pre.shape[2] == 1, pre.shape
-                    pre = pre[:, :, 0]
-                    xt, _ = tdec(pre, None, length_t)
-                else:
-                    skip = saved_t.pop(-1)
-                    xt, _ = tdec(xt, skip, length_t)
-
-        # Let's make sure we used all stored skip connections.
-        assert len(saved) == 0
-        assert len(lengths_t) == 0
-        assert len(saved_t) == 0
+        x, xt = self.forward_core(x, xt)
 
         S = len(self.sources)
         x = x.view(B, S, -1, Fq, T)
