@@ -56,7 +56,7 @@ body {
   /* Classic Mac OS X blue gradient background */
   background: linear-gradient(180deg, #3a6ea5 0%, #5888bb 50%, #6a9ccc 100%);
   font-family: 'Lucida Grande', 'Helvetica Neue', sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -87,7 +87,8 @@ body {
     0 3px 12px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
   overflow: hidden;
-  min-width: 500px;
+  min-width: 0;
+  width: 100%;
 }
 
 .aqua-titlebar {
@@ -168,8 +169,8 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px 14px;
-  min-width: 70px;
+  padding: 10px 18px;
+  min-width: 80px;
   background: linear-gradient(180deg, #fafafa 0%, #e4e4e4 50%, #d0d0d0 100%);
   border: 1px solid #888;
   border-radius: 5px;
@@ -195,13 +196,13 @@ body {
 }
 
 .aqua-toolbar-btn-icon {
-  font-size: 22px;
+  font-size: 24px;
   margin-bottom: 4px;
   color: #333;
 }
 
 .aqua-toolbar-btn-label {
-  font-size: 11px;
+  font-size: 12px;
   color: #333;
 }
 
@@ -371,6 +372,10 @@ body {
 .info-status {
   font-size: 12px;
   color: #666;
+  min-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .info-title {
@@ -560,12 +565,81 @@ body {
     padding: 8px;
   }
 
+  .aqua-toolbar {
+    flex-wrap: wrap;
+    padding: 8px;
+    gap: 4px;
+  }
+
   .aqua-toolbar-btn {
-    min-width: 48px;
-    padding: 3px 6px;
+    min-width: 60px;
+    min-height: 52px;
+    padding: 6px 8px;
+    flex: 1 1 auto;
+  }
+
+  .aqua-toolbar-btn-icon {
+    font-size: 18px;
+    min-height: 20px;
+  }
+
+  .aqua-toolbar-btn-label {
+    font-size: 10px;
+    min-width: 50px;
+    text-align: center;
+  }
+
+  .aqua-toolbar-divider {
+    display: none;
+  }
+
+  .info-panel {
+    padding: 10px 12px;
+    min-height: 60px;
+  }
+
+  .info-time {
+    font-size: 24px;
+    min-width: 65px;
+  }
+
+  .info-title {
+    font-size: 12px;
+  }
+
+  .tiger-table th,
+  .tiger-table td {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .tiger-icon-btn {
+    width: 28px;
+    height: 24px;
+  }
+
+  .tiger-transport-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .tiger-transport-btn.small {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+@media (max-width: 400px) {
+  .aqua-toolbar-btn {
+    min-width: 50px;
+    padding: 6px 4px;
   }
 
   .aqua-toolbar-btn-label {
     font-size: 9px;
+  }
+
+  .info-time {
+    font-size: 20px;
   }
 }

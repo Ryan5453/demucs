@@ -58,7 +58,7 @@ function App() {
   return (
     <div className="flex flex-col gap-2">
       {/* Main Player Window */}
-      <AquaWindow title="Demucs" width={600}>
+      <AquaWindow title="Demucs" width={700}>
         <MainPlayer
           fileName={audioFile?.name || null}
           status={status}
@@ -75,7 +75,7 @@ function App() {
       </AquaWindow>
 
       {/* Stems Panel */}
-      <AquaWindow title="Audio Stems" width={600}>
+      <AquaWindow title="Audio Stems" width={700}>
         <StemControls stemUrls={stemUrls} />
       </AquaWindow>
     </div>

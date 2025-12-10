@@ -78,7 +78,7 @@ export function MainPlayer({
                         className="aqua-toolbar-btn"
                         onClick={() => setShowModelMenu(!showModelMenu)}
                         disabled={modelLoading || modelLoaded}
-                        style={{ minWidth: '140px' }}
+                        style={{ minWidth: '100px', maxWidth: '160px', flex: '1 1 auto' }}
                     >
                         <span className="aqua-toolbar-btn-icon">
                             {modelLoading ? <Loader2 className="animate-spin" size={20} /> : <ChevronDown size={16} />}
@@ -135,13 +135,13 @@ export function MainPlayer({
             </div>
 
             {/* Info Display */}
-            <InfoPanel className="flex items-center gap-4">
+            <InfoPanel className="flex flex-wrap items-center gap-3 sm:gap-4">
                 <InfoTime seconds={duration} />
-                <div className="flex-1 flex flex-col gap-0.5 overflow-hidden">
+                <div className="flex-1 min-w-0 flex flex-col gap-0.5 overflow-hidden" style={{ minWidth: '120px' }}>
                     <span className="info-title truncate">{displayText}</span>
                     <InfoStatus text={status} />
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                     <StatusDot
                         status={modelLoading ? 'loading' : modelLoaded ? 'on' : 'off'}
                         label="Model"
