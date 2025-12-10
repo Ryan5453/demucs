@@ -15,13 +15,16 @@ export function LogConsole({ logs }: LogConsoleProps) {
     }, [logs]);
 
     return (
-        <div ref={logRef} className="log-console">
+        <div ref={logRef} className="aqua-console">
             {logs.length === 0 ? (
-                <div className="log-entry text-gray-600">Demucs initialized...</div>
+                <div className="aqua-console-entry text-gray-400">Demucs initialized...</div>
             ) : (
                 logs.map((log, index) => (
-                    <div key={index} className={`log-entry ${log.type}`}>
-                        [{log.timestamp.toLocaleTimeString()}] {log.message}
+                    <div key={index} className={`aqua-console-entry ${log.type}`}>
+                        <span className="aqua-console-timestamp">
+                            [{log.timestamp.toLocaleTimeString()}]
+                        </span>
+                        {log.message}
                     </div>
                 ))
             )}
