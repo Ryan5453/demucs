@@ -9,27 +9,14 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-import typer
-from rich.console import Console
-from typing_extensions import Annotated
 
 from .repo import ModelRepository
 from .htdemucs import HTDemucs
 from .blocks import spectro
 
-console = Console()
-
-
 class HTDemucsONNXWrapper(nn.Module):
     """
     Wrapper that makes HTDemucs compatible with ONNX export.
-    
-    This wrapper:
-    1. Accepts pre-computed spectrogram magnitude (real/imag as channels)
-    2. Handles the neural network processing
-    3. Returns separated spectrograms and waveforms
-    
-    STFT/iSTFT are handled by the caller (JavaScript in browser).
     """
     
     def __init__(self, model: HTDemucs):
@@ -142,7 +129,6 @@ def export_to_onnx(
     Returns:
         Path to the exported ONNX model
     """
-    console.print(f"[bold]Loading model:[/bold] {model_name}")
     repo = ModelRepository()
     model = repo.get_model(model_name)
     
@@ -151,48 +137,20 @@ def export_to_onnx(
     
     model.eval()
     
-    # Create the ONNX wrapper
     wrapper = HTDemucsONNXWrapper(model)
     wrapper.eval()
     
-    # Create dummy inputs
-    samplerate = model.samplerate
-    segment_samples = int(segment_seconds * samplerate)
+    sample_rate = model.samplerate
+    segment_samples = int(segment_seconds * sample_rate)
     nfft = model.nfft
     hop_length = model.hop_length
     
-    # Calculate spectrogram dimensions
-    le = int(math.ceil(segment_samples / hop_length))
-    fq = nfft // 2
-    
-    console.print(f"[dim]Sample rate:[/dim] {samplerate}")
-    console.print(f"[dim]Segment samples:[/dim] {segment_samples}")
-    console.print(f"[dim]Spectrogram shape:[/dim] [B, C, {fq}, {le}]")
-    console.print(f"[dim]Sources:[/dim] {model.sources}")
-    
-    # Create dummy tensors
     batch_size = 1
     audio_channels = model.audio_channels
     
     dummy_audio = torch.randn(batch_size, audio_channels, segment_samples)
     dummy_spec_real, dummy_spec_imag = compute_stft_for_export(dummy_audio, nfft, hop_length)
     
-    console.print(f"[dim]Dummy audio shape:[/dim] {list(dummy_audio.shape)}")
-    console.print(f"[dim]Dummy spec_real shape:[/dim] {list(dummy_spec_real.shape)}")
-    console.print(f"[dim]Dummy spec_imag shape:[/dim] {list(dummy_spec_imag.shape)}")
-    
-    # Test forward pass
-    console.print("[bold]Testing forward pass...[/bold]")
-    with torch.no_grad():
-        out_real, out_imag, out_wave = wrapper(dummy_spec_real, dummy_spec_imag, dummy_audio)
-    console.print(f"[dim]Output spec_real shape:[/dim] {list(out_real.shape)}")
-    console.print(f"[dim]Output spec_imag shape:[/dim] {list(out_imag.shape)}")
-    console.print(f"[dim]Output wave shape:[/dim] {list(out_wave.shape)}")
-    
-    # Export to ONNX
-    console.print(f"[bold]Exporting to ONNX:[/bold] {output_path}")
-    
-    # Use torch.onnx.export
     torch.onnx.export(
         wrapper,
         (dummy_spec_real, dummy_spec_imag, dummy_audio),
@@ -211,60 +169,7 @@ def export_to_onnx(
         do_constant_folding=True,
     )
     
-    # Check file size
-    path = Path(output_path)
-    size_mb = path.stat().st_size / (1024 * 1024)
-    console.print(f"[green]✓[/green] Successfully exported to [bold]{output_path}[/bold] ({size_mb:.2f} MB)")
-    
     return output_path
 
 
-def export_onnx_command(
-    model: Annotated[
-        str,
-        typer.Option(
-            "-m",
-            "--model",
-            help="Model name to export",
-        ),
-    ] = "htdemucs",
-    output: Annotated[
-        str,
-        typer.Option(
-            "-o",
-            "--output",
-            help="Output ONNX file path",
-        ),
-    ] = "htdemucs.onnx",
-    opset: Annotated[
-        int,
-        typer.Option(
-            help="ONNX opset version",
-        ),
-    ] = 17,
-    segment: Annotated[
-        float,
-        typer.Option(
-            help="Segment length in seconds",
-        ),
-    ] = 10.0,
-):
-    """
-    Export HTDemucs model to ONNX format for browser inference.
-    
-    This is an internal developer tool for creating ONNX models
-    that can be used with ONNX Runtime Web in the browser.
-    """
-    try:
-        export_to_onnx(
-            model_name=model,
-            output_path=output,
-            opset_version=opset,
-            segment_seconds=segment,
-        )
-    except ValueError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
-    except Exception as e:
-        console.print(f"[red]Error exporting model:[/red] {e}")
-        raise typer.Exit(1)
+

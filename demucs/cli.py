@@ -28,7 +28,7 @@ from . import __version__
 from .api import Separator, select_model
 from .exceptions import ModelLoadingError
 from .repo import ModelRepository
-from .onnx import export_onnx_command
+from .onnx import export_to_onnx
 
 METADATA_PATH = Path(__file__).parent / "metadata.json"
 
@@ -923,6 +923,57 @@ def main_command(
                 error_msg = str(e)
                 progress_tracker.error_file(filename, error_msg)
                 console.print(f"[red]✗[/red] Error processing {filename}: {error_msg}")
+
+
+def export_onnx_command(
+    model: Annotated[
+        str,
+        typer.Option(
+            "-m",
+            "--model",
+            help="Model name to export",
+        ),
+    ] = "htdemucs",
+    output: Annotated[
+        str,
+        typer.Option(
+            "-o",
+            "--output",
+            help="Output ONNX file path",
+        ),
+    ] = "htdemucs.onnx",
+    opset: Annotated[
+        int,
+        typer.Option(
+            help="ONNX opset version",
+        ),
+    ] = 17,
+    segment: Annotated[
+        float,
+        typer.Option(
+            help="Segment length in seconds",
+        ),
+    ] = 10.0,
+):
+    """
+    Export HTDemucs model to ONNX format for browser inference.
+
+    This is an internal developer tool for creating ONNX models
+    that can be used with ONNX Runtime Web in the browser.
+    """
+    try:
+        export_to_onnx(
+            model_name=model,
+            output_path=output,
+            opset_version=opset,
+            segment_seconds=segment,
+        )
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error exporting model:[/red] {e}")
+        raise typer.Exit(1)
 
 
 def main():
