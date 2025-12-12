@@ -935,13 +935,13 @@ def export_onnx_command(
         ),
     ] = "htdemucs",
     output: Annotated[
-        str,
+        str | None,
         typer.Option(
             "-o",
             "--output",
-            help="Output ONNX file path",
+            help="Output ONNX file path (defaults to {model}.onnx)",
         ),
-    ] = "htdemucs.onnx",
+    ] = None,
     opset: Annotated[
         int,
         typer.Option(
@@ -961,10 +961,13 @@ def export_onnx_command(
     This is an internal developer tool for creating ONNX models
     that can be used with ONNX Runtime Web in the browser.
     """
+    # Default output filename to {model}.onnx if not specified
+    output_path = output if output is not None else f"{model}.onnx"
+
     try:
         export_to_onnx(
             model_name=model,
-            output_path=output,
+            output_path=output_path,
             opset_version=opset,
             segment_seconds=segment,
         )
