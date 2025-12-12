@@ -104,14 +104,6 @@ class HTDemucs(nn.Module):
         t_cape_mean_normalize=True,
         t_cape_augment=False,  # Always False for inference
         t_cape_glob_loc_scale=[5000.0, 1.0, 1.4],
-        t_sparse_self_attn=False,
-        t_sparse_cross_attn=False,
-        t_mask_type="diag",
-        t_mask_random_seed=42,
-        t_sparse_attn_window=500,
-        t_global_window=100,
-        t_sparsity=0.95,
-        t_auto_sparsity=False,
         # ------ Particuliar parameters
         t_cross_first=False,
         # Weight init
@@ -186,20 +178,6 @@ class HTDemucs(nn.Module):
                 during the inference, see: https://arxiv.org/abs/2106.03143
             t_cape_glob_loc_scale: (list of 3 floats) if t_emb="cape", CAPE parameters
                 see: https://arxiv.org/abs/2106.03143
-            t_sparse_self_attn: (bool) if True, the self attentions are sparse
-            t_sparse_cross_attn: (bool) if True, the cross-attentions are sparse (don't use it
-                unless you designed really specific masks)
-            t_mask_type: (str) can be "diag", "jmask", "random", "global" or any combination
-                with '_' between: i.e. "diag_jmask_random" (note that this is permutation
-                invariant i.e. "diag_jmask_random" is equivalent to "jmask_random_diag")
-            t_mask_random_seed: (int) if "random" is in t_mask_type, controls the seed
-                that generated the random part of the mask
-            t_sparse_attn_window: (int) if "diag" is in t_mask_type, for a query (i), and
-                a key (j), the mask is True id |i-j|<=t_sparse_attn_window
-            t_global_window: (int) if "global" is in t_mask_type, mask[:t_global_window, :]
-                and mask[:, :t_global_window] will be True
-            t_sparsity: (float) if "random" is in t_mask_type, t_sparsity is the sparsity
-                level of the random part of the mask.
             t_cross_first: (bool) if True cross attention is the first layer of the
                 transformer (False seems to be better)
             rescale: weight rescaling trick
@@ -384,14 +362,6 @@ class HTDemucs(nn.Module):
                 cape_mean_normalize=t_cape_mean_normalize,
                 cape_augment=t_cape_augment,
                 cape_glob_loc_scale=t_cape_glob_loc_scale,
-                sparse_self_attn=t_sparse_self_attn,
-                sparse_cross_attn=t_sparse_cross_attn,
-                mask_type=t_mask_type,
-                mask_random_seed=t_mask_random_seed,
-                sparse_attn_window=t_sparse_attn_window,
-                global_window=t_global_window,
-                sparsity=t_sparsity,
-                auto_sparsity=t_auto_sparsity,
             )
         else:
             self.crosstransformer = None
