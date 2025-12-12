@@ -12,7 +12,6 @@ from pathlib import Path
 
 import torch
 
-
 # Known deprecated parameters that are present in older model checkpoints
 # but are no longer used in the current model classes. These are silently ignored.
 _DEPRECATED_PARAMS = frozenset({"wiener_iters", "end_iters", "wiener_residual"})

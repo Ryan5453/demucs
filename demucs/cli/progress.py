@@ -1,0 +1,168 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) 2025-present Ryan Fahey
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""Progress bar utilities for the Demucs CLI."""
+
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
+
+from .utils import console
+
+
+def create_model_progress_bar() -> Progress:
+    """Create a standardized progress bar for model operations."""
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(complete_style="green"),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        transient=False,
+        refresh_per_second=2,
+        expand=True,
+    )
+
+
+def create_progress_callback(progress_bar: Progress, task):
+    """Create a progress callback that updates a Rich progress bar for model downloads."""
+
+    def callback(event_type: str, data: dict):
+        if event_type == "layer_start":
+            progress_bar.update(
+                task,
+                description=f"[cyan]Downloading {data['model_name']}[/cyan] - Layer {data['layer_index']}/{data['total_layers']}",
+            )
+        elif event_type == "layer_progress":
+            # Calculate overall progress: (completed_layers + current_layer_progress) / total_layers
+            layer_base = (data["layer_index"] - 1) / data["total_layers"] * 100
+            layer_progress = data["progress_percent"] / data["total_layers"]
+            overall_progress = layer_base + layer_progress
+
+            phase_text = ""
+            if "phase" in data:
+                phase_text = f" ({data['phase']})"
+
+            progress_bar.update(
+                task,
+                completed=overall_progress,
+                description=f"[cyan]Downloading {data['model_name']}[/cyan] - Layer {data['layer_index']}/{data['total_layers']}{phase_text}",
+            )
+        elif event_type == "layer_complete":
+            if data.get("cached"):
+                progress_bar.update(
+                    task,
+                    completed=(data["layer_index"] / data["total_layers"]) * 100,
+                    description=f"[cyan]Downloading {data['model_name']}[/cyan] - Layer {data['layer_index']}/{data['total_layers']} (cached)",
+                )
+            else:
+                progress_bar.update(
+                    task,
+                    completed=(data["layer_index"] / data["total_layers"]) * 100,
+                    description=f"[cyan]Downloading {data['model_name']}[/cyan] - Layer {data['layer_index']}/{data['total_layers']} (complete)",
+                )
+        elif event_type == "download_complete":
+            progress_bar.update(
+                task,
+                completed=100,
+                description=f"[green]Downloaded {data['model_name']}[/green] - All {data['total_layers']} layers complete",
+            )
+
+    return callback
+
+
+def create_file_progress_bar() -> Progress:
+    """Create a progress bar optimized for processing multiple files."""
+    return Progress(
+        SpinnerColumn(finished_text="[green]✓[/green]"),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(complete_style="green", finished_style="green"),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        transient=False,
+        refresh_per_second=4,
+        expand=True,
+    )
+
+
+class FileProgressTracker:
+    """Tracks progress across multiple files with improved UX."""
+
+    def __init__(self, total_files: int):
+        self.total_files = total_files
+        self.completed_files = 0
+        self.progress_bar = None
+        self.current_task = None
+        self.file_tasks = {}
+
+    def __enter__(self):
+        self.progress_bar = create_file_progress_bar()
+        self.progress_bar.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.progress_bar:
+            self.progress_bar.__exit__(exc_type, exc_val, exc_tb)
+
+    def start_file(self, filename: str) -> int:
+        """Start processing a new file."""
+        task_id = self.progress_bar.add_task(filename.strip(), total=100, completed=0)
+        self.file_tasks[filename] = task_id
+        return task_id
+
+    def update_file_progress(self, filename: str, event_type: str, data: dict):
+        """Update progress for a specific file."""
+        if filename not in self.file_tasks:
+            return
+
+        task_id = self.file_tasks[filename]
+
+        if event_type == "processing_start":
+            self.progress_bar.update(
+                task_id,
+                description=filename.strip(),
+                total=data["total_chunks"],
+                completed=0,
+            )
+        elif event_type == "chunk_complete":
+            self.progress_bar.update(
+                task_id,
+                completed=data["completed_chunks"],
+                description=filename.strip(),
+            )
+        elif event_type == "processing_complete":
+            # Complete the task which will show the checkmark in the spinner column
+            self.progress_bar.update(
+                task_id, completed=data["total_chunks"], description=filename.strip()
+            )
+            self.completed_files += 1
+
+    def error_file(self, filename: str, error_msg: str):
+        """Mark a file as having an error."""
+        if filename not in self.file_tasks:
+            return
+
+        task_id = self.file_tasks[filename]
+        # Complete the task to stop spinner and show red error mark
+        self.progress_bar.update(
+            task_id, completed=100, description=f"[red]✗[/red] {filename.strip()}"
+        )
+        self.completed_files += 1
+
+    def create_audio_callback(self, filename: str):
+        """Create a callback for audio processing progress."""
+
+        def callback(event_type: str, data: dict):
+            self.update_file_progress(filename, event_type, data)
+
+        return callback

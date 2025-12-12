@@ -10,15 +10,16 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from .repo import ModelRepository
-from .htdemucs import HTDemucs
 from .blocks import spectro
+from .htdemucs import HTDemucs
+from .repo import ModelRepository
+
 
 class HTDemucsONNXWrapper(nn.Module):
     """
     Wrapper that makes HTDemucs compatible with ONNX export.
     """
-    
+
     def __init__(self, model: HTDemucs):
         super().__init__()
         self.model = model
@@ -27,17 +28,18 @@ class HTDemucsONNXWrapper(nn.Module):
         self.audio_channels = model.audio_channels
         self.nfft = model.nfft
         self.hop_length = model.hop_length
-        
-    def forward(self, spec_real: torch.Tensor, spec_imag: torch.Tensor, 
-                mix: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+
+    def forward(
+        self, spec_real: torch.Tensor, spec_imag: torch.Tensor, mix: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass for ONNX export.
-        
+
         Args:
             spec_real: Real part of spectrogram [B, C, Fq, T]
             spec_imag: Imaginary part of spectrogram [B, C, Fq, T]
             mix: Raw audio waveform [B, C, samples]
-        
+
         Returns:
             Tuple of (out_spec_real, out_spec_imag, out_wave):
             - out_spec_real: Real part of separated spectrograms [B, S, C, Fq, T]
@@ -46,10 +48,10 @@ class HTDemucsONNXWrapper(nn.Module):
         """
         B, C, Fq, T = spec_real.shape
         samples = mix.shape[-1]
-        
+
         # Convert real/imag to CaC format: [ch0_real, ch0_imag, ch1_real, ch1_imag, ...]
         x = torch.stack([spec_real, spec_imag], dim=2).reshape(B, C * 2, Fq, T)
-        
+
         # Normalize inputs
         mean = x.mean(dim=(1, 2, 3), keepdim=True)
         std = x.std(dim=(1, 2, 3), keepdim=True)
@@ -66,7 +68,7 @@ class HTDemucsONNXWrapper(nn.Module):
         S = len(self.sources)
         x = x.view(B, S, -1, Fq, T)
         x = x * std[:, None] + mean[:, None]
-        
+
         # Split CaC back into real/imag
         out_spec_real = x[:, :, 0::2, :, :]
         out_spec_imag = x[:, :, 1::2, :, :]
@@ -78,36 +80,40 @@ class HTDemucsONNXWrapper(nn.Module):
         return out_spec_real, out_spec_imag, xt
 
 
-def compute_stft_for_export(audio: torch.Tensor, nfft: int, hop_length: int) -> tuple[torch.Tensor, torch.Tensor]:
+def compute_stft_for_export(
+    audio: torch.Tensor, nfft: int, hop_length: int
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Compute STFT for model input, matching HTDemucs preprocessing.
-    
+
     Args:
         audio: Input audio [B, C, samples]
         nfft: FFT size
         hop_length: Hop length
-        
+
     Returns:
         Tuple of (real, imag) spectrograms [B, C, Fq, T]
     """
     # Padding to match HTDemucs._spec
     le = int(math.ceil(audio.shape[-1] / hop_length))
     pad = hop_length // 2 * 3
-    
+
     # Pad the audio
-    padded = torch.nn.functional.pad(audio, (pad, pad + le * hop_length - audio.shape[-1]), mode='reflect')
-    
+    padded = torch.nn.functional.pad(
+        audio, (pad, pad + le * hop_length - audio.shape[-1]), mode="reflect"
+    )
+
     # Compute STFT
     z = spectro(padded, nfft, hop_length)
-    
+
     # Trim to expected size
     z = z[..., :-1, :]  # Remove last frequency bin
-    z = z[..., 2:2+le]  # Trim time dimension
-    
+    z = z[..., 2 : 2 + le]  # Trim time dimension
+
     # Split into real and imaginary
     real = z.real
     imag = z.imag
-    
+
     return real, imag
 
 
@@ -119,38 +125,40 @@ def export_to_onnx(
 ) -> str:
     """
     Export HTDemucs model to ONNX format.
-    
+
     Args:
         model_name: Name of the model to export
         output_path: Path to save the ONNX model
         opset_version: ONNX opset version
         segment_seconds: Audio segment length in seconds
-        
+
     Returns:
         Path to the exported ONNX model
     """
     repo = ModelRepository()
     model = repo.get_model(model_name)
-    
+
     if not isinstance(model, HTDemucs):
         raise ValueError(f"Model {model_name} is not an HTDemucs model")
-    
+
     model.eval()
-    
+
     wrapper = HTDemucsONNXWrapper(model)
     wrapper.eval()
-    
+
     sample_rate = model.samplerate
     segment_samples = int(segment_seconds * sample_rate)
     nfft = model.nfft
     hop_length = model.hop_length
-    
+
     batch_size = 1
     audio_channels = model.audio_channels
-    
+
     dummy_audio = torch.randn(batch_size, audio_channels, segment_samples)
-    dummy_spec_real, dummy_spec_imag = compute_stft_for_export(dummy_audio, nfft, hop_length)
-    
+    dummy_spec_real, dummy_spec_imag = compute_stft_for_export(
+        dummy_audio, nfft, hop_length
+    )
+
     torch.onnx.export(
         wrapper,
         (dummy_spec_real, dummy_spec_imag, dummy_audio),
@@ -168,8 +176,5 @@ def export_to_onnx(
         opset_version=opset_version,
         do_constant_folding=True,
     )
-    
+
     return output_path
-
-
-

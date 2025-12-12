@@ -19,6 +19,7 @@ dependencies = [
     "torchcodec>=0.8.1",
     "typer>=0.19.1",
     "httpx>=0.28.1",
+    "numpy>=2.2.6",
 ]
 
 [project.optional-dependencies]

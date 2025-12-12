@@ -1,0 +1,36 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) 2025-present Ryan Fahey
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+from enum import Enum
+
+
+class DeviceType(str, Enum):
+    cpu = "cpu"
+    cuda = "cuda"
+    mps = "mps"
+
+
+class ModelName(str, Enum):
+    auto = "auto"
+    hdemucs_mmi = "hdemucs_mmi"
+    htdemucs = "htdemucs"
+    htdemucs_ft = "htdemucs_ft"
+    htdemucs_6s = "htdemucs_6s"
+
+
+class StemName(str, Enum):
+    drums = "drums"
+    bass = "bass"
+    other = "other"
+    vocals = "vocals"
+    guitar = "guitar"
+    piano = "piano"
+
+
+class ClipMode(str, Enum):
+    rescale = "rescale"
+    clamp = "clamp"
+    tanh = "tanh"
+    none = "none"

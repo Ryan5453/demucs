@@ -701,7 +701,6 @@ class HDemucs(nn.Module):
         out = torch.view_as_complex(out.contiguous())
         return out
 
-
     def forward(self, mix):
         x = mix
         length = x.shape[-1]

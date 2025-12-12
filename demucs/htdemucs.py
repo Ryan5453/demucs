@@ -5,9 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 
-
 import math
-
 
 import torch
 from torch import nn
@@ -121,7 +119,6 @@ class HTDemucs(nn.Module):
         # Metadata
         samplerate=44100,
         segment=10,
-
     ):
         """
         Args:
@@ -463,17 +460,19 @@ class HTDemucs(nn.Module):
             )
         return training_length
 
-    def forward_core(self, x: torch.Tensor, xt: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward_core(
+        self, x: torch.Tensor, xt: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Core encoder-transformer-decoder processing.
-        
+
         This method contains the main neural network computation, separated from
         input/output preprocessing.
-        
+
         Args:
             x: Normalized frequency branch input [B, C*2, Fq, T] (CaC format)
             xt: Normalized time branch input [B, C, samples]
-        
+
         Returns:
             (x, xt): Frequency output [B, S*C*2, Fq, T], Time output [B, S*C, samples]
         """
@@ -481,7 +480,7 @@ class HTDemucs(nn.Module):
         saved_t = []
         lengths = []
         lengths_t = []
-        
+
         for idx, encode in enumerate(self.encoder):
             lengths.append(x.shape[-1])
             inject = None
@@ -535,7 +534,7 @@ class HTDemucs(nn.Module):
 
     def forward(self, mix):
         length_pre_pad = None
-        
+
         training_length = int(self.max_allowed_segment * self.samplerate)
         if mix.shape[-1] < training_length:
             length_pre_pad = mix.shape[-1]
