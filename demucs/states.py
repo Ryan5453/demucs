@@ -14,21 +14,23 @@ import torch
 
 # Known deprecated parameters that are present in older model checkpoints
 # but are no longer used in the current model classes. These are silently ignored.
-_DEPRECATED_PARAMS = frozenset({
-    # Legacy Wiener filtering parameters
-    "wiener_iters",
-    "end_iters",
-    "wiener_residual",
-    # Removed sparse attention parameters (xformers APIs deprecated in 0.0.34)
-    "t_sparse_self_attn",
-    "t_sparse_cross_attn",
-    "t_mask_type",
-    "t_mask_random_seed",
-    "t_sparse_attn_window",
-    "t_global_window",
-    "t_sparsity",
-    "t_auto_sparsity",
-})
+_DEPRECATED_PARAMS = frozenset(
+    {
+        # Legacy Wiener filtering parameters
+        "wiener_iters",
+        "end_iters",
+        "wiener_residual",
+        # Removed sparse attention parameters (xformers APIs deprecated in 0.0.34)
+        "t_sparse_self_attn",
+        "t_sparse_cross_attn",
+        "t_mask_type",
+        "t_mask_random_seed",
+        "t_sparse_attn_window",
+        "t_global_window",
+        "t_sparsity",
+        "t_auto_sparsity",
+    }
+)
 
 
 def load_model(path_or_package, strict=False):

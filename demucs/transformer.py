@@ -427,16 +427,12 @@ class CrossTransformerEncoder(nn.Module):
         for idx in range(num_layers):
             if idx % 2 == self.classic_parity:
                 self.layers.append(MyTransformerEncoderLayer(**kwargs_common))
-                self.layers_t.append(
-                    MyTransformerEncoderLayer(**kwargs_common)
-                )
+                self.layers_t.append(MyTransformerEncoderLayer(**kwargs_common))
 
             else:
                 self.layers.append(CrossTransformerEncoderLayer(**kwargs_common))
 
-                self.layers_t.append(
-                    CrossTransformerEncoderLayer(**kwargs_common)
-                )
+                self.layers_t.append(CrossTransformerEncoderLayer(**kwargs_common))
 
     def forward(self, x, xt):
         B, C, Fr, T1 = x.shape

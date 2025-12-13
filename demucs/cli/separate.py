@@ -6,8 +6,8 @@
 from datetime import datetime
 from pathlib import Path
 
-import torch
 import click
+import torch
 import typer
 from typing_extensions import Annotated
 

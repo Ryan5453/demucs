@@ -4,7 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import tempfile
+from io import BytesIO
 
 from cog import BaseModel, BasePredictor, Input, Path
 
@@ -117,12 +117,8 @@ class Predictor(BasePredictor):
             audio_bytes = separated.export_stem(
                 stem, format=format, clip=None if clip_mode == "none" else clip_mode
             )
-
-            temp_file = tempfile.NamedTemporaryFile(
-                suffix=f".{format}", delete=False
-            )
-            temp_file.write(audio_bytes)
-            temp_file.close()
-            output_data[stem] = Path(temp_file.name)
+            buf = BytesIO(audio_bytes)
+            buf.name = f"{stem}.{format}"  # Set filename for mime type detection
+            output_data[stem] = buf
 
         return Output(**output_data)
