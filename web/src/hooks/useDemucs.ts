@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 import type { DemucsState, LogEntry } from '../types';
-import { SOURCES, SAMPLE_RATE, SEGMENT_SAMPLES } from '../types';
-import { loadModel as loadOnnxModel, getSession, ort } from '../utils/onnx-runtime';
+import { SAMPLE_RATE, SEGMENT_SAMPLES } from '../types';
+import { loadModel as loadOnnxModel, getSession, getSources, ort } from '../utils/onnx-runtime';
 import { computeSTFT, computeISTFT } from '../utils/audio-processor';
 import { createWavBlob } from '../utils/wav-utils';
+import type { ModelType } from '../components/MainPlayer';
 
 const initialState: DemucsState = {
     modelLoaded: false,
@@ -46,13 +47,13 @@ export function useDemucs() {
         return audioContextRef.current;
     }, []);
 
-    const loadModel = useCallback(async () => {
+    const loadModel = useCallback(async (model: ModelType) => {
         setState(prev => ({ ...prev, modelLoading: true }));
-        const success = await loadOnnxModel(addLog);
+        const result = await loadOnnxModel(model, addLog);
         setState(prev => ({
             ...prev,
             modelLoading: false,
-            modelLoaded: success,
+            modelLoaded: result.success,
         }));
     }, [addLog]);
 
@@ -113,9 +114,11 @@ export function useDemucs() {
             const STEP = SEGMENT_SAMPLES - OVERLAP;
             const numSegments = Math.ceil((numSamples - OVERLAP) / STEP);
 
+            // Get sources from the loaded model
+            const sources = getSources();
 
             const outputs: Record<string, Float32Array> = {};
-            for (const source of SOURCES) {
+            for (const source of sources) {
                 outputs[source] = new Float32Array(numSamples * numChannels);
             }
 
@@ -177,7 +180,7 @@ export function useDemucs() {
                 const specImagData = outSpecImag.data as Float32Array;
                 const waveData = outWave.data as Float32Array;
 
-                for (let s = 0; s < SOURCES.length; s++) {
+                for (let s = 0; s < sources.length; s++) {
                     const specOffset = s * numChannels * stft.numBins * stft.numFrames;
 
                     const sourceReal = new Float32Array(numChannels * stft.numBins * stft.numFrames);
@@ -223,8 +226,8 @@ export function useDemucs() {
                             weight = fadeOut[fadeIdx];
                         }
 
-                        outputs[SOURCES[s]][outIdx] += leftVal * weight;
-                        outputs[SOURCES[s]][outIdx + 1] += rightVal * weight;
+                        outputs[sources[s]][outIdx] += leftVal * weight;
+                        outputs[sources[s]][outIdx + 1] += rightVal * weight;
                     }
                 }
             }
@@ -235,7 +238,7 @@ export function useDemucs() {
             // addLog('Creating audio files...', 'info');
 
             const urls: Record<string, string> = {};
-            for (const source of SOURCES) {
+            for (const source of sources) {
                 const blob = createWavBlob(outputs[source], numChannels, SAMPLE_RATE);
                 urls[source] = URL.createObjectURL(blob);
             }

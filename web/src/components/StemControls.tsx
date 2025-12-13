@@ -1,5 +1,3 @@
-import type { SourceName } from '../types';
-import { SOURCES } from '../types';
 import { StemPlayer } from './StemPlayer';
 import { Download } from 'lucide-react';
 
@@ -7,11 +5,23 @@ interface StemControlsProps {
     stemUrls: Record<string, string>;
 }
 
+// Labels for all possible stems (4-stem and 6-stem models)
+const STEM_LABELS: Record<string, string> = {
+    drums: 'Drums',
+    bass: 'Bass',
+    guitar: 'Guitar',
+    piano: 'Piano',
+    other: 'Other',
+    vocals: 'Vocals',
+};
+
 export function StemControls({ stemUrls }: StemControlsProps) {
-    const hasStemsReady = Object.keys(stemUrls).length > 0;
+    // Get stems from the actual separation results
+    const stems = Object.keys(stemUrls);
+    const hasStemsReady = stems.length > 0;
 
     const handleDownloadAll = () => {
-        SOURCES.forEach((source, index) => {
+        stems.forEach((source, index) => {
             const url = stemUrls[source];
             if (url) {
                 // Stagger downloads slightly to avoid browser blocking
@@ -35,13 +45,6 @@ export function StemControls({ stemUrls }: StemControlsProps) {
         );
     }
 
-    const stemLabels: Record<SourceName, string> = {
-        drums: 'Drums',
-        bass: 'Bass',
-        other: 'Other',
-        vocals: 'Vocals',
-    };
-
     return (
         <div className="flex flex-col gap-2">
             <table className="tiger-table">
@@ -55,12 +58,12 @@ export function StemControls({ stemUrls }: StemControlsProps) {
                     </tr>
                 </thead>
                 <tbody>
-                    {SOURCES.map((source, index) => (
+                    {stems.map((source, index) => (
                         <StemPlayer
                             key={source}
                             index={index + 1}
                             name={source}
-                            label={stemLabels[source]}
+                            label={STEM_LABELS[source] || source}
                             audioUrl={stemUrls[source]}
                         />
                     ))}

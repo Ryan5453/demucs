@@ -68,7 +68,7 @@ function App() {
           modelLoading={modelLoading}
           audioLoaded={audioLoaded}
           separating={separating}
-          onLoadModel={() => loadModel()}
+          onLoadModel={loadModel}
           onLoadAudio={loadAudio}
           onSeparate={separateAudio}
         />

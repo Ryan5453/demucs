@@ -1,10 +1,9 @@
 import { useState, useRef } from 'react';
-import type { SourceName } from '../types';
 import { Play, Pause, Download } from 'lucide-react';
 
 interface StemPlayerProps {
     index: number;
-    name: SourceName;
+    name: string;
     label: string;
     audioUrl?: string;
 }

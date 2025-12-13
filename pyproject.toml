@@ -25,6 +25,9 @@ dependencies = [
 dev = [
   "ruff",
 ]
+onnx = [
+  "onnx>=1.14.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.7.21,<0.8.0"]

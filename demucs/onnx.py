@@ -4,8 +4,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
 import math
-from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -135,6 +135,14 @@ def export_to_onnx(
     Returns:
         Path to the exported ONNX model
     """
+    try:
+        import onnx
+    except ImportError:
+        raise ImportError(
+            "The 'onnx' package is required for ONNX export. "
+            "Install it with: uv pip install demucs-next[onnx]"
+        )
+
     repo = ModelRepository()
     model = repo.get_model(model_name)
 
@@ -176,5 +184,21 @@ def export_to_onnx(
         opset_version=opset_version,
         do_constant_folding=True,
     )
+
+    onnx_model = onnx.load(output_path)
+
+    sources_meta = onnx_model.metadata_props.add()
+    sources_meta.key = "sources"
+    sources_meta.value = json.dumps(model.sources)
+
+    sample_rate_meta = onnx_model.metadata_props.add()
+    sample_rate_meta.key = "sample_rate"
+    sample_rate_meta.value = str(model.samplerate)
+
+    channels_meta = onnx_model.metadata_props.add()
+    channels_meta.key = "audio_channels"
+    channels_meta.value = str(model.audio_channels)
+
+    onnx.save(onnx_model, output_path)
 
     return output_path
