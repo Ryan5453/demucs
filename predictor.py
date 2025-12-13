@@ -4,7 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from io import BytesIO
+import tempfile
 
 from cog import BaseModel, BasePredictor, Input, Path
 
@@ -118,6 +118,11 @@ class Predictor(BasePredictor):
                 stem, format=format, clip=None if clip_mode == "none" else clip_mode
             )
 
-            output_data[stem] = BytesIO(audio_bytes)
+            temp_file = tempfile.NamedTemporaryFile(
+                suffix=f".{format}", delete=False
+            )
+            temp_file.write(audio_bytes)
+            temp_file.close()
+            output_data[stem] = Path(temp_file.name)
 
         return Output(**output_data)
