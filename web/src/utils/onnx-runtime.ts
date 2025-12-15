@@ -2,7 +2,7 @@
 // Import types only - actual runtime comes from CDN
 import type { InferenceSession } from 'onnxruntime-web';
 import type { LogEntry } from '../types';
-import type { ModelType } from '../components/MainPlayer';
+import type { ModelType } from '../types';
 
 // Access the global ort object loaded from CDN
 const ort = (window as unknown as { ort: typeof import('onnxruntime-web') }).ort;
