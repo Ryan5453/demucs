@@ -117,7 +117,7 @@ class SeparatedSources:
         else:
             encoder = AudioEncoder(samples=tensor, sample_rate=self.sample_rate)
             encoded_tensor = encoder.to_tensor(format=format)
-            return encoded_tensor.untyped_storage().tobytes()
+            return bytes(encoded_tensor.untyped_storage())
 
 
 class Separator:
