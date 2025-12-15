@@ -1,10 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
-import type { DemucsState, LogEntry } from '../types';
+import type { DemucsState, LogEntry, ModelType } from '../types';
 import { SAMPLE_RATE, SEGMENT_SAMPLES } from '../types';
 import { loadModel as loadOnnxModel, getSession, getSources, ort } from '../utils/onnx-runtime';
 import { computeSTFT, computeISTFT } from '../utils/audio-processor';
 import { createWavBlob } from '../utils/wav-utils';
-import type { ModelType } from '../components/MainPlayer';
 
 const initialState: DemucsState = {
     modelLoaded: false,
@@ -24,6 +23,8 @@ export function useDemucs() {
 
     // Store pre-created blob URLs
     const [stemUrls, setStemUrls] = useState<Record<string, string>>({});
+    // Store waveform data for visualization (array of 0-100 values)
+    const [stemWaveforms, setStemWaveforms] = useState<Record<string, number[]>>({});
 
     const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
         setState(prev => ({
@@ -89,8 +90,9 @@ export function useDemucs() {
         try {
             setState(prev => ({ ...prev, separating: true }));
             setStemUrls({}); // Clear old URLs
+            setStemWaveforms({}); // Clear old waveforms
             setStatus('Preparing audio...');
-            setProgress(5);
+            setProgress(0);
             const startTime = performance.now();
             addLog('Starting separation...', 'info');
 
@@ -135,7 +137,7 @@ export function useDemucs() {
                 const segLength = segEnd - segStart;
 
                 setStatus(`Separating segment ${seg + 1} of ${numSegments}...`);
-                setProgress(10 + (seg / numSegments) * 80);
+                setProgress(((seg + 1) / numSegments) * 95);
 
                 const segmentPlanar = new Float32Array(SEGMENT_SAMPLES * numChannels);
                 for (let i = 0; i < segLength; i++) {
@@ -238,12 +240,40 @@ export function useDemucs() {
             // addLog('Creating audio files...', 'info');
 
             const urls: Record<string, string> = {};
+            const waveforms: Record<string, number[]> = {};
+            const numBars = 60; // Number of waveform bars to display
+
             for (const source of sources) {
                 const blob = createWavBlob(outputs[source], numChannels, SAMPLE_RATE);
                 urls[source] = URL.createObjectURL(blob);
+
+                // Compute waveform for visualization
+                const audioData = outputs[source];
+                const samplesPerBar = Math.floor(audioData.length / numBars);
+                const bars: number[] = [];
+
+                for (let i = 0; i < numBars; i++) {
+                    const start = i * samplesPerBar;
+                    const end = Math.min(start + samplesPerBar, audioData.length);
+
+                    // Calculate RMS (root mean square) for this segment
+                    let sumSquares = 0;
+                    for (let j = start; j < end; j++) {
+                        sumSquares += audioData[j] * audioData[j];
+                    }
+                    const rms = Math.sqrt(sumSquares / (end - start));
+
+                    // Convert to percentage (0-100), with some scaling for visual appeal
+                    // Audio RMS is typically 0-0.3 for normal audio, scale to 0-100
+                    const barHeight = Math.min(100, Math.max(15, rms * 300));
+                    bars.push(barHeight);
+                }
+
+                waveforms[source] = bars;
             }
 
             setStemUrls(urls);
+            setStemWaveforms(waveforms);
 
             const duration = ((performance.now() - startTime) / 1000).toFixed(2);
             setStatus('Complete!');
@@ -265,6 +295,7 @@ export function useDemucs() {
     return {
         ...state,
         stemUrls,
+        stemWaveforms,
         loadModel,
         loadAudio,
         separateAudio,
