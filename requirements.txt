@@ -1,6 +1,7 @@
 # This is only used for the Cog build
 # It is identical to the pyproject.toml dependencies which is used for the PyPI package
 
+numpy>=2.0.0
 torch>=2.9.0
 torchcodec>=0.8.1
 typer>=0.19.1
