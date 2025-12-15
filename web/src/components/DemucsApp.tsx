@@ -24,12 +24,12 @@ interface StemInfo {
 }
 
 const STEM_STYLES: Record<string, StemInfo> = {
-    drums: { name: 'Drums', bg: '#FDF5E6', accent: '#D4943C', btnBg: '#C88430', hoverGlow: 'rgba(212, 148, 60, 0.3)' },
-    bass: { name: 'Bass', bg: '#EEF4E8', accent: '#7A9668', btnBg: '#6A8658', hoverGlow: 'rgba(122, 150, 104, 0.3)' },
-    guitar: { name: 'Guitar', bg: '#FDE8E0', accent: '#D85A45', btnBg: '#C84A35', hoverGlow: 'rgba(216, 90, 69, 0.3)' },
-    piano: { name: 'Piano', bg: '#F0E8F6', accent: '#9060B0', btnBg: '#7850A0', hoverGlow: 'rgba(144, 96, 176, 0.3)' },
-    other: { name: 'Other', bg: '#F0F0EC', accent: '#7A7A70', btnBg: '#6A6A60', hoverGlow: 'rgba(122, 122, 112, 0.3)' },
-    vocals: { name: 'Vocals', bg: '#FCE4E6', accent: '#D04858', btnBg: '#C03848', hoverGlow: 'rgba(208, 72, 88, 0.3)' },
+    drums: { name: 'Drums', bg: '#2D2A1F', accent: '#FBBF24', btnBg: '#F59E0B', hoverGlow: 'rgba(251, 191, 36, 0.3)' },
+    bass: { name: 'Bass', bg: '#1F2D20', accent: '#4ADE80', btnBg: '#22C55E', hoverGlow: 'rgba(74, 222, 128, 0.3)' },
+    guitar: { name: 'Guitar', bg: '#2D1F1F', accent: '#FB7185', btnBg: '#F43F5E', hoverGlow: 'rgba(251, 113, 133, 0.3)' },
+    piano: { name: 'Piano', bg: '#251F2D', accent: '#C084FC', btnBg: '#A855F7', hoverGlow: 'rgba(192, 132, 252, 0.3)' },
+    other: { name: 'Other', bg: '#252528', accent: '#A1A1AA', btnBg: '#71717A', hoverGlow: 'rgba(161, 161, 170, 0.3)' },
+    vocals: { name: 'Vocals', bg: '#2D1F25', accent: '#F472B6', btnBg: '#EC4899', hoverGlow: 'rgba(244, 114, 182, 0.3)' },
 };
 
 // Generate organic waveform heights
@@ -144,8 +144,8 @@ export function DemucsApp() {
                         {/* Header */}
                         <header className="text-center mb-10">
                             <h1
-                                className="text-5xl font-bold text-brown-800 tracking-wide"
-                                style={{ textShadow: '0 1px 0 rgba(255,255,255,0.3)' }}
+                                className="text-5xl font-bold text-slate-100 tracking-wide"
+                                style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}
                             >
                                 demucs.app
                             </h1>
@@ -157,7 +157,7 @@ export function DemucsApp() {
                             <div className="model-dropdown">
                                 <button
                                     onClick={() => !modelLoaded && !modelLoading && setShowModelMenu(!showModelMenu)}
-                                    className={`model-dropdown-btn px-5 py-3 bg-white/90 border-2 border-parchment-300 rounded-2xl text-brown-800 font-semibold flex items-center gap-2 shadow-sm relative overflow-hidden ${modelLoaded || modelLoading ? 'cursor-default' : ''}`}
+                                    className={`model-dropdown-btn px-5 py-3 bg-slate-800/90 border-2 border-slate-600 rounded-2xl text-slate-100 font-semibold flex items-center gap-2 shadow-sm relative overflow-hidden ${modelLoaded || modelLoading ? 'cursor-default' : ''}`}
                                 >
                                     {/* Loading progress bar */}
                                     {modelLoading && (
@@ -195,8 +195,8 @@ export function DemucsApp() {
                                                 className={`model-dropdown-item ${selectedModel === model.id ? 'selected' : ''}`}
                                                 onClick={() => handleModelSelect(model.id)}
                                             >
-                                                <div className="font-semibold text-brown-800">{model.name}</div>
-                                                <div className="text-xs text-brown-500">{model.stems} stems</div>
+                                                <div className="font-semibold text-slate-100">{model.name}</div>
+                                                <div className="text-xs text-slate-400">{model.stems} stems</div>
                                             </div>
                                         ))}
                                     </div>
@@ -226,15 +226,15 @@ export function DemucsApp() {
                                 <div className="relative w-52 h-52 mb-5">
                                     {/* Progress ring */}
                                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 208 208">
-                                        <circle cx="104" cy="104" r="96" fill="none" stroke="#C8B898" strokeWidth="10" opacity="0.5" />
+                                        <circle cx="104" cy="104" r="96" fill="none" stroke="#334155" strokeWidth="10" opacity="0.5" />
                                         <circle
                                             cx="104" cy="104" r="96"
-                                            fill="none" stroke="#5C9050" strokeWidth="10"
+                                            fill="none" stroke="#06B6D4" strokeWidth="10"
                                             strokeLinecap="round"
                                             strokeDasharray="603"
                                             strokeDashoffset={603 - (603 * progress / 100)}
                                             transform="rotate(-90 104 104)"
-                                            style={{ filter: 'drop-shadow(0 0 6px rgba(92, 144, 80, 0.4))' }}
+                                            style={{ filter: 'drop-shadow(0 0 6px rgba(6, 182, 212, 0.5))' }}
                                         />
                                     </svg>
 
@@ -258,20 +258,20 @@ export function DemucsApp() {
                                 </div>
 
                                 <span
-                                    className="text-4xl font-bold text-brown-800"
-                                    style={{ textShadow: '0 1px 0 rgba(255,255,255,0.4)' }}
+                                    className="text-4xl font-bold text-slate-100"
+                                    style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}
                                 >
                                     {Math.round(progress)}%
                                 </span>
-                                <span className="text-brown-500 text-sm mt-1 font-medium">{status}</span>
+                                <span className="text-slate-400 text-sm mt-1 font-medium">{status}</span>
                             </div>
                         )}
 
                         {/* File info - Show when audio loaded and not separating */}
                         {audioFile && !separating && (
                             <div className="text-center mb-8">
-                                <p className="text-xl font-bold text-brown-800">{audioFile.name}</p>
-                                <p className="text-brown-500 text-sm font-medium">
+                                <p className="text-xl font-bold text-slate-100">{audioFile.name}</p>
+                                <p className="text-slate-400 text-sm font-medium">
                                     {formatTime(duration)} • 44.1 kHz • Stereo
                                 </p>
                             </div>
@@ -281,11 +281,11 @@ export function DemucsApp() {
                         {hasStemsReady && (
                             <div className="mb-8">
                                 <div className="flex items-center justify-center gap-4 mb-5">
-                                    <div className="h-px flex-1 max-w-[80px] bg-gradient-to-r from-transparent to-parchment-500" />
-                                    <h2 className="text-brown-600 text-xs font-bold tracking-[0.25em] uppercase">
+                                    <div className="h-px flex-1 max-w-[80px] bg-gradient-to-r from-transparent to-slate-600" />
+                                    <h2 className="text-slate-400 text-xs font-bold tracking-[0.25em] uppercase">
                                         Audio Stems
                                     </h2>
-                                    <div className="h-px flex-1 max-w-[80px] bg-gradient-to-l from-transparent to-parchment-500" />
+                                    <div className="h-px flex-1 max-w-[80px] bg-gradient-to-l from-transparent to-slate-600" />
                                 </div>
 
                                 <div className="grid gap-3">
@@ -302,10 +302,10 @@ export function DemucsApp() {
                                                 style={{ backgroundColor: stemStyle.bg }}
                                                 onMouseEnter={(e) => {
                                                     (e.currentTarget as HTMLElement).style.boxShadow = `
-                                                        0 4px 16px rgba(100, 70, 40, 0.1),
-                                                        0 8px 32px rgba(100, 70, 40, 0.08),
+                                                        0 4px 16px rgba(0, 0, 0, 0.3),
+                                                        0 8px 32px rgba(0, 0, 0, 0.2),
                                                         0 0 0 1px ${stemStyle.hoverGlow},
-                                                        inset 0 1px 0 rgba(255, 255, 255, 0.7)
+                                                        inset 0 1px 0 rgba(255, 255, 255, 0.1)
                                                     `;
                                                 }}
                                                 onMouseLeave={(e) => {
@@ -342,8 +342,8 @@ export function DemucsApp() {
 
                                                         {/* Name & Duration */}
                                                         <div className="w-20 flex-shrink-0">
-                                                            <p className="text-base sm:text-lg font-bold text-brown-800 truncate">{stemStyle.name}</p>
-                                                            <p className="text-brown-500 text-xs font-medium">{formatTime(duration)}</p>
+                                                            <p className="text-base sm:text-lg font-bold text-slate-100 truncate">{stemStyle.name}</p>
+                                                            <p className="text-slate-400 text-xs font-medium">{formatTime(duration)}</p>
                                                         </div>
 
                                                         {/* Desktop waveform - hidden on mobile */}
@@ -372,7 +372,7 @@ export function DemucsApp() {
                                                             {/* Tooltip */}
                                                             {hoverInfo && hoverInfo.stemKey === stemKey && (
                                                                 <div
-                                                                    className="absolute -top-8 px-2 py-1 bg-brown-800 text-white text-xs rounded shadow-lg whitespace-nowrap z-10 pointer-events-none"
+                                                                    className="absolute -top-8 px-2 py-1 bg-slate-700 text-white text-xs rounded shadow-lg whitespace-nowrap z-10 pointer-events-none"
                                                                     style={{ left: hoverInfo.x, transform: 'translateX(-50%)' }}
                                                                 >
                                                                     {formatTime(hoverInfo.time)}
@@ -382,7 +382,7 @@ export function DemucsApp() {
                                                             {/* Playhead indicator */}
                                                             {duration > 0 && (
                                                                 <div
-                                                                    className="absolute top-0 bottom-0 w-0.5 bg-brown-800 z-10 pointer-events-none"
+                                                                    className="absolute top-0 bottom-0 w-0.5 bg-slate-100 z-10 pointer-events-none"
                                                                     style={{ left: `${((currentTimes[stemKey] || 0) / duration) * 100}%` }}
                                                                 />
                                                             )}
@@ -403,7 +403,7 @@ export function DemucsApp() {
 
                                                         {/* Volume slider - hidden on mobile */}
                                                         <div className="hidden sm:flex items-center gap-2 w-28 lg:w-36">
-                                                            <svg className="w-4 h-4 text-brown-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                                            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                                                 <path d="M3 9v6h4l5 5V4L7 9H3z" />
                                                             </svg>
                                                             <input
@@ -412,7 +412,7 @@ export function DemucsApp() {
                                                                 onChange={(e) => setVolumes(prev => ({ ...prev, [stemKey]: Number(e.target.value) }))}
                                                                 className="flex-1"
                                                                 style={{
-                                                                    background: `linear-gradient(90deg, ${stemStyle.accent} ${volume}%, #DDD4C8 ${volume}%)`
+                                                                    background: `linear-gradient(90deg, ${stemStyle.accent} ${volume}%, #334155 ${volume}%)`
                                                                 }}
                                                             />
                                                         </div>
@@ -440,9 +440,9 @@ export function DemucsApp() {
                                                         {/* Download Button */}
                                                         <button
                                                             onClick={() => handleDownload(stemKey)}
-                                                            className="btn-download w-10 h-10 sm:w-11 sm:h-11 bg-white/80 hover:bg-white rounded-2xl flex items-center justify-center flex-shrink-0 border border-brown-200 shadow-sm"
+                                                            className="btn-download w-10 h-10 sm:w-11 sm:h-11 bg-slate-700/80 hover:bg-slate-600 rounded-2xl flex items-center justify-center flex-shrink-0 border border-slate-600 shadow-sm"
                                                         >
-                                                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-brown-700" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-200" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                                                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
                                                             </svg>
                                                         </button>
@@ -465,7 +465,7 @@ export function DemucsApp() {
                                                         {/* Playhead indicator */}
                                                         {duration > 0 && (
                                                             <div
-                                                                className="absolute top-0 bottom-0 w-0.5 bg-brown-800 z-10 pointer-events-none"
+                                                                className="absolute top-0 bottom-0 w-0.5 bg-slate-100 z-10 pointer-events-none"
                                                                 style={{ left: `${((currentTimes[stemKey] || 0) / duration) * 100}%` }}
                                                             />
                                                         )}
@@ -495,26 +495,26 @@ export function DemucsApp() {
                         {!hasStemsReady && !separating && !audioFile && (
                             <div
                                 onClick={handleFileClick}
-                                className="drop-zone cursor-pointer text-center py-20 mb-8 rounded-3xl border-2 border-dashed border-parchment-400 bg-white/30 hover:bg-white/50 hover:border-parchment-500 transition-all"
+                                className="drop-zone cursor-pointer text-center py-20 mb-8 rounded-3xl border-2 border-dashed border-slate-600 bg-slate-800/30 hover:bg-slate-700/40 hover:border-slate-500 transition-all"
                             >
                                 <div className="relative w-32 h-32 mx-auto mb-6">
                                     {/* Static vinyl for drop zone */}
-                                    <div className="absolute inset-0 rounded-full vinyl vinyl-rim opacity-60">
+                                    <div className="absolute inset-0 rounded-full vinyl vinyl-rim opacity-80">
                                         <div className="absolute inset-0 rounded-full vinyl-shine" />
                                         <div className="absolute inset-[12%] border border-[#2a2a2a] rounded-full" />
                                         <div className="absolute inset-[20%] border border-[#333] rounded-full" />
                                         <div className="absolute inset-[28%] border border-[#2a2a2a] rounded-full" />
                                         <div className="absolute inset-[36%] border border-[#333] rounded-full" />
                                         <div
-                                            className="absolute inset-[38%] bg-gradient-to-br from-terracotta-400 via-terracotta-500 to-terracotta-700 rounded-full flex items-center justify-center"
+                                            className="absolute inset-[38%] bg-gradient-to-br from-cyan-400 via-cyan-500 to-cyan-700 rounded-full flex items-center justify-center"
                                             style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -1px 4px rgba(255,255,255,0.1)' }}
                                         >
-                                            <div className="w-2 h-2 bg-brown-900 rounded-full shadow-inner" />
+                                            <div className="w-2 h-2 bg-slate-900 rounded-full shadow-inner" />
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-brown-700 font-semibold text-lg">Click to load an audio file</p>
-                                <p className="text-brown-500 text-sm mt-1">Supports MP3, WAV, FLAC, and more</p>
+                                <p className="text-slate-200 font-semibold text-lg">Click to load an audio file</p>
+                                <p className="text-slate-400 text-sm mt-1">Supports MP3, WAV, FLAC, and more</p>
                             </div>
                         )}
 
@@ -523,13 +523,13 @@ export function DemucsApp() {
                             <div className="text-center py-8 mb-8">
                                 {modelLoaded ? (
                                     <>
-                                        <p className="text-brown-600 font-medium">Ready to separate</p>
-                                        <p className="text-brown-400 text-sm mt-1">Click "Separate Audio" to extract stems</p>
+                                        <p className="text-slate-300 font-medium">Ready to separate</p>
+                                        <p className="text-slate-500 text-sm mt-1">Click "Separate Audio" to extract stems</p>
                                     </>
                                 ) : (
                                     <>
-                                        <p className="text-brown-600 font-medium">Select a model first</p>
-                                        <p className="text-brown-400 text-sm mt-1">Choose a model from the dropdown above</p>
+                                        <p className="text-slate-300 font-medium">Select a model first</p>
+                                        <p className="text-slate-500 text-sm mt-1">Choose a model from the dropdown above</p>
                                     </>
                                 )}
                             </div>
@@ -555,12 +555,12 @@ export function DemucsApp() {
                     </div>
                 </div>
 
-                <footer className="w-full mt-auto bg-parchment-600/90 py-3">
-                    <nav className="flex items-center justify-center gap-6 text-xs font-medium text-parchment-100/80">
-                        <Link to="/" className="footer-link hover:text-white">Home</Link>
-                        <Link to="/about" className="footer-link hover:text-white">About</Link>
-                        <a href="https://github.com/Ryan5453/demucs-next" target="_blank" rel="noopener noreferrer" className="footer-link hover:text-white">GitHub</a>
-                        <Link to="/privacy" className="footer-link hover:text-white">Privacy</Link>
+                <footer className="w-full mt-auto bg-slate-800/90 py-3">
+                    <nav className="flex items-center justify-center gap-6 text-xs font-medium text-slate-400">
+                        <Link to="/" className="footer-link hover:text-cyan-400">Home</Link>
+                        <Link to="/about" className="footer-link hover:text-cyan-400">About</Link>
+                        <a href="https://github.com/Ryan5453/demucs-next" target="_blank" rel="noopener noreferrer" className="footer-link hover:text-cyan-400">GitHub</a>
+                        <Link to="/privacy" className="footer-link hover:text-cyan-400">Privacy</Link>
                     </nav>
                 </footer>
             </div>

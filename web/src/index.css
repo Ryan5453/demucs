@@ -17,61 +17,62 @@
    Tailwind Theme Extensions
    ======================================== */
 @theme {
-  /* Warm Color Palette */
-  --color-parchment-50: #FAF6F0;
-  --color-parchment-100: #F5EEE4;
-  --color-parchment-200: #E8DBC4;
-  --color-parchment-300: #D8C8A8;
-  --color-parchment-400: #CDB898;
-  --color-parchment-500: #C0A880;
-  --color-parchment-600: #A08060;
+  /* Modern Dark Mode Palette */
+  --color-parchment-50: #1E293B;
+  --color-parchment-100: #1A2332;
+  --color-parchment-200: #151C28;
+  --color-parchment-300: #334155;
+  --color-parchment-400: #475569;
+  --color-parchment-500: #64748B;
+  --color-parchment-600: #334155;
 
-  --color-brown-50: #F8F4F0;
-  --color-brown-100: #E8DCC8;
-  --color-brown-200: #D8CCC0;
-  --color-brown-300: #B4A090;
-  --color-brown-400: #9A8A78;
-  --color-brown-500: #8A7A68;
-  --color-brown-600: #7A6A58;
-  --color-brown-700: #5A4838;
-  --color-brown-800: #3A2818;
-  --color-brown-900: #2A1808;
+  /* Light text colors for dark mode */
+  --color-brown-50: #F8FAFC;
+  --color-brown-100: #F1F5F9;
+  --color-brown-200: #E2E8F0;
+  --color-brown-300: #CBD5E1;
+  --color-brown-400: #94A3B8;
+  --color-brown-500: #64748B;
+  --color-brown-600: #475569;
+  --color-brown-700: #334155;
+  --color-brown-800: #F1F5F9;
+  --color-brown-900: #F8FAFC;
 
-  /* Olive/Sage for primary actions */
-  --color-sage-400: #9BAA80;
-  --color-sage-500: #8B9A70;
-  --color-sage-600: #728058;
+  /* Vibrant Teal/Cyan for primary actions */
+  --color-sage-400: #22D3EE;
+  --color-sage-500: #06B6D4;
+  --color-sage-600: #0891B2;
 
-  /* Terracotta for accents */
-  --color-terracotta-400: #C87858;
-  --color-terracotta-500: #B86848;
-  --color-terracotta-600: #985030;
-  --color-terracotta-700: #A04830;
+  /* Coral accent for secondary */
+  --color-terracotta-400: #FB7185;
+  --color-terracotta-500: #F43F5E;
+  --color-terracotta-600: #E11D48;
+  --color-terracotta-700: #BE123C;
 
-  /* Stem Colors */
-  --color-stem-drums-bg: #FDF5E6;
-  --color-stem-drums-accent: #D4943C;
-  --color-stem-drums-btn: #C88430;
+  /* Vibrant Stem Colors for dark mode */
+  --color-stem-drums-bg: #2D2A1F;
+  --color-stem-drums-accent: #FBBF24;
+  --color-stem-drums-btn: #F59E0B;
 
-  --color-stem-bass-bg: #EEF4E8;
-  --color-stem-bass-accent: #7A9668;
-  --color-stem-bass-btn: #6A8658;
+  --color-stem-bass-bg: #1F2D20;
+  --color-stem-bass-accent: #4ADE80;
+  --color-stem-bass-btn: #22C55E;
 
-  --color-stem-guitar-bg: #FDE8E0;
-  --color-stem-guitar-accent: #D85A45;
-  --color-stem-guitar-btn: #C84A35;
+  --color-stem-guitar-bg: #2D1F1F;
+  --color-stem-guitar-accent: #FB7185;
+  --color-stem-guitar-btn: #F43F5E;
 
-  --color-stem-piano-bg: #F0E8F6;
-  --color-stem-piano-accent: #9060B0;
-  --color-stem-piano-btn: #7850A0;
+  --color-stem-piano-bg: #251F2D;
+  --color-stem-piano-accent: #C084FC;
+  --color-stem-piano-btn: #A855F7;
 
-  --color-stem-other-bg: #F0F0EC;
-  --color-stem-other-accent: #7A7A70;
-  --color-stem-other-btn: #6A6A60;
+  --color-stem-other-bg: #252528;
+  --color-stem-other-accent: #A1A1AA;
+  --color-stem-other-btn: #71717A;
 
-  --color-stem-vocals-bg: #FCE4E6;
-  --color-stem-vocals-accent: #D04858;
-  --color-stem-vocals-btn: #C03848;
+  --color-stem-vocals-bg: #2D1F25;
+  --color-stem-vocals-accent: #F472B6;
+  --color-stem-vocals-btn: #EC4899;
 
   /* Fonts */
   --font-serif: 'Libre Baskerville', Georgia, serif;
@@ -90,7 +91,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: linear-gradient(175deg, #E8DBC4 0%, #D8C8A8 35%, #CDB898 70%, #C0A880 100%) !important;
+  background: linear-gradient(175deg, #0F172A 0%, #1E293B 50%, #1E293B 100%) !important;
   font-family: var(--font-sans);
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
@@ -131,17 +132,17 @@ body {
    ======================================== */
 .soft-shadow {
   box-shadow:
-    0 2px 8px rgba(100, 70, 40, 0.08),
-    0 4px 16px rgba(100, 70, 40, 0.12),
-    0 8px 32px rgba(100, 70, 40, 0.06);
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .card-shadow {
   box-shadow:
-    0 2px 8px rgba(100, 70, 40, 0.08),
-    0 4px 16px rgba(100, 70, 40, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
 }
 
 /* ========================================
@@ -261,8 +262,8 @@ input[type=range]::-moz-range-thumb {
 }
 
 .model-dropdown-btn:hover {
-  background: white;
-  border-color: #A08060;
+  background: #334155;
+  border-color: #475569;
 }
 
 .model-dropdown-menu {
@@ -270,10 +271,10 @@ input[type=range]::-moz-range-thumb {
   top: 100%;
   left: 0;
   margin-top: 4px;
-  background: white;
-  border: 2px solid #D8C8B4;
+  background: #1E293B;
+  border: 2px solid #334155;
   border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(100, 70, 40, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   overflow: hidden;
   z-index: 50;
   min-width: 200px;
@@ -283,7 +284,7 @@ input[type=range]::-moz-range-thumb {
   padding: 12px 16px;
   cursor: pointer;
   transition: background 0.15s ease;
-  border-bottom: 1px solid #EEE8E0;
+  border-bottom: 1px solid #334155;
   white-space: nowrap;
 }
 
@@ -292,11 +293,11 @@ input[type=range]::-moz-range-thumb {
 }
 
 .model-dropdown-item:hover {
-  background: #FAF6F0;
+  background: #334155;
 }
 
 .model-dropdown-item.selected {
-  background: linear-gradient(145deg, #F8F4EC 0%, #EDE4D4 100%);
+  background: linear-gradient(145deg, #334155 0%, #1E293B 100%);
 }
 
 /* ========================================
@@ -315,31 +316,32 @@ input[type=range]::-moz-range-thumb {
    ======================================== */
 .btn-primary {
   background: linear-gradient(to bottom, var(--color-sage-500), var(--color-sage-600));
-  color: white;
+  color: #0F172A;
   font-weight: 700;
   border-radius: 1rem;
-  box-shadow: 0 4px 14px rgba(114, 128, 88, 0.35);
+  box-shadow: 0 4px 14px rgba(6, 182, 212, 0.4);
   transition: all 0.2s ease;
 }
 
 .btn-primary:hover {
   background: linear-gradient(to bottom, var(--color-sage-400), var(--color-sage-500));
-  box-shadow: 0 6px 18px rgba(114, 128, 88, 0.4);
+  box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.9);
-  border: 2px solid #D8C8B4;
-  color: #5A4838;
+  background: rgba(30, 41, 59, 0.9);
+  border: 2px solid #334155;
+  color: #F1F5F9;
   font-weight: 600;
   border-radius: 1rem;
-  box-shadow: 0 2px 6px rgba(100, 70, 40, 0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   transition: all 0.2s ease;
 }
 
 .btn-secondary:hover {
-  background: white;
-  border-color: #C8B8A0;
+  background: #334155;
+  border-color: #475569;
 }
 
 .btn-download {
@@ -384,15 +386,15 @@ input[type=range]::-moz-range-thumb {
 }
 
 .footer-link:hover {
-  color: #E8DCC8;
+  color: #22D3EE;
 }
 
 /* ========================================
    Empty State
    ======================================== */
 .empty-state {
-  background: rgba(255, 255, 255, 0.5);
-  border: 2px dashed #D8C8B4;
+  background: rgba(30, 41, 59, 0.5);
+  border: 2px dashed #475569;
   border-radius: 1.5rem;
 }
 
