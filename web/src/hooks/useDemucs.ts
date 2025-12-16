@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import type { DemucsState, LogEntry, ModelType } from '../types';
-import { SAMPLE_RATE, SEGMENT_SAMPLES } from '../types';
+import { SAMPLE_RATE, SEGMENT_SAMPLES, NFFT, HOP_LENGTH } from '../types';
 import { loadModel as loadOnnxModel, unloadModel as unloadOnnxModel, getSession, getSources, ort } from '../utils/onnx-runtime';
-import { computeSTFT, computeISTFT } from '../utils/audio-processor';
+import { computeSTFT, computeISTFT, createSTFTBuffers, createISTFTBuffers } from '../utils/audio-processor';
 import { createWavBlob } from '../utils/wav-utils';
 import { decodeAudioFile } from '../utils/audio-decoder';
 
@@ -158,6 +158,15 @@ export function useDemucs() {
                 fadeOut[i] = 1 - i / OVERLAP;
             }
 
+            // Pre-allocate reusable buffers to reduce GC pressure
+            const segmentPlanar = new Float32Array(SEGMENT_SAMPLES * numChannels);
+            const segmentInterleaved = new Float32Array(SEGMENT_SAMPLES * numChannels);
+            const specBufferSize = numChannels * (NFFT / 2) * Math.ceil(SEGMENT_SAMPLES / HOP_LENGTH);
+            const sourceReal = new Float32Array(specBufferSize);
+            const sourceImag = new Float32Array(specBufferSize);
+            const stftBuffers = createSTFTBuffers();
+            const istftBuffers = createISTFTBuffers();
+
             for (let seg = 0; seg < numSegments; seg++) {
                 const segStart = seg * STEP;
                 const segEnd = Math.min(segStart + SEGMENT_SAMPLES, numSamples);
@@ -166,21 +175,20 @@ export function useDemucs() {
                 setStatus(`Separating segment ${seg + 1} of ${numSegments}...`);
                 setProgress(((seg + 1) / numSegments) * 95);
 
-                const segmentPlanar = new Float32Array(SEGMENT_SAMPLES * numChannels);
+                segmentPlanar.fill(0);
                 for (let i = 0; i < segLength; i++) {
                     const srcIdx = (segStart + i) * numChannels;
                     segmentPlanar[i] = audio[srcIdx];
                     segmentPlanar[SEGMENT_SAMPLES + i] = audio[srcIdx + 1];
                 }
 
-                const segmentInterleaved = new Float32Array(SEGMENT_SAMPLES * numChannels);
+                segmentInterleaved.fill(0);
                 for (let i = 0; i < SEGMENT_SAMPLES; i++) {
                     segmentInterleaved[i * 2] = segmentPlanar[i];
                     segmentInterleaved[i * 2 + 1] = segmentPlanar[SEGMENT_SAMPLES + i];
                 }
 
-                // STFT computation
-                const stft = computeSTFT(segmentInterleaved);
+                const stft = computeSTFT(segmentInterleaved, stftBuffers);
 
                 const specShape = [1, numChannels, stft.numBins, stft.numFrames];
                 const audioShape = [1, numChannels, SEGMENT_SAMPLES];
@@ -189,17 +197,11 @@ export function useDemucs() {
                 const specImagTensor = new ort.Tensor('float32', stft.imag, specShape);
                 const audioTensor = new ort.Tensor('float32', segmentPlanar, audioShape);
 
-                // Inference
-                // const startTime = performance.now();
-
                 const results = await session.run({
                     'spec_real': specRealTensor,
                     'spec_imag': specImagTensor,
                     'audio': audioTensor
                 });
-
-                // const inferenceTime = ((performance.now() - startTime) / 1000).toFixed(2);
-                // Inference completed
 
                 const outSpecReal = results['out_spec_real'];
                 const outSpecImag = results['out_spec_imag'];
@@ -209,11 +211,15 @@ export function useDemucs() {
                 const specImagData = outSpecImag.data as Float32Array;
                 const waveData = outWave.data as Float32Array;
 
+                specRealTensor.dispose();
+                specImagTensor.dispose();
+                audioTensor.dispose();
+
                 for (let s = 0; s < sources.length; s++) {
                     const specOffset = s * numChannels * stft.numBins * stft.numFrames;
 
-                    const sourceReal = new Float32Array(numChannels * stft.numBins * stft.numFrames);
-                    const sourceImag = new Float32Array(numChannels * stft.numBins * stft.numFrames);
+                    sourceReal.fill(0);
+                    sourceImag.fill(0);
 
                     for (let c = 0; c < numChannels; c++) {
                         const cOffset = c * stft.numBins * stft.numFrames;
@@ -228,7 +234,7 @@ export function useDemucs() {
                     }
 
                     // iSTFT computation
-                    const freqAudio = computeISTFT(sourceReal, sourceImag, numChannels, stft.numBins, stft.numFrames, SEGMENT_SAMPLES);
+                    const freqAudio = computeISTFT(sourceReal, sourceImag, numChannels, stft.numBins, stft.numFrames, SEGMENT_SAMPLES, istftBuffers);
 
                     const sourceWaveOffset = s * numChannels * SEGMENT_SAMPLES;
 
@@ -259,6 +265,10 @@ export function useDemucs() {
                         outputs[sources[s]][outIdx + 1] += rightVal * weight;
                     }
                 }
+
+                outSpecReal.dispose();
+                outSpecImag.dispose();
+                outWave.dispose();
             }
 
             // Create blob URLs IMMEDIATELY after separation (like original code)

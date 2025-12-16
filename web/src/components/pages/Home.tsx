@@ -321,7 +321,7 @@ export function Home() {
                     <div className="flex items-center justify-center gap-4 mb-5">
                         <div className="h-px flex-1 max-w-[80px] bg-gradient-to-r from-transparent to-slate-600" />
                         <h2 className="text-slate-400 text-xs font-bold tracking-[0.25em] uppercase">
-                            Audio Stems
+                            Stems
                         </h2>
                         <div className="h-px flex-1 max-w-[80px] bg-gradient-to-l from-transparent to-slate-600" />
                     </div>
