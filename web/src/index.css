@@ -1,21 +1,5 @@
 @import "tailwindcss";
 
-/* ========================================
-   Warm Cozy Design System
-   - Parchment texture background
-   - Natural earth tones (browns, terracotta, olive)
-   - Soft shadows and rounded corners
-   - Serif headings, clean sans-serif body
-   ======================================== */
-
-/* ========================================
-   Custom Font Imports
-   ======================================== */
-@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;600;700&display=swap');
-
-/* ========================================
-   Tailwind Theme Extensions
-   ======================================== */
 @theme {
   /* Modern Dark Mode Palette */
   --color-parchment-50: #1E293B;

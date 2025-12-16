@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useDemucs } from '../../hooks/useDemucs';
+import { Vinyl } from '../ui/Vinyl';
 import type { ModelType } from '../../types';
 
 interface ModelInfo {
@@ -217,39 +218,11 @@ export function Home() {
             {/* Vinyl Progress - Show when separating */}
             {separating && (
                 <div className="flex flex-col items-center mb-10">
-                    <div className="relative w-52 h-52 mb-5">
-                        {/* Progress ring */}
-                        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 208 208">
-                            <circle cx="104" cy="104" r="96" fill="none" stroke="#334155" strokeWidth="10" opacity="0.5" />
-                            <circle
-                                cx="104" cy="104" r="96"
-                                fill="none" stroke="#06B6D4" strokeWidth="10"
-                                strokeLinecap="round"
-                                strokeDasharray="603"
-                                strokeDashoffset={603 - (603 * progress / 100)}
-                                transform="rotate(-90 104 104)"
-                                style={{ filter: 'drop-shadow(0 0 6px rgba(6, 182, 212, 0.5))' }}
-                            />
-                        </svg>
-
-                        {/* Vinyl record */}
-                        <div
-                            className="absolute inset-3 rounded-full vinyl vinyl-rim"
-                            style={{ animation: 'vinyl-spin 3s linear infinite' }}
-                        >
-                            <div className="absolute inset-0 rounded-full vinyl-shine" />
-                            <div className="absolute inset-[12%] border border-[#2a2a2a] rounded-full" />
-                            <div className="absolute inset-[20%] border border-[#333] rounded-full" />
-                            <div className="absolute inset-[28%] border border-[#2a2a2a] rounded-full" />
-                            <div className="absolute inset-[36%] border border-[#333] rounded-full" />
-                            <div
-                                className="absolute inset-[38%] bg-gradient-to-br from-terracotta-400 via-terracotta-500 to-terracotta-700 rounded-full flex items-center justify-center"
-                                style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -1px 4px rgba(255,255,255,0.1)' }}
-                            >
-                                <div className="w-3 h-3 bg-brown-900 rounded-full shadow-inner" />
-                            </div>
-                        </div>
-                    </div>
+                    <Vinyl
+                        progress={progress}
+                        variant="terracotta"
+                        className="w-52 h-52 mb-5"
+                    />
 
                     <span
                         className="text-4xl font-bold text-slate-100"
@@ -492,20 +465,11 @@ export function Home() {
                     className="drop-zone cursor-pointer text-center py-20 mb-8 rounded-3xl border-2 border-dashed border-slate-600 bg-slate-800/30 hover:bg-slate-700/40 hover:border-slate-500 transition-all"
                 >
                     <div className="relative w-32 h-32 mx-auto mb-6">
-                        {/* Static vinyl for drop zone */}
-                        <div className="absolute inset-0 rounded-full vinyl vinyl-rim opacity-80">
-                            <div className="absolute inset-0 rounded-full vinyl-shine" />
-                            <div className="absolute inset-[12%] border border-[#2a2a2a] rounded-full" />
-                            <div className="absolute inset-[20%] border border-[#333] rounded-full" />
-                            <div className="absolute inset-[28%] border border-[#2a2a2a] rounded-full" />
-                            <div className="absolute inset-[36%] border border-[#333] rounded-full" />
-                            <div
-                                className="absolute inset-[38%] bg-gradient-to-br from-cyan-400 via-cyan-500 to-cyan-700 rounded-full flex items-center justify-center"
-                                style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -1px 4px rgba(255,255,255,0.1)' }}
-                            >
-                                <div className="w-2 h-2 bg-slate-900 rounded-full shadow-inner" />
-                            </div>
-                        </div>
+                        <Vinyl
+                            variant="cyan"
+                            animate={false}
+                            className="w-32 h-32 opacity-80"
+                        />
                     </div>
                     <p className="text-slate-200 font-semibold text-lg">Click to load an audio file</p>
                     <p className="text-slate-400 text-sm mt-1">Supports MP3, WAV, FLAC, and more</p>
