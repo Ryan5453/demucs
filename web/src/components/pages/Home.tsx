@@ -100,6 +100,16 @@ export function Home() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showModelMenu]);
 
+    useEffect(() => {
+        Object.keys(audioRefs.current).forEach(key => {
+            const audio = audioRefs.current[key];
+            if (audio) {
+                const volume = volumes[key] ?? 80;
+                audio.volume = volume / 100;
+            }
+        });
+    }, [volumes]);
+
     const handleModelSelect = async (model: ModelType) => {
         // Don't reload the same model
         if (modelLoaded && selectedModel === model) {
@@ -351,7 +361,12 @@ export function Home() {
                                     }}
                                 >
                                     <audio
-                                        ref={(el) => { if (el) audioRefs.current[stemKey] = el; }}
+                                        ref={(el) => {
+                                            if (el) {
+                                                audioRefs.current[stemKey] = el;
+                                                el.volume = (volumes[stemKey] ?? 80) / 100;
+                                            }
+                                        }}
                                         src={stemUrls[stemKey]}
                                         onEnded={() => setPlayingStems(prev => ({ ...prev, [stemKey]: false }))}
                                         onTimeUpdate={(e) => {
