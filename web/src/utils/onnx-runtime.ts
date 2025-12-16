@@ -71,4 +71,12 @@ export function getSources(): string[] {
     return loadedSources;
 }
 
+export async function unloadModel(): Promise<void> {
+    if (session) {
+        await session.release();
+        session = null;
+    }
+    loadedSources = [];
+}
+
 export { ort };

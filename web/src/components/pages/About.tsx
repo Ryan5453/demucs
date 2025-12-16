@@ -21,9 +21,8 @@ export function About() {
 
                 <div className="space-y-4 text-slate-300">
                     <p>
-                        <strong>demucs.app</strong> is a free, browser-based audio stem separation tool powered by
-                        Meta's Demucs AI model. It runs entirely in your browser using WebAssembly and ONNX Runtime,
-                        meaning your audio files never leave your device.
+                        <strong>demucs.app</strong> is a free, open-source, browser-based audio stem separation tool powered by
+                        Meta AI's Demucs model. It runs entirely in your browser, meaning your audio files never leave your device.
                     </p>
 
                     <h3 className="text-xl font-semibold text-slate-100 mt-6 mb-3">How It Works</h3>

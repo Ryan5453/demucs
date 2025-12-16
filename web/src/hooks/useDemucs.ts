@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 import type { DemucsState, LogEntry, ModelType } from '../types';
 import { SAMPLE_RATE, SEGMENT_SAMPLES } from '../types';
-import { loadModel as loadOnnxModel, getSession, getSources, ort } from '../utils/onnx-runtime';
+import { loadModel as loadOnnxModel, unloadModel as unloadOnnxModel, getSession, getSources, ort } from '../utils/onnx-runtime';
 import { computeSTFT, computeISTFT } from '../utils/audio-processor';
 import { createWavBlob } from '../utils/wav-utils';
+import { decodeAudioFile } from '../utils/audio-decoder';
 
 const initialState: DemucsState = {
     modelLoaded: false,
@@ -19,10 +20,13 @@ const initialState: DemucsState = {
 
 export function useDemucs() {
     const [state, setState] = useState<DemucsState>(initialState);
+    const [audioError, setAudioError] = useState<string | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
 
     // Store pre-created blob URLs
     const [stemUrls, setStemUrls] = useState<Record<string, string>>({});
+    // Store artwork URL (album art from audio file)
+    const [artworkUrl, setArtworkUrl] = useState<string | null>(null);
     // Store waveform data for visualization (array of 0-100 values)
     const [stemWaveforms, setStemWaveforms] = useState<Record<string, number[]>>({});
 
@@ -58,14 +62,35 @@ export function useDemucs() {
         }));
     }, [addLog]);
 
+    const unloadModel = useCallback(async () => {
+        await unloadOnnxModel();
+        setState(prev => ({ ...prev, modelLoaded: false }));
+        addLog('Model unloaded', 'info');
+    }, [addLog]);
+
+    const clearAudioError = useCallback(() => {
+        setAudioError(null);
+    }, []);
+
     const loadAudio = useCallback(async (file: File) => {
         try {
+            setAudioError(null);
             addLog(`Loading audio: ${file.name}`, 'info');
-            const arrayBuffer = await file.arrayBuffer();
             const ctx = getAudioContext();
-            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
 
+            const { buffer: audioBuffer, artwork, usedFallback } = await decodeAudioFile(file, ctx);
 
+            if (usedFallback === 'ffmpeg') {
+                addLog('Audio decoded using fallback decoder (ffmpeg.wasm)', 'info');
+            } else {
+                addLog('Audio decoded with Mediabunny', 'info');
+            }
+
+            // Store artwork if present
+            if (artwork) {
+                setArtworkUrl(artwork);
+                addLog('Album artwork extracted', 'info');
+            }
 
             addLog('Audio loaded successfully.', 'success');
 
@@ -76,7 +101,9 @@ export function useDemucs() {
                 audioFile: file,
             }));
         } catch (error) {
-            addLog(`Failed to load audio: ${(error as Error).message}`, 'error');
+            const errorMessage = (error as Error).message;
+            addLog(`Failed to load audio: ${errorMessage}`, 'error');
+            setAudioError(errorMessage);
         }
     }, [addLog, getAudioContext]);
 
@@ -292,12 +319,39 @@ export function useDemucs() {
         }
     }, [state.audioBuffer, addLog, setStatus, setProgress]);
 
+    const resetForNewTrack = useCallback(() => {
+        // Revoke old blob URLs to prevent memory leaks
+        Object.values(stemUrls).forEach(url => URL.revokeObjectURL(url));
+        if (artworkUrl) {
+            URL.revokeObjectURL(artworkUrl);
+        }
+
+        setState(prev => ({
+            ...prev,
+            audioLoaded: false,
+            audioBuffer: null,
+            audioFile: null,
+            separating: false,
+            progress: 0,
+            status: 'Ready',
+        }));
+        setStemUrls({});
+        setStemWaveforms({});
+        setArtworkUrl(null);
+        setAudioError(null);
+    }, [stemUrls, artworkUrl]);
+
     return {
         ...state,
         stemUrls,
         stemWaveforms,
+        artworkUrl,
+        audioError,
         loadModel,
+        unloadModel,
         loadAudio,
+        clearAudioError,
         separateAudio,
+        resetForNewTrack,
     };
 }
