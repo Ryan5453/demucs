@@ -297,7 +297,9 @@ class LocalState(nn.Module):
             dots += torch.einsum("fts,bhfs->bhts", decay_kernel, decay_q)
 
         # Kill self reference.
-        dots.masked_fill_(torch.eye(T, device=dots.device, dtype=torch.bool), -100)
+        # This previously used torch.eye() but that is not ONNX compatible for some reason...
+        diag_mask = indexes[:, None] == indexes[None, :]
+        dots.masked_fill_(diag_mask, -100)
         weights = torch.softmax(dots, dim=2)
 
         content = self.content(x).view(B, heads, -1, T)

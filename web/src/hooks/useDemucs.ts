@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import type { DemucsState, LogEntry, ModelType } from '../types';
 import { SAMPLE_RATE, SEGMENT_SAMPLES, NFFT, HOP_LENGTH } from '../types';
-import { loadModel as loadOnnxModel, unloadModel as unloadOnnxModel, getSession, getSources, ort } from '../utils/onnx-runtime';
+import { loadModel as loadOnnxModel, unloadModel as unloadOnnxModel, runInference, getSources } from '../utils/onnx-runtime';
 import { computeSTFT, computeISTFT, createSTFTBuffers, createISTFTBuffers } from '../utils/audio-processor';
 import { createWavBlob } from '../utils/wav-utils';
 import { decodeAudioFile } from '../utils/audio-decoder';
@@ -108,8 +108,8 @@ export function useDemucs() {
     }, [addLog, getAudioContext]);
 
     const separateAudio = useCallback(async () => {
-        const session = getSession();
-        if (!session || !state.audioBuffer) {
+        // Check if model is loaded (either main thread session or worker)
+        if (!state.modelLoaded || !state.audioBuffer) {
             addLog('Model or audio not loaded', 'error');
             return;
         }
@@ -162,22 +162,35 @@ export function useDemucs() {
                 fadeOut[i] = 1 - i / OVERLAP;
             }
 
+            console.log('[Demucs] Created fade buffers');
+
             // Pre-allocate reusable buffers to reduce GC pressure
             const segmentPlanar = new Float32Array(SEGMENT_SAMPLES * numChannels);
             const segmentInterleaved = new Float32Array(SEGMENT_SAMPLES * numChannels);
             const specBufferSize = numChannels * (NFFT / 2) * Math.ceil(SEGMENT_SAMPLES / HOP_LENGTH);
             const sourceReal = new Float32Array(specBufferSize);
             const sourceImag = new Float32Array(specBufferSize);
+            console.log('[Demucs] Creating STFT buffers...');
             const stftBuffers = createSTFTBuffers();
+            console.log('[Demucs] Creating ISTFT buffers...');
             const istftBuffers = createISTFTBuffers();
+            console.log('[Demucs] Buffers created, starting segment loop...');
 
             for (let seg = 0; seg < numSegments; seg++) {
                 const segStart = seg * STEP;
+
                 const segEnd = Math.min(segStart + SEGMENT_SAMPLES, numSamples);
                 const segLength = segEnd - segStart;
 
+                console.log(`[Demucs] Processing segment ${seg + 1}/${numSegments}`);
                 setStatus(`Separating segment ${seg + 1} of ${numSegments}...`);
                 setProgress(((seg + 1) / numSegments) * 95);
+
+                // Yield occasionally to allow React to render progress updates
+                if (seg % 5 === 0) {
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                }
+
 
                 segmentPlanar.fill(0);
                 for (let i = 0; i < segLength; i++) {
@@ -192,32 +205,27 @@ export function useDemucs() {
                     segmentInterleaved[i * 2 + 1] = segmentPlanar[SEGMENT_SAMPLES + i];
                 }
 
+                console.log('[Demucs] Computing STFT...');
                 const stft = computeSTFT(segmentInterleaved, stftBuffers);
+                console.log('[Demucs] STFT complete');
 
                 const specShape = [1, numChannels, stft.numBins, stft.numFrames];
                 const audioShape = [1, numChannels, SEGMENT_SAMPLES];
 
-                const specRealTensor = new ort.Tensor('float32', stft.real, specShape);
-                const specImagTensor = new ort.Tensor('float32', stft.imag, specShape);
-                const audioTensor = new ort.Tensor('float32', segmentPlanar, audioShape);
+                console.log('[Demucs] Running model inference...');
+                const results = await runInference(
+                    stft.real,
+                    stft.imag,
+                    segmentPlanar,
+                    specShape,
+                    audioShape
+                );
+                console.log('[Demucs] Inference complete');
 
-                const results = await session.run({
-                    'spec_real': specRealTensor,
-                    'spec_imag': specImagTensor,
-                    'audio': audioTensor
-                });
-
-                const outSpecReal = results['out_spec_real'];
-                const outSpecImag = results['out_spec_imag'];
-                const outWave = results['out_wave'];
-
-                const specRealData = outSpecReal.data as Float32Array;
-                const specImagData = outSpecImag.data as Float32Array;
-                const waveData = outWave.data as Float32Array;
-
-                specRealTensor.dispose();
-                specImagTensor.dispose();
-                audioTensor.dispose();
+                // Results are always Float32Arrays (runInference handles tensor extraction)
+                const specRealData = results.outSpecReal;
+                const specImagData = results.outSpecImag;
+                const waveData = results.outWave;
 
                 for (let s = 0; s < sources.length; s++) {
                     const specOffset = s * numChannels * stft.numBins * stft.numFrames;
@@ -269,11 +277,9 @@ export function useDemucs() {
                         outputs[sources[s]][outIdx + 1] += rightVal * weight;
                     }
                 }
-
-                outSpecReal.dispose();
-                outSpecImag.dispose();
-                outWave.dispose();
+                // Note: tensor disposal is now handled inside runInference()
             }
+
 
             // Create blob URLs IMMEDIATELY after separation (like original code)
             setStatus('Finalizing...');

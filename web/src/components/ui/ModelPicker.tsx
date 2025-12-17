@@ -6,12 +6,13 @@ export interface ModelInfo {
     name: string;
     stems: number;
     sizeMB: number;
+    badge?: 'recommended' | 'experimental';
 }
 
 export const MODELS: ModelInfo[] = [
-    { id: 'htdemucs', name: 'Demucs v4', stems: 4, sizeMB: 169 },
-    { id: 'htdemucs_6s', name: 'Demucs v4 (6-source)', stems: 6, sizeMB: 110 },
-    { id: 'hdemucs_mmi', name: 'Demucs v3', stems: 4, sizeMB: 169 },
+    { id: 'htdemucs', name: 'Demucs v4', stems: 4, sizeMB: 161, badge: 'recommended' },
+    { id: 'htdemucs_6s', name: 'Demucs v4 (6-source)', stems: 6, sizeMB: 105, badge: 'experimental' },
+    { id: 'hdemucs_mmi', name: 'Demucs v3', stems: 4, sizeMB: 320 },
 ];
 
 interface ModelPickerProps {
@@ -90,7 +91,19 @@ export function ModelPicker({
                                 onClick={() => handleSelect(model.id)}
                             >
                                 <div className="flex-1 min-w-0">
-                                    <div className="font-semibold text-slate-100">{model.name}</div>
+                                    <div className="font-semibold text-slate-100 flex items-center gap-2">
+                                        {model.name}
+                                        {model.badge === 'recommended' && (
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded-full font-medium">
+                                                Recommended
+                                            </span>
+                                        )}
+                                        {model.badge === 'experimental' && (
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded-full font-medium">
+                                                Experimental
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="text-xs text-slate-400">
                                         {model.stems} stems • {model.sizeMB} MB
                                     </div>

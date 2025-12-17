@@ -700,35 +700,27 @@ class HDemucs(nn.Module):
         out = m.view(B, S, -1, 2, Fr, T).permute(0, 1, 2, 4, 5, 3)
         out = torch.view_as_complex(out.contiguous())
         return out
+    def forward_core(
+        self, x: Tensor, xt: Tensor
+    ) -> tuple[Tensor, Tensor]:
+        """
+        Core encoder-decoder processing for ONNX export.
 
-    def forward(self, mix):
-        x = mix
-        length = x.shape[-1]
+        This method contains the main neural network computation, separated from
+        input/output preprocessing (STFT/ISTFT).
 
-        z = self._spec(mix)
-        mag = self._magnitude(z).to(mix.device)
-        x = mag
+        Args:
+            x: Normalized frequency branch input [B, C*2, Fq, T] (CaC format)
+            xt: Normalized time branch input [B, C, samples]
 
-        B, C, Fq, T = x.shape
-
-        # unlike previous Demucs, we always normalize because it is easier.
-        mean = x.mean(dim=(1, 2, 3), keepdim=True)
-        std = x.std(dim=(1, 2, 3), keepdim=True)
-        x = (x - mean) / (1e-5 + std)
-        # x will be the freq. branch input.
-
-        if self.hybrid:
-            # Prepare the time branch input.
-            xt = mix
-            meant = xt.mean(dim=(1, 2), keepdim=True)
-            stdt = xt.std(dim=(1, 2), keepdim=True)
-            xt = (xt - meant) / (1e-5 + stdt)
-
-        # okay, this is a giant mess I know...
+        Returns:
+            (x, xt): Frequency output [B, S*C*2, Fq, T], Time output [B, S*C, samples]
+        """
         saved = []  # skip connections, freq.
         saved_t = []  # skip connections, time.
         lengths = []  # saved lengths to properly remove padding, freq branch.
         lengths_t = []  # saved lengths for time branch.
+
         for idx, encode in enumerate(self.encoder):
             lengths.append(x.shape[-1])
             inject = None
@@ -754,10 +746,10 @@ class HDemucs(nn.Module):
 
             saved.append(x)
 
+        # Initialize to zero - signal flows through U-net skip connections
         x = torch.zeros_like(x)
         if self.hybrid:
             xt = torch.zeros_like(x)
-        # initialize everything to zero (signal will go through u-net skips).
 
         for idx, decode in enumerate(self.decoder):
             skip = saved.pop(-1)
@@ -771,17 +763,42 @@ class HDemucs(nn.Module):
                 tdec = self.tdecoder[idx - offset]
                 length_t = lengths_t.pop(-1)
                 if tdec.empty:
-                    assert pre.shape[2] == 1, pre.shape
                     pre = pre[:, :, 0]
                     xt, _ = tdec(pre, None, length_t)
                 else:
                     skip = saved_t.pop(-1)
                     xt, _ = tdec(xt, skip, length_t)
 
-        # Let's make sure we used all stored skip connections.
-        assert len(saved) == 0
-        assert len(lengths_t) == 0
-        assert len(saved_t) == 0
+        return x, xt
+
+    def forward(self, mix):
+        x = mix
+        length = x.shape[-1]
+
+        z = self._spec(mix)
+        mag = self._magnitude(z).to(mix.device)
+        x = mag
+
+        B, C, Fq, T = x.shape
+
+        # unlike previous Demucs, we always normalize because it is easier.
+        mean = x.mean(dim=(1, 2, 3), keepdim=True)
+        std = x.std(dim=(1, 2, 3), keepdim=True)
+        x = (x - mean) / (1e-5 + std)
+        # x will be the freq. branch input.
+
+        if self.hybrid:
+            # Prepare the time branch input.
+            xt = mix
+            meant = xt.mean(dim=(1, 2), keepdim=True)
+            stdt = xt.std(dim=(1, 2), keepdim=True)
+            xt = (xt - meant) / (1e-5 + stdt)
+        else:
+            xt = torch.zeros(1, device=mix.device)  # Placeholder for non-hybrid
+            meant = stdt = torch.zeros(1, device=mix.device)
+
+        # Core encoder-decoder processing
+        x, xt = self.forward_core(x, xt)
 
         S = len(self.sources)
         x = x.view(B, S, -1, Fq, T)
