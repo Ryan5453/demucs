@@ -303,13 +303,11 @@ input[type=range]::-moz-range-thumb {
   color: #0F172A;
   font-weight: 700;
   border-radius: 1rem;
-  box-shadow: 0 4px 14px rgba(6, 182, 212, 0.4);
   transition: all 0.2s ease;
 }
 
 .btn-primary:hover {
   background: linear-gradient(to bottom, var(--color-sage-400), var(--color-sage-500));
-  box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
   transform: translateY(-1px);
 }
 

@@ -120,6 +120,10 @@ export function useDemucs() {
             setStemWaveforms({}); // Clear old waveforms
             setStatus('Preparing audio...');
             setProgress(0);
+
+            // Yield to allow React to render the separating UI before heavy processing
+            await new Promise(resolve => setTimeout(resolve, 0));
+
             const startTime = performance.now();
             addLog('Starting separation...', 'info');
 

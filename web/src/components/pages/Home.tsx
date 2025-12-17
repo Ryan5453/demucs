@@ -1,19 +1,8 @@
 import { useState, useRef, useEffect, type DragEvent } from 'react';
 import { useDemucs } from '../../hooks/useDemucs';
 import { Vinyl } from '../ui/Vinyl';
+import { ModelPicker } from '../ui/ModelPicker';
 import type { ModelType } from '../../types';
-
-interface ModelInfo {
-    id: ModelType;
-    name: string;
-    stems: number;
-}
-
-const MODELS: ModelInfo[] = [
-    { id: 'htdemucs', name: 'Demucs v4', stems: 4 },
-    { id: 'htdemucs_6s', name: 'Demucs v4 (6-source)', stems: 6 },
-    { id: 'hdemucs_mmi', name: 'Demucs v3', stems: 4 },
-];
 
 interface StemInfo {
     name: string;
@@ -71,9 +60,7 @@ export function Home() {
     } = useDemucs();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const modelDropdownRef = useRef<HTMLDivElement>(null);
     const [selectedModel, setSelectedModel] = useState<ModelType>('htdemucs');
-    const [showModelMenu, setShowModelMenu] = useState(false);
     const [volumes, setVolumes] = useState<Record<string, number>>({});
     const [playingStems, setPlayingStems] = useState<Record<string, boolean>>({});
     const [currentTimes, setCurrentTimes] = useState<Record<string, number>>({});
@@ -82,23 +69,11 @@ export function Home() {
     const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
     const waveformRefs = useRef<Record<string, HTMLDivElement>>({});
 
-    const currentModel = MODELS.find(m => m.id === selectedModel)!;
     const duration = audioBuffer?.duration ?? 0;
     const stems = Object.keys(stemUrls);
     const hasStemsReady = stems.length > 0;
 
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
-                setShowModelMenu(false);
-            }
-        };
-        if (showModelMenu) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showModelMenu]);
+
 
     useEffect(() => {
         Object.keys(audioRefs.current).forEach(key => {
@@ -113,11 +88,9 @@ export function Home() {
     const handleModelSelect = async (model: ModelType) => {
         // Don't reload the same model
         if (modelLoaded && selectedModel === model) {
-            setShowModelMenu(false);
             return;
         }
         setSelectedModel(model);
-        setShowModelMenu(false);
         // Unload current model first to free memory before loading new one
         if (modelLoaded) {
             await unloadModel();
@@ -210,60 +183,12 @@ export function Home() {
 
             {/* Controls Row */}
             <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
-                {/* Model Selector with loading indicator */}
-                <div className="model-dropdown" ref={modelDropdownRef}>
-                    <button
-                        onClick={() => !modelLoading && setShowModelMenu(!showModelMenu)}
-                        className={`model-dropdown-btn px-5 py-3 bg-slate-800/90 border-2 border-slate-600 rounded-2xl text-slate-100 font-semibold flex items-center gap-2 shadow-sm relative overflow-hidden ${modelLoading ? 'cursor-default' : ''}`}
-                    >
-                        {/* Loading progress bar */}
-                        {modelLoading && (
-                            <div className="absolute inset-0 bg-sage-500/20">
-                                <div
-                                    className="h-full bg-sage-500/40 transition-all duration-300 ease-out"
-                                    style={{
-                                        animation: 'model-load-sweep 2s ease-in-out infinite'
-                                    }}
-                                />
-                            </div>
-                        )}
-                        <svg className="w-4 h-4 relative z-10" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                        </svg>
-                        <span className="relative z-10">
-                            {modelLoading ? 'Loading...' : modelLoaded ? currentModel.name : 'Select Model'}
-                        </span>
-                        {!modelLoading && (
-                            <svg className={`w-4 h-4 ml-1 transition-transform relative z-10 ${showModelMenu ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 10l5 5 5-5H7z" />
-                            </svg>
-                        )}
-                    </button>
-                    {showModelMenu && (
-                        <div className="model-dropdown-menu">
-                            {MODELS.map((model) => {
-                                const isLoaded = modelLoaded && selectedModel === model.id;
-                                return (
-                                    <div
-                                        key={model.id}
-                                        className={`model-dropdown-item flex items-center gap-3 ${selectedModel === model.id ? 'selected' : ''} ${isLoaded ? 'cursor-default' : ''}`}
-                                        onClick={() => handleModelSelect(model.id)}
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <div className="font-semibold text-slate-100">{model.name}</div>
-                                            <div className="text-xs text-slate-400">{model.stems} stems</div>
-                                        </div>
-                                        {isLoaded && (
-                                            <svg className="w-5 h-5 text-cyan-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                                            </svg>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
+                <ModelPicker
+                    selectedModel={selectedModel}
+                    modelLoaded={modelLoaded}
+                    modelLoading={modelLoading}
+                    onModelSelect={handleModelSelect}
+                />
 
                 <button
                     onClick={separateAudio}
@@ -348,17 +273,6 @@ export function Home() {
                                     key={stemKey}
                                     className="stem-card rounded-3xl card-shadow"
                                     style={{ backgroundColor: stemStyle.bg }}
-                                    onMouseEnter={(e) => {
-                                        (e.currentTarget as HTMLElement).style.boxShadow = `
-                                            0 4px 16px rgba(0, 0, 0, 0.3),
-                                            0 8px 32px rgba(0, 0, 0, 0.2),
-                                            0 0 0 1px ${stemStyle.hoverGlow},
-                                            inset 0 1px 0 rgba(255, 255, 255, 0.1)
-                                        `;
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        (e.currentTarget as HTMLElement).style.boxShadow = '';
-                                    }}
                                 >
                                     <audio
                                         ref={(el) => {
@@ -377,15 +291,14 @@ export function Home() {
                                         }}
                                     />
 
-                                    <div className="p-4">
+                                    <div className="p-5">
                                         {/* Top row: Icon, Name, Controls */}
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-4">
                                             {/* Icon */}
                                             <div
                                                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
                                                 style={{
-                                                    background: `linear-gradient(145deg, ${stemStyle.btnBg}, ${stemStyle.accent})`,
-                                                    boxShadow: `0 4px 12px ${stemStyle.hoverGlow}, inset 0 1px 0 rgba(255,255,255,0.2)`
+                                                    background: `linear-gradient(145deg, ${stemStyle.btnBg}, ${stemStyle.accent})`
                                                 }}
                                             >
                                                 <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor">
@@ -475,8 +388,7 @@ export function Home() {
                                                 onClick={() => togglePlay(stemKey)}
                                                 className="btn-play w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
                                                 style={{
-                                                    background: `linear-gradient(145deg, ${stemStyle.btnBg}, ${stemStyle.accent})`,
-                                                    boxShadow: `0 3px 10px ${stemStyle.hoverGlow}`
+                                                    background: `linear-gradient(145deg, ${stemStyle.btnBg}, ${stemStyle.accent})`
                                                 }}
                                             >
                                                 {playingStems[stemKey] ? (

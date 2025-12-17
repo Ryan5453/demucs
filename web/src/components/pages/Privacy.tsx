@@ -31,7 +31,7 @@ export function Privacy() {
 
                     <h3 className="text-xl font-semibold text-slate-100 mt-6 mb-3">Local Processing</h3>
                     <p>
-                        All audio separation is performed using WebGPU / the ONNX Web Runtime directly in your browser.
+                        All audio separation is performed using WebGPU or WebAssembly directly in your browser.
                         The model is downloaded once and cached locally by your browser. No audio data ever leaves your device.
                     </p>
 

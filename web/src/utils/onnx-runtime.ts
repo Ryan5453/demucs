@@ -13,6 +13,7 @@ ort.env.logLevel = 'warning';
 
 let session: InferenceSession | null = null;
 let loadedSources: string[] = [];
+let currentBackend: 'webgpu' | 'wasm' | null = null;
 
 // Model URLs on HuggingFace
 const MODEL_URLS: Record<ModelType, string> = {
@@ -28,9 +29,32 @@ const MODEL_SOURCES: Record<ModelType, string[]> = {
     'hdemucs_mmi': ['drums', 'bass', 'other', 'vocals'], // Uses htdemucs fallback
 };
 
+/**
+ * Check if WebGPU is available in the current browser
+ */
+export async function isWebGPUAvailable(): Promise<boolean> {
+    if (!navigator.gpu) {
+        return false;
+    }
+    try {
+        const adapter = await navigator.gpu.requestAdapter();
+        return adapter !== null;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Get the current backend being used
+ */
+export function getBackend(): 'webgpu' | 'wasm' | null {
+    return currentBackend;
+}
+
 export interface ModelLoadResult {
     success: boolean;
     sources: string[];
+    backend?: 'webgpu' | 'wasm';
 }
 
 export async function loadModel(
@@ -44,10 +68,23 @@ export async function loadModel(
 
         const startTime = performance.now();
 
+        // Check WebGPU availability
+        const hasWebGPU = await isWebGPUAvailable();
+        const executionProviders = hasWebGPU ? ['webgpu', 'wasm'] : ['wasm'];
+
+        if (hasWebGPU) {
+            addLog('Using WebGPU backend', 'info');
+        } else {
+            addLog('WebGPU not available, using WASM backend', 'info');
+        }
+
         session = await ort.InferenceSession.create(modelUrl, {
-            executionProviders: ['webgpu'],
+            executionProviders,
             graphOptimizationLevel: 'all',
         });
+
+        // Determine which backend was actually used
+        currentBackend = hasWebGPU ? 'webgpu' : 'wasm';
 
         // Set sources based on model type
         loadedSources = MODEL_SOURCES[model];
@@ -56,7 +93,7 @@ export async function loadModel(
         const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
         addLog(`Model loaded in ${loadTime}s`, 'success');
 
-        return { success: true, sources: loadedSources };
+        return { success: true, sources: loadedSources, backend: currentBackend };
     } catch (error) {
         addLog(`Failed to load model: ${(error as Error).message}`, 'error');
         return { success: false, sources: [] };
@@ -77,6 +114,7 @@ export async function unloadModel(): Promise<void> {
         session = null;
     }
     loadedSources = [];
+    currentBackend = null;
 }
 
 export { ort };

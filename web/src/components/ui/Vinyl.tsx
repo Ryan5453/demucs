@@ -38,7 +38,6 @@ export const Vinyl: React.FC<VinylProps> = ({
                         strokeDasharray="603"
                         strokeDashoffset={603 - (603 * progress / 100)}
                         transform="rotate(-90 104 104)"
-                        style={{ filter: 'drop-shadow(0 0 6px rgba(6, 182, 212, 0.5))' }}
                     />
                 </svg>
             )}

@@ -19,32 +19,28 @@ export function About() {
             <div className="bg-slate-800/60 rounded-3xl p-8 card-shadow">
                 <h2 className="text-3xl font-bold text-slate-100 mb-6">About</h2>
 
-                <div className="space-y-4 text-slate-300">
+                <div className="space-y-5 text-slate-300 leading-relaxed">
                     <p>
-                        <strong>demucs.app</strong> is a free, open-source, browser-based audio stem separation tool powered by
-                        Meta AI's Demucs model. It runs entirely in your browser, meaning your audio files never leave your device.
+                        <strong className="text-slate-100">demucs.app</strong> is a free, open-source audio stem separation tool powered by Meta AI's Demucs model.
+                        Everything runs entirely in your browser, so your audio files never leave your device.
                     </p>
 
-                    <h3 className="text-xl font-semibold text-slate-100 mt-6 mb-3">How It Works</h3>
+                    <h3 className="text-xl font-semibold text-slate-100 pt-4">The Technology</h3>
+
                     <p>
-                        Demucs uses deep learning to separate mixed audio into individual stems: drums, bass,
-                        vocals, and other instruments.
-                    </p>
-                    <p className="mt-2">
-                        The 6-source model is experimental, adding guitar and piano stems. Testing shows
-                        reasonable quality for guitar, but the piano source may have noticeable bleeding and artifacts.
+                        Demucs is a machine learning model that separates mixed audio into individual stems.
+                        The standard 4-source model separates audio into drums, bass, vocals, and other instruments.
+                        There's also an experimental 6-source model that adds guitar and piano stems, though piano separation is less reliable.
                     </p>
 
-                    <h3 className="text-xl font-semibold text-slate-100 mt-6 mb-3">Privacy</h3>
                     <p>
-                        All audio processing happens locally in your browser. Your files are never uploaded to
-                        any server. We don't collect any personal data or use analytics.
+                        This app uses Demucs models converted to ONNX format for in-browser inference.
+                        When you select a model, either the WebGPU runtime (~24MB) or WebAssembly runtime (~12MB) is downloaded based on your device's capabilities, along with the model weights.
                     </p>
 
-                    <h3 className="text-xl font-semibold text-slate-100 mt-6 mb-3">Credits</h3>
                     <p>
-                        This project uses the <a href="https://github.com/facebookresearch/demucs" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Demucs</a> model
-                        created by Meta AI Research. The web interface is open source and available on <a href="https://github.com/Ryan5453/demucs-next" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">GitHub</a>.
+                        Audio files are decoded using <a href="https://mediabunny.dev/" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">MediaBunny</a>, which leverages your browser's native capabilities.
+                        For files that can't be decoded natively, the app falls back to <a href="https://ffmpegwasm.netlify.app/" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors">ffmpeg.wasm</a> (~32MB).
                     </p>
                 </div>
             </div>
