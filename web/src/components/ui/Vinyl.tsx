@@ -6,6 +6,7 @@ interface VinylProps {
     progress?: number; // 0 to 100, if provided renders the progress ring
     variant?: 'terracotta' | 'cyan';
     animate?: boolean;
+    artworkUrl?: string | null;
 }
 
 export const Vinyl: React.FC<VinylProps> = ({
@@ -13,7 +14,8 @@ export const Vinyl: React.FC<VinylProps> = ({
     style = {},
     progress,
     variant = 'terracotta',
-    animate = true
+    animate = true,
+    artworkUrl
 }) => {
     const labelGradient = variant === 'terracotta'
         ? 'from-terracotta-400 via-terracotta-500 to-terracotta-700'
@@ -53,13 +55,27 @@ export const Vinyl: React.FC<VinylProps> = ({
                 <div className="absolute inset-[28%] border border-[#2a2a2a] rounded-full" />
                 <div className="absolute inset-[36%] border border-[#333] rounded-full" />
 
-                {/* Center Label */}
-                <div
-                    className={`absolute inset-[38%] bg-gradient-to-br ${labelGradient} rounded-full flex items-center justify-center`}
-                    style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -1px 4px rgba(255,255,255,0.1)' }}
-                >
-                    <div className={`${spindleSize} ${spindleColor} rounded-full shadow-inner`} />
-                </div>
+                {/* Center Label - artwork or gradient fallback */}
+                {artworkUrl ? (
+                    <div
+                        className="absolute inset-[38%] rounded-full flex items-center justify-center overflow-hidden"
+                        style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -1px 4px rgba(255,255,255,0.1)' }}
+                    >
+                        <img
+                            src={artworkUrl}
+                            alt="Album artwork"
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className={`${spindleSize} ${spindleColor} rounded-full shadow-inner relative z-10`} />
+                    </div>
+                ) : (
+                    <div
+                        className={`absolute inset-[38%] bg-gradient-to-br ${labelGradient} rounded-full flex items-center justify-center`}
+                        style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3), inset 0 -1px 4px rgba(255,255,255,0.1)' }}
+                    >
+                        <div className={`${spindleSize} ${spindleColor} rounded-full shadow-inner`} />
+                    </div>
+                )}
             </div>
         </div>
     );

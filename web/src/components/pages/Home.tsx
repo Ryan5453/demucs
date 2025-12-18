@@ -214,6 +214,7 @@ export function Home() {
                         progress={progress}
                         variant="terracotta"
                         className="w-52 h-52 mb-5"
+                        artworkUrl={artworkUrl}
                     />
 
                     <span
