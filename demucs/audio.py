@@ -4,8 +4,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import julius
 import torch
-import torch.nn.functional as F
 from torch import Tensor
 
 from .exceptions import ValidationError
@@ -42,27 +42,7 @@ def convert_audio_channels(wav, channels=2):
 def convert_audio(wav, from_samplerate, to_samplerate, channels) -> Tensor:
     """Convert audio from a given samplerate to a target one and target number of channels."""
     wav = convert_audio_channels(wav, channels)
-
-    # If sample rates are the same, no resampling needed
-    if from_samplerate == to_samplerate:
-        return wav
-
-    # Calculate the resampling ratio
-    ratio = to_samplerate / from_samplerate
-
-    # Resample using PyTorch's interpolate function
-    # wav shape: [..., channels, samples]
-    original_shape = wav.shape
-    wav_reshaped = wav.view(-1, 1, original_shape[-1])  # [batch*channels, 1, samples]
-
-    # Use linear interpolation for audio resampling
-    resampled = F.interpolate(
-        wav_reshaped, scale_factor=ratio, mode="linear", align_corners=False
-    )
-
-    # Reshape back to original format
-    new_length = resampled.shape[-1]
-    return resampled.view(*original_shape[:-1], new_length)
+    return julius.resample_frac(wav, from_samplerate, to_samplerate)
 
 
 def prevent_clip(audio: Tensor, mode: str | None = "rescale") -> Tensor:
