@@ -134,6 +134,7 @@ class Separator:
         if torch.backends.mps.is_available()
         else "cpu",
         only_load: str | None = None,
+        load_all: bool = False,
     ):
         """
         Initialize a Separator with the specified model and device.
@@ -142,6 +143,8 @@ class Separator:
         :param device: Device to use for processing (must be "cpu", "cuda", or "mps")
         :param only_load: If specified, load only the specialized model for this stem
                          (only applicable to bag-of-models like htdemucs_ft)
+        :param load_all: If True, load all layers of a model ensemble into VRAM immediately.
+                         If False (default), layers are swapped between CPU and VRAM as needed.
         :raises ValidationError: If device is not valid or only_load stem doesn't exist
         :raises ModelLoadingError: If model fails to load
         """
@@ -175,6 +178,16 @@ class Separator:
 
         self.audio_channels = self.model.audio_channels
         self.sample_rate = self.model.samplerate
+
+        if self.device in {"cuda", "mps"}:
+            if isinstance(self.model, ModelEnsemble):
+                # By default, only load the first model of a ModelEnsemble
+                if load_all:
+                    self.model.to(self.device)
+                else:
+                    self.model.models[0].to(self.device)
+            else:
+                self.model.to(self.device)
 
     def _to_tensor(self, audio: tuple[Tensor, int] | Path | str | bytes) -> Tensor:
         """
@@ -235,7 +248,7 @@ class Separator:
                 wav, self.sample_rate, self.sample_rate, self.audio_channels
             )
 
-        return wav.to(self.device)
+        return wav
 
     def separate(
         self,

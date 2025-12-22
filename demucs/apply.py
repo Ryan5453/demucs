@@ -244,7 +244,12 @@ def apply_model(
             sub_kwargs.pop("use_only_stem")
             res = apply_model(sub_model, mix, **sub_kwargs)
             out = res
-            sub_model.to(original_model_device)
+
+            # Only move back to original device if it's different from the target device
+            # This allows "pinning" models to the GPU for better performance
+            if original_model_device != device:
+                sub_model.to(original_model_device)
+
             for k, inst_weight in enumerate(model_weights):
                 out[:, k, :, :] *= inst_weight
                 totals[k] += inst_weight

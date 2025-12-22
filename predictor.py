@@ -25,6 +25,7 @@ class Predictor(BasePredictor):
         for model_name in repo.list_models().keys():
             separator = Separator(
                 model=model_name,
+                load_all=True,
             )
             self.separators[model_name] = separator
 
