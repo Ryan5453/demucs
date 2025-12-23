@@ -69,6 +69,13 @@ export function Home() {
     const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
     const waveformRefs = useRef<Record<string, HTMLDivElement>>({});
 
+    // Merge mode state
+    const [mergeMode, setMergeMode] = useState(false);
+    const [selectedStems, setSelectedStems] = useState<Set<string>>(new Set());
+    const [mergedStemUrl, setMergedStemUrl] = useState<string | null>(null);
+    const [mergedWaveform, setMergedWaveform] = useState<number[] | null>(null);
+    const [isMerging, setIsMerging] = useState(false);
+
     const duration = audioBuffer?.duration ?? 0;
     const stems = Object.keys(stemUrls);
     const hasStemsReady = stems.length > 0;
@@ -166,6 +173,114 @@ export function Home() {
                 }, index * 200);
             }
         });
+    };
+
+    const toggleStemSelection = (stemKey: string) => {
+        setSelectedStems(prev => {
+            const next = new Set(prev);
+            if (next.has(stemKey)) {
+                next.delete(stemKey);
+            } else {
+                next.add(stemKey);
+            }
+            return next;
+        });
+    };
+
+    const handleMergeStems = async () => {
+        if (selectedStems.size === 0) return;
+
+        setIsMerging(true);
+
+        try {
+            // Create AudioContext for decoding
+            const audioContext = new AudioContext({ sampleRate: 44100 });
+            const numChannels = 2;
+
+            // Decode all selected stems
+            const decodedBuffers: AudioBuffer[] = [];
+            for (const stemKey of selectedStems) {
+                const url = stemUrls[stemKey];
+                if (url) {
+                    const response = await fetch(url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    decodedBuffers.push(audioBuffer);
+                }
+            }
+
+            if (decodedBuffers.length === 0) {
+                setIsMerging(false);
+                return;
+            }
+
+            // Get the length from first buffer (all should be same length)
+            const numSamples = decodedBuffers[0].length;
+
+            // Sum all stems together
+            const mergedData = new Float32Array(numSamples * numChannels);
+            for (const buffer of decodedBuffers) {
+                const left = buffer.getChannelData(0);
+                const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
+
+                for (let i = 0; i < numSamples; i++) {
+                    mergedData[i * 2] += left[i];
+                    mergedData[i * 2 + 1] += right[i];
+                }
+            }
+
+            // Create WAV blob using the same utility
+            const { createWavBlob } = await import('../../utils/wav-utils');
+            const blob = createWavBlob(mergedData, numChannels, 44100);
+            const url = URL.createObjectURL(blob);
+
+            // Compute waveform for visualization
+            const numBars = 60;
+            const samplesPerBar = Math.floor(mergedData.length / numBars);
+            const bars: number[] = [];
+
+            for (let i = 0; i < numBars; i++) {
+                const start = i * samplesPerBar;
+                const end = Math.min(start + samplesPerBar, mergedData.length);
+
+                let sumSquares = 0;
+                for (let j = start; j < end; j++) {
+                    sumSquares += mergedData[j] * mergedData[j];
+                }
+                const rms = Math.sqrt(sumSquares / (end - start));
+                const barHeight = Math.min(100, Math.max(15, rms * 300));
+                bars.push(barHeight);
+            }
+
+            // Clean up old merged URL if exists
+            if (mergedStemUrl) {
+                URL.revokeObjectURL(mergedStemUrl);
+            }
+
+            setMergedStemUrl(url);
+            setMergedWaveform(bars);
+            setMergeMode(false);
+            setSelectedStems(new Set());
+
+            audioContext.close();
+        } catch (error) {
+            console.error('Error merging stems:', error);
+        }
+
+        setIsMerging(false);
+    };
+
+    const handleBackToStems = () => {
+        if (mergedStemUrl) {
+            URL.revokeObjectURL(mergedStemUrl);
+        }
+        setMergedStemUrl(null);
+        setMergedWaveform(null);
+    };
+
+    const handleCancelMerge = () => {
+        setMergeMode(false);
+        setSelectedStems(new Set());
     };
 
     return (
@@ -295,17 +410,35 @@ export function Home() {
                                     <div className="p-5">
                                         {/* Top row: Icon, Name, Controls */}
                                         <div className="flex items-center gap-4">
-                                            {/* Icon */}
-                                            <div
-                                                className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                                                style={{
-                                                    background: `linear-gradient(145deg, ${stemStyle.btnBg}, ${stemStyle.accent})`
-                                                }}
-                                            >
-                                                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                                                </svg>
-                                            </div>
+                                            {/* Merge mode checkbox */}
+                                            {mergeMode && (
+                                                <button
+                                                    onClick={() => toggleStemSelection(stemKey)}
+                                                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center flex-shrink-0 border-2 transition-all ${selectedStems.has(stemKey)
+                                                        ? 'bg-cyan-500 border-cyan-400'
+                                                        : 'bg-slate-700/50 border-slate-500 hover:border-slate-400'
+                                                        }`}
+                                                >
+                                                    {selectedStems.has(stemKey) && (
+                                                        <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            )}
+                                            {/* Icon - hidden in merge mode */}
+                                            {!mergeMode && (
+                                                <div
+                                                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                                                    style={{
+                                                        background: `linear-gradient(145deg, ${stemStyle.btnBg}, ${stemStyle.accent})`
+                                                    }}
+                                                >
+                                                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                                                    </svg>
+                                                </div>
+                                            )}
 
                                             {/* Name & Duration */}
                                             <div className="w-20 flex-shrink-0">
@@ -499,32 +632,194 @@ export function Home() {
                 </div>
             )}
 
-            {/* Download All */}
-            {hasStemsReady && (
+            {/* Action Buttons */}
+            {hasStemsReady && !mergedStemUrl && (
                 <div className="flex flex-wrap items-center justify-center gap-4 mb-12">
-                    <button
-                        onClick={handleDownloadAll}
-                        className="px-6 py-2.5 bg-gradient-to-b from-terracotta-400 to-terracotta-600 hover:from-terracotta-400 hover:to-terracotta-500 text-white font-semibold rounded-xl shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5"
-                        style={{ boxShadow: '0 4px 12px rgba(152, 80, 48, 0.3)' }}
-                    >
-                        <span className="flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                            </svg>
-                            Download All
-                        </span>
-                    </button>
-                    <button
-                        onClick={resetForNewTrack}
-                        className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl transition-colors"
-                    >
-                        <span className="flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                <path d="M12 4v16m8-8H4" />
-                            </svg>
-                            Separate Another
-                        </span>
-                    </button>
+                    {!mergeMode ? (
+                        <>
+                            <button
+                                onClick={handleDownloadAll}
+                                className="px-6 py-2.5 bg-gradient-to-b from-terracotta-400 to-terracotta-600 hover:from-terracotta-400 hover:to-terracotta-500 text-white font-semibold rounded-xl shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5"
+                                style={{ boxShadow: '0 4px 12px rgba(152, 80, 48, 0.3)' }}
+                            >
+                                <span className="flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                                    </svg>
+                                    Download All
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setMergeMode(true)}
+                                className="px-5 py-2.5 bg-gradient-to-b from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-semibold rounded-xl shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" />
+                                    </svg>
+                                    Merge Stems
+                                </span>
+                            </button>
+                            <button
+                                onClick={resetForNewTrack}
+                                className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl transition-colors"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Separate Another
+                                </span>
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={handleMergeStems}
+                                disabled={selectedStems.size === 0 || isMerging}
+                                className="px-6 py-2.5 bg-gradient-to-b from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 disabled:from-slate-600 disabled:to-slate-700 text-white font-semibold rounded-xl shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <span className="flex items-center gap-2">
+                                    {isMerging ? (
+                                        <>
+                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            </svg>
+                                            Merging...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                                <path d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Merge Selected ({selectedStems.size})
+                                        </>
+                                    )}
+                                </span>
+                            </button>
+                            <button
+                                onClick={handleCancelMerge}
+                                className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Merged Stem Display */}
+            {mergedStemUrl && mergedWaveform && (
+                <div className="mb-8">
+                    <div className="flex items-center justify-center gap-4 mb-5">
+                        <div className="h-px flex-1 max-w-[80px] bg-gradient-to-r from-transparent to-cyan-600" />
+                        <h2 className="text-cyan-400 text-xs font-bold tracking-[0.25em] uppercase">
+                            Merged
+                        </h2>
+                        <div className="h-px flex-1 max-w-[80px] bg-gradient-to-l from-transparent to-cyan-600" />
+                    </div>
+
+                    <div className="stem-card rounded-3xl card-shadow" style={{ backgroundColor: '#1F2D2D' }}>
+                        <audio
+                            ref={(el) => { if (el) audioRefs.current['merged'] = el; }}
+                            src={mergedStemUrl}
+                            onEnded={() => setPlayingStems(prev => ({ ...prev, merged: false }))}
+                            onTimeUpdate={(e) => {
+                                const audio = e.currentTarget;
+                                if (audio) {
+                                    setCurrentTimes(prev => ({ ...prev, merged: audio.currentTime }));
+                                }
+                            }}
+                        />
+
+                        <div className="p-5">
+                            <div className="flex items-center gap-4">
+                                {/* Icon */}
+                                <div
+                                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                                    style={{ background: 'linear-gradient(145deg, #06B6D4, #22D3EE)' }}
+                                >
+                                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                                    </svg>
+                                </div>
+
+                                {/* Name & Duration */}
+                                <div className="w-20 flex-shrink-0">
+                                    <p className="text-base sm:text-lg font-bold text-slate-100 truncate">Merged</p>
+                                    <p className="text-slate-400 text-xs font-medium">{formatTime(duration)}</p>
+                                </div>
+
+                                {/* Waveform */}
+                                <div className="hidden md:flex flex-1 relative items-center justify-center gap-[3px] h-10 cursor-pointer overflow-visible">
+                                    {duration > 0 && (
+                                        <div
+                                            className="absolute top-0 bottom-0 w-0.5 bg-slate-100 z-10 pointer-events-none"
+                                            style={{ left: `${((currentTimes['merged'] || 0) / duration) * 100}%` }}
+                                        />
+                                    )}
+                                    {mergedWaveform.map((height, i) => (
+                                        <div
+                                            key={i}
+                                            className="waveform-bar flex-1 rounded-full"
+                                            style={{
+                                                height: `${height}%`,
+                                                backgroundColor: '#22D3EE',
+                                                opacity: 0.5 + (height / 200)
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Play Button */}
+                                <button
+                                    onClick={() => togglePlay('merged')}
+                                    className="btn-play w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                                    style={{ background: 'linear-gradient(145deg, #06B6D4, #22D3EE)' }}
+                                >
+                                    {playingStems['merged'] ? (
+                                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white ml-0.5 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M8 5v14l11-7z" />
+                                        </svg>
+                                    )}
+                                </button>
+
+                                {/* Download Button */}
+                                <button
+                                    onClick={() => {
+                                        const a = document.createElement('a');
+                                        a.href = mergedStemUrl;
+                                        a.download = 'merged.wav';
+                                        a.click();
+                                    }}
+                                    className="btn-download w-10 h-10 sm:w-11 sm:h-11 bg-slate-700/80 hover:bg-slate-600 rounded-2xl flex items-center justify-center flex-shrink-0 border border-slate-600 shadow-sm"
+                                >
+                                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-200" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
+                        <button
+                            onClick={handleBackToStems}
+                            className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl transition-colors"
+                        >
+                            <span className="flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                    <path d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                                Back to Stems
+                            </span>
+                        </button>
+                    </div>
                 </div>
             )}
 
